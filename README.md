@@ -6,11 +6,11 @@ workspace.
 
 ## Features
 
-Installs
+- Sets up syntax highlighting for Rock files with non-standard extensions (e.g. .autobuild, .osdeps and .orogen)
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+No additional requirements so far.
 
 ## Extension Settings
 
