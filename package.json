@@ -10,17 +10,18 @@
     "categories": [
         "Other"
     ],
-    "activationEvents": [
-        "onCommand:extension.sayHello"
-    ],
-    "main": "./out/extension",
     "contributes": {
         "commands": [
         ],
         "languages": [
             {
                 "id": "ruby",
-                "extensions": [".orogen"]
+                "extensions": [".orogen", ".autobuild"]
+            },
+            {
+                "id": "yaml",
+                "extensions": [".osdeps"],
+                "filenames": ["manifest"]
             }
         ]
     },
