@@ -92,6 +92,17 @@ export class Provider implements vscode.TaskProvider
             ['--checkout-only', ...args]);
     }
 
+    buildTaskName(folder): string
+    {
+        let ws = autoproj.Workspace.fromDir(folder);
+
+        if (!ws)
+            return null;
+
+        let relative = path.relative(ws.root, folder);
+        return `autoproj: ${ws.name}: Build ${relative}`;
+    }
+
     provideTasks(token)
     {
         let result = [];
