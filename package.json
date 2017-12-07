@@ -33,16 +33,13 @@
         "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
     "dependencies": {
-        "js-yaml": "latest",
-        "voucher": "latest",
-        "xregexp": "latest",
-        "glob": "latest",
-        "fs-temp": "latest",
-        "should": "latest"
+        "js-yaml": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",
         "vscode": "^1.1.6",
+        "fs-temp": "latest",
+        "should": "latest",
         "@types/js-yaml": "latest",
         "@types/node": "^7.0.43",
         "@types/mocha": "^2.2.42",
