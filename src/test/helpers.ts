@@ -15,9 +15,15 @@ export function init(): string {
 }
 
 export function mkdir(...path): string {
-    let joinedPath = Path.join(root, ...path);
-    FS.mkdirSync(joinedPath);
-    createdFS.push([joinedPath, 'dir']);
+    let joinedPath = root;
+    path.forEach((element) => {
+        joinedPath = Path.join(joinedPath, element);
+        if (!FS.existsSync(joinedPath))
+        {
+            FS.mkdirSync(joinedPath);
+            createdFS.push([joinedPath, 'dir']);
+        }
+    })
     return joinedPath;
 }
 export function mkfile(data: string, ...path): string {
@@ -29,6 +35,7 @@ export function mkfile(data: string, ...path): string {
 export function createInstallationManifest(data: any, ...workspacePath): string {
     let joinedPath = Path.join(root, ...workspacePath);
     joinedPath = Autoproj.installationManifestPath(joinedPath);
+    mkdir(...workspacePath, '.autoproj')
     FS.writeFileSync(joinedPath, YAML.safeDump(data));
     createdFS.push([joinedPath, 'file']);
     return joinedPath;

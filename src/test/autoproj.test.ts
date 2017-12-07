@@ -114,6 +114,12 @@ describe("Autoproj helpers tests", function () {
                 helpers.createInstallationManifest([]);
                 assert(autoproj.Workspace.fromDir(root) instanceof autoproj.Workspace);
             })
+            it("sets the workspace name using the folder's basename", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let ws = autoproj.Workspace.fromDir(root);
+                assert.equal(path.basename(root), ws.name);
+            })
         })
         describe("info", function() {
             it("returns a promise that gives access to the info", function() {
@@ -147,6 +153,86 @@ describe("Autoproj helpers tests", function () {
                 let reloaded = workspace.reload();
                 assert.notEqual(reloaded, initial);
                 assert.equal(reloaded, workspace.info());
+            })
+        })
+    })
+    describe("Workspaces", function () {
+        let workspaces;
+
+        beforeEach(function () {
+            this.workspaces = new autoproj.Workspaces();
+        })
+
+        describe("add", function() {
+            it ("leaves the workspace name alone if no devFolder has been given", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let ws = autoproj.Workspace.fromDir(root);
+                ws.name = 'test';
+                this.workspaces.add(ws);
+                assert.equal('test', ws.name);
+            })
+            it ("sets the workspace name if devFolder is set", function() {
+                this.workspaces.devFolder = root
+                let dir = helpers.mkdir('a');
+                helpers.createInstallationManifest([], 'a')
+                let ws = autoproj.Workspace.fromDir(dir);
+                ws.name = 'test';
+                this.workspaces.add(ws);
+                assert.equal('a', ws.name);
+            })
+        })
+
+        describe("addFolder", function () {
+            it("does not add a folder that is not within an Autoproj workspace", function() {
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = this.workspaces.addFolder(dir);
+                assert(!workspace);
+            })
+            it("adds folders that are within a workspace", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = this.workspaces.addFolder(dir);
+                assert.equal(workspace.root, root);
+                assert.equal(1, this.workspaces.useCount(workspace));
+            })
+            it("adds the same workspace only once", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let a = helpers.mkdir('a');
+                let wsA = this.workspaces.addFolder(a)
+                let b = helpers.mkdir('a', 'b');
+                let wsB = this.workspaces.addFolder(b)
+                assert.equal(wsA, wsB);
+                assert.equal(2, this.workspaces.useCount(wsB));
+            })
+        })
+
+        describe("deleteFolder", function () {
+            it("does nothing for a folder that is not registered", function() {
+                let dir = helpers.mkdir('a', 'b');
+                assert(!this.workspaces.deleteFolder(dir));
+            })
+            it("removes a registered folder", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = this.workspaces.addFolder(dir);
+                assert(this.workspaces.deleteFolder(dir));
+                assert.equal(0, this.workspaces.useCount(workspace));
+            })
+            it("keeps a workspace until all the corresponding folders have been removed", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let a = helpers.mkdir('a');
+                let ws = this.workspaces.addFolder(a)
+                let b = helpers.mkdir('a', 'b');
+                this.workspaces.addFolder(b)
+                this.workspaces.deleteFolder(b)
+                assert.equal(1, this.workspaces.useCount(ws));
+                this.workspaces.deleteFolder(a)
+                assert.equal(0, this.workspaces.useCount(ws));
             })
         })
     })
