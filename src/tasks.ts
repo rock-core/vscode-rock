@@ -6,7 +6,6 @@ import * as path from 'path';
 export class Provider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;
-    folderToWorkspace : Map<string, autoproj.Workspace>;
 
     private runAutoproj(ws, ...args) {
         return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
@@ -15,7 +14,6 @@ export class Provider implements vscode.TaskProvider
     constructor()
     {
         this.workspaces = new autoproj.Workspaces();
-        this.folderToWorkspace = new Map();
         vscode.workspace.workspaceFolders.forEach((folder) => {
             this.workspaces.addFolder(folder.uri.fsPath);
         })
