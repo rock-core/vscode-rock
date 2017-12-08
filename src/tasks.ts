@@ -14,9 +14,11 @@ export class Provider implements vscode.TaskProvider
     constructor()
     {
         this.workspaces = new autoproj.Workspaces();
+        if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
             this.workspaces.addFolder(folder.uri.fsPath);
         })
+        }
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
                 this.workspaces.addFolder(folder.uri.fsPath);
