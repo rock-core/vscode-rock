@@ -7,6 +7,10 @@
     "engines": {
         "vscode": "^1.18.0"
     },
+    "activationEvents": [
+        "*"
+    ],
+    "main": "./out/extension",
     "categories": [
         "Other"
     ],
