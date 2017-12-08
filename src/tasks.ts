@@ -63,7 +63,7 @@ export class Provider implements vscode.TaskProvider
 
     private createCheckoutTask(name, ws, defs = {}, args = []) {
         return this.createUpdateTask(name, ws,
-            defs,
+            { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
     }
 
@@ -75,7 +75,7 @@ export class Provider implements vscode.TaskProvider
 
     private createPackageForceBuildTask(name, ws, folder, defs = {}, args = []) {
         return this.createPackageBuildTask(name, ws, folder,
-            defs,
+            { mode: 'force-build', ...defs },
             ['--force', '--deps=f', '--no-confirm', ...args]);
     }
 
@@ -87,7 +87,7 @@ export class Provider implements vscode.TaskProvider
 
     private createPackageCheckoutTask(name, ws, folder, defs = {}, args = []) {
         return this.createPackageUpdateTask(name, ws,
-            defs,
+            { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
     }
 
