@@ -55,7 +55,7 @@ export class Provider implements vscode.TaskProvider
 
     private createUpdateConfigTask(name, ws, defs = {}, args = []) {
         return this.createUpdateTask(name, ws,
-            defs,
+            { mode: 'update-config', ...defs },
             [ '--config', ...args]);
     }
 
