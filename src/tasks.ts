@@ -38,7 +38,7 @@ export class Provider implements vscode.TaskProvider
     }
 
     private createOsdepsTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, vscode.TaskGroup.Build, ws,
+        return this.createTask(name, null, ws,
             { mode: 'osdeps', ...defs },
             ['osdeps', '--color', ...args]);
     }
@@ -50,7 +50,7 @@ export class Provider implements vscode.TaskProvider
     }
 
     private createUpdateTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, vscode.TaskGroup.Build, ws,
+        return this.createTask(name, null, ws,
             { mode: 'update', ...defs },
             ['update', '--progress=f', '-k', '--color', ...args]);
     }
