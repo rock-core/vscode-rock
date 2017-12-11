@@ -15,6 +15,21 @@
         "Other"
     ],
     "contributes": {
+        "problemMatchers": [
+            {
+                "name": "autoproj-build",
+                "owner": "rock",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(.*):\\s+(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 3,
+                    "line": 4,
+                    "column": 5,
+                    "severity": 6,
+                    "message": 7
+                }
+            }
+        ],
         "commands": [
         ],
         "languages": [

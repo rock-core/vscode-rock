@@ -29,28 +29,29 @@ export class Provider implements vscode.TaskProvider
         })
     }
 
-    private createTask(name, group, ws, defs = {}, args = []) {
+    private createTask(name, group, problemMatchers, ws, defs = {}, args = []) {
         let definition = { type: 'autoproj', workspace: ws.root, ...defs }
         let exec = this.runAutoproj(ws, ...args);
         let task = new vscode.Task(definition, name, 'autoproj', exec, []);
         task.group = group;
+        task.problemMatchers = problemMatchers;
         return task;
     }
 
     private createOsdepsTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, null, ws,
+        return this.createTask(name, null, null, ws,
             { mode: 'osdeps', ...defs },
             ['osdeps', '--color', ...args]);
     }
 
     private createBuildTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, vscode.TaskGroup.Build, ws,
-            { mode: 'build', ...defs },
+        return this.createTask(name, vscode.TaskGroup.Build, ['$autoproj-build'],
+            ws, { mode: 'build', ...defs },
             ['build', '--tool', ...args]);
     }
 
     private createUpdateTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, null, ws,
+        return this.createTask(name, null, null, ws,
             { mode: 'update', ...defs },
             ['update', '--progress=f', '-k', '--color', ...args]);
     }
