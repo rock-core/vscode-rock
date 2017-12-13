@@ -57,6 +57,11 @@ export class StatusBar implements vscode.Disposable {
     public reloadVisibility() {
         const hide = (i: vscode.StatusBarItem) => i.hide();
         const show = (i: vscode.StatusBarItem) => i.show();
+
+        let folders = this._context.vscode.workspaceFolders;
+        if (!folders || folders.length == 0)
+            this._visible = false;
+
         Object.keys(this._buttons).forEach(key => {
             let item = this._buttons[key];
             setVisible(item, this.visible && !!item.text);

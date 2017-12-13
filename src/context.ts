@@ -19,7 +19,8 @@ export class Context
 
     public get selectedPackage(): { name:string, root:string }
     {
-        if (!this._vscode.workspaceFolders) {
+        let folders = this._vscode.workspaceFolders;
+        if (!folders || folders.length == 0) {
             return null;
         }
     
