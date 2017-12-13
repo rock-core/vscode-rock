@@ -15,7 +15,48 @@
         "Other"
     ],
     "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Rock integration with Visual Studio Code",
+            "properties": {
+                "rock.packageSelectionMode": {
+                    "type": "string",
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ],
+                    "default": "auto",
+                    "description": "How current package is determined. Supported modes are 'auto' or 'manual'",
+                    "scope": "window"
+                }
+            }
+        },
+        "problemMatchers": [
+            {
+                "name": "autoproj-build",
+                "owner": "rock",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(.*):\\s+(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 3,
+                    "line": 4,
+                    "column": 5,
+                    "severity": 6,
+                    "message": 7
+                }
+            }
+        ],
         "commands": [
+            {
+                "title": "Select package",
+                "category": "rock",
+                "command": "rock.selectPackage"
+            },
+            {
+                "title": "Build package",
+                "category": "rock",
+                "command": "rock.buildPackage"
+            }
         ],
         "languages": [
             {
@@ -44,6 +85,7 @@
         "vscode": "^1.1.6",
         "fs-temp": "latest",
         "should": "latest",
+        "typemoq": "latest",
         "@types/js-yaml": "latest",
         "@types/node": "^7.0.43",
         "@types/mocha": "^2.2.42",
