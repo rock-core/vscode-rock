@@ -11,22 +11,9 @@ export class Provider implements vscode.TaskProvider
         return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
     }
 
-    constructor()
+    constructor(workspaces: autoproj.Workspaces)
     {
-        this.workspaces = new autoproj.Workspaces();
-        if (vscode.workspace.workspaceFolders != undefined) {
-        vscode.workspace.workspaceFolders.forEach((folder) => {
-            this.workspaces.addFolder(folder.uri.fsPath);
-        })
-        }
-        vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-            event.added.forEach((folder) => {
-                this.workspaces.addFolder(folder.uri.fsPath);
-            })
-            event.removed.forEach((folder) => {
-                this.workspaces.deleteFolder(folder.uri.fsPath);
-            })
-        })
+        this.workspaces = workspaces;
     }
 
     private createTask(name, group, problemMatchers, ws, defs = {}, args = []) {

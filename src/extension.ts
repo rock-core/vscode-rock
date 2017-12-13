@@ -58,8 +58,8 @@ function setupCommands()
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
-    taskProvider = new tasks.Provider;
     workspaces = new autoproj.Workspaces;
+    taskProvider = new tasks.Provider(workspaces);
     wrapper = new wrappers.VSCode;
     rockContext = new context.Context(extensionContext, wrapper, workspaces);
     statusBar = new status.StatusBar(rockContext);
