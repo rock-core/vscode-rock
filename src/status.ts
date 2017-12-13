@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as context from './context';
+import * as tasks from './tasks';
 
 interface Hideable {
     show(): void;
@@ -16,6 +17,7 @@ function setVisible<T extends Hideable>(i: T, v: boolean) {
 
 export class StatusBar implements vscode.Disposable {
     private readonly _context: context.Context;
+    private readonly _taskProvider: tasks.Provider;
     private readonly _selectPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 4.5);
 
@@ -31,10 +33,11 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    constructor(context: context.Context) {
+    constructor(context: context.Context, taskProvider: tasks.Provider) {
         this._selectPackageButton.text = null;
         this._buildPackageButton.text = null;
         this._context = context;
+        this._taskProvider = taskProvider;
         this.reloadVisibility();
 
         let events: { (listener: (e: any) => any): vscode.Disposable; } [] = [
@@ -90,7 +93,7 @@ export class StatusBar implements vscode.Disposable {
         let tooltip: string;
         let command: string;
 
-        if (!selectedPackage) {
+        if (!selectedPackage || !this._taskProvider.buildTask(selectedPackage.root)) {
             text = null;
         } else {
             text += 'Build';

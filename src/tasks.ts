@@ -7,6 +7,14 @@ export class Provider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;
 
+    private _buildTasks: Map<string, vscode.Task>;
+    private _forceBuildTasks: Map<string, vscode.Task>;
+    private _updateTasks: Map<string, vscode.Task>;
+    private _checkoutTasks: Map<string, vscode.Task>;
+    private _osdepsTasks: Map<string, vscode.Task>;
+    private _updateConfigTasks: Map<string, vscode.Task>;
+    private _allTasks: vscode.Task[];
+
     private runAutoproj(ws, ...args) {
         return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
     }
@@ -14,6 +22,7 @@ export class Provider implements vscode.TaskProvider
     constructor(workspaces: autoproj.Workspaces)
     {
         this.workspaces = workspaces;
+        this.reloadTasks();
     }
 
     private createTask(name, group, problemMatchers, ws, defs = {}, args = []) {
@@ -79,36 +88,58 @@ export class Provider implements vscode.TaskProvider
             ['--checkout-only', ...args]);
     }
 
-    buildTaskName(folder): string
+    public buildTask(path: string): vscode.Task
     {
-        let ws = autoproj.Workspace.fromDir(folder);
-
-        if (!ws)
-            return null;
-
-        let relative = path.relative(ws.root, folder);
-        return `autoproj: ${ws.name}: Build ${relative}`;
+        return this._buildTasks.get(path);
     }
 
-    provideTasks(token)
+    private addTask(root: string, task: vscode.Task,
+        cache: Map<string, vscode.Task>)
     {
-        let result = [];
+        this._allTasks.push(task);
+        cache.set(root, task);
+    }
+
+    reloadTasks()
+    {
+        this._allTasks = [];
+
+        this._buildTasks = new Map<string, vscode.Task>();
+        this._forceBuildTasks = new Map<string, vscode.Task>();
+        this._updateTasks = new Map<string, vscode.Task>();
+        this._checkoutTasks = new Map<string, vscode.Task>();
+        this._osdepsTasks = new Map<string, vscode.Task>();
+        this._updateConfigTasks = new Map<string, vscode.Task>();
+
         this.workspaces.forEachWorkspace((ws) => {
-            result.push(this.createBuildTask(`${ws.name}: Build`, ws));
-            result.push(this.createCheckoutTask(`${ws.name}: Checkout`, ws));
-            result.push(this.createOsdepsTask(`${ws.name}: Install OS Dependencies`, ws));
-            result.push(this.createUpdateConfigTask(`${ws.name}: Update Configuration`, ws));
-            result.push(this.createUpdateTask(`${ws.name}: Update`, ws));
+            this.addTask(ws.root, this.createBuildTask(`${ws.name}: Build`, ws),
+                this._buildTasks);
+            this.addTask(ws.root, this.createCheckoutTask(`${ws.name}: Checkout`, ws),
+                this._checkoutTasks);
+            this.addTask(ws.root, this.createOsdepsTask(`${ws.name}: Install OS Dependencies`, ws),
+                this._osdepsTasks);
+            this.addTask(ws.root, this.createUpdateConfigTask(`${ws.name}: Update Configuration`, ws),
+                this._updateConfigTasks);
+            this.addTask(ws.root, this.createUpdateTask(`${ws.name}: Update`, ws),
+                this._updateTasks);
         })
         this.workspaces.forEachFolder((ws, folder) => {
             if (folder == ws.root) { return; }
             let relative = path.relative(ws.root, folder);
-            result.push(this.createPackageBuildTask(`${ws.name}: Build ${relative}`, ws, folder));
-            result.push(this.createPackageCheckoutTask(`${ws.name}: Checkout ${relative}`, ws, folder));
-            result.push(this.createPackageForceBuildTask(`${ws.name}: Force Build ${relative}`, ws, folder));
-            result.push(this.createPackageUpdateTask(`${ws.name}: Update ${relative}`, ws, folder));
+            this.addTask(folder, this.createPackageBuildTask(`${ws.name}: Build ${relative}`, ws, folder),
+                this._buildTasks);
+            this.addTask(folder, this.createPackageCheckoutTask(`${ws.name}: Checkout ${relative}`, ws, folder),
+                this._checkoutTasks);
+            this.addTask(folder, this.createPackageForceBuildTask(`${ws.name}: Force Build ${relative}`, ws, folder),
+                this._forceBuildTasks);
+            this.addTask(folder, this.createPackageUpdateTask(`${ws.name}: Update ${relative}`, ws, folder),
+                this._updateTasks);
         })
-        return result;
+    }
+
+    provideTasks(token)
+    {
+        return this._allTasks;
     }
 
     resolveTask(task, token)

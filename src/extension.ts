@@ -20,7 +20,7 @@ function initilizeWorkspace()
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
             workspaces.addFolder(folder.uri.fsPath);
-        })
+        });
     }
 }
 
@@ -34,6 +34,7 @@ function setupEvents()
             event.removed.forEach((folder) => {
                 workspaces.deleteFolder(folder.uri.fsPath);
             });
+            taskProvider.reloadTasks();
             statusBar.update();
         })
     );
@@ -49,9 +50,9 @@ function setupCommands()
 
     rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
         'rock.buildPackage', async _ => {
-            let taskName = taskProvider.buildTaskName(rockContext.selectedPackage.root);
+            let task = taskProvider.buildTask(rockContext.selectedPackage.root);
             vscode.commands.executeCommand("workbench.action.tasks.runTask",
-                taskName);
+                task.source + ": " + task.name);
         }));
 }
 
@@ -62,12 +63,13 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     taskProvider = new tasks.Provider(workspaces);
     wrapper = new wrappers.VSCode;
     rockContext = new context.Context(extensionContext, wrapper, workspaces);
-    statusBar = new status.StatusBar(rockContext);
+    statusBar = new status.StatusBar(rockContext, taskProvider);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
 
     initilizeWorkspace();
+    taskProvider.reloadTasks();
     setupEvents();
     setupCommands();
 
