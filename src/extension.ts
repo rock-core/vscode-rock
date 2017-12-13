@@ -50,9 +50,7 @@ function setupCommands()
 
     rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
         'rock.buildPackage', async _ => {
-            let task = taskProvider.buildTask(rockContext.selectedPackage.root);
-            vscode.commands.executeCommand("workbench.action.tasks.runTask",
-                task.source + ": " + task.name);
+            utils.buildSelectedPackage(rockContext, taskProvider);
         }));
 }
 

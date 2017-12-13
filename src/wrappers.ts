@@ -31,4 +31,9 @@ export class VSCode {
     {
         return vscode.window.showQuickPick<T>(items, options);
     }
+
+    public executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>
+    {
+        return vscode.commands.executeCommand(command, ...rest);
+    }
 }
