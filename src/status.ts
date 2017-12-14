@@ -24,8 +24,12 @@ export class StatusBar implements vscode.Disposable {
     private readonly _buildPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 3.5);
 
+    private readonly _packageTypeButton =
+        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 2.5);
+
     private readonly _buttons = { selectPackage: this._selectPackageButton,
-                                  buildPackage: this._buildPackageButton };
+                                  buildPackage:  this._buildPackageButton,
+                                  packageType:   this._packageTypeButton };
      
     public dispose() {
         Object.keys(this._buttons).forEach(key => {
@@ -71,6 +75,7 @@ export class StatusBar implements vscode.Disposable {
     public update() {
         this.updateSelectedPackage();
         this.updateBuildButton();
+        this.updatePackageType();
         this.reloadVisibility();
     }
 
@@ -106,6 +111,19 @@ export class StatusBar implements vscode.Disposable {
         }
         command = 'rock.buildPackage';
         this.updateButton(this._buildPackageButton, text, tooltip, command);
+    }
+
+    public updatePackageType() {
+        const selectedPackageType = this._context.selectedPackageType;
+        let text: string = "$(file-code)  ";
+        let tooltip: string;
+        let command: string;
+
+        text += selectedPackageType.label;
+        tooltip = "Change package type";
+
+        command = 'rock.selectPackageType';
+        this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
 
     public updateButton(item: vscode.StatusBarItem, text: string,

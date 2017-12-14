@@ -42,3 +42,25 @@ export function buildSelectedPackage(context: context.Context,
     context.vscode.executeCommand("workbench.action.tasks.runTask",
         task.source + ": " + task.name);
 }
+
+export async function choosePackageType(rockContext: context.Context) {
+    assert_workspace_not_empty(rockContext.workspaces);
+    if (!rockContext.selectedPackage)
+        throw new Error("Current selected package is invalid");
+
+    let choices = new Array<{ label: string,
+                              description: string,
+                              type: context.PackageType }>();
+
+    context.PackageTypeList.allTypes.forEach((type) => {
+        choices.push({ label: type.label,
+                       description: '',
+                       type: type});
+    });
+
+    const chosen = await rockContext.vscode.showQuickPick(choices);
+    if (chosen) {
+        rockContext.selectedPackageType = chosen.type;
+    }
+    return chosen;
+}

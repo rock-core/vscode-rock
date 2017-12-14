@@ -3,11 +3,62 @@ import * as wrappers from './wrappers';
 import { basename } from 'path';
 import * as autoproj from './autoproj';
 
+export class PackageTypeList
+{
+    static CXX = { id: 0, name: 'cxx', label: 'C/C++' };
+    static RUBY = { id: 1, name: 'ruby', label: 'Ruby' };
+    static OROGEN = { id: 2, name: 'orogen', label: 'oroGen' };
+    static OTHER = { id: 3, name: 'other', label: 'Other' };
+
+    private constructor() { }
+    static get allTypes()
+    {
+        return [this.CXX, this.RUBY, this.OROGEN, this.OTHER];
+    }
+}
+
+export class PackageType
+{
+    readonly id: number;
+    readonly name: string;
+    readonly label: string;
+
+    private constructor(type: { id: number, name: string, label: string })
+    {
+        this.id = type.id;
+        this.name = type.name;
+        this.label = type.label;
+    }
+
+    static fromName(name: string) {
+        PackageTypeList.allTypes.forEach(type => {
+            if (type.name == name)
+                return new PackageType(type);
+        });
+        return new PackageType(PackageTypeList.OTHER);
+    }
+    static fromId(id: number) {
+        PackageTypeList.allTypes.forEach(type => {
+            if (type.id == id)
+                return new PackageType(type);
+        });
+        return new PackageType(PackageTypeList.OTHER);
+    }
+    static fromType(type: { id: number, name: string, label: string }) {
+        PackageTypeList.allTypes.forEach(_type => {
+            if (type == _type)
+                return new PackageType(type);
+        });
+        return new PackageType(PackageTypeList.OTHER);
+    }
+}
+
 export class Context
 {
     private readonly _context: vscode.ExtensionContext;
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
+    private _selectedPackageType: PackageType;
 
     public constructor(context: vscode.ExtensionContext,
                        wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces)
@@ -15,6 +66,7 @@ export class Context
         this._context = context;
         this._vscode = wrapper;
         this._workspaces = workspaces;
+        this._selectedPackageType = PackageType.fromType(PackageTypeList.OTHER);
     }
 
     public get selectedPackage(): { name:string, root:string }
@@ -82,6 +134,18 @@ export class Context
     public get extensionContext(): vscode.ExtensionContext
     {
         return this._context;
+    }
+
+    public set selectedPackageType(type: PackageType)
+    {
+        this._selectedPackageType = type;
+    }
+
+    public get selectedPackageType(): PackageType
+    {
+        if (!this.selectedPackage)
+            return PackageType.fromType(PackageTypeList.OTHER);
+        return this._selectedPackageType;
     }
 
     public get vscode(): wrappers.VSCode

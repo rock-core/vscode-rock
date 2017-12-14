@@ -53,6 +53,11 @@
                 "command": "rock.selectPackage"
             },
             {
+                "title": "Select package type",
+                "category": "rock",
+                "command": "rock.selectPackageType"
+            },
+            {
                 "title": "Build package",
                 "category": "rock",
                 "command": "rock.buildPackage"

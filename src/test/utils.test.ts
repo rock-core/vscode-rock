@@ -122,8 +122,40 @@ describe("Utility functions", function () {
                 mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName), TypeMoq.Times.once());
             });
         })
-    });
+        describe("choosePackageType", function () {
+            let mockContext: TypeMoq.IMock<context.Context>;
+            beforeEach(function () {
+                mockContext = TypeMoq.Mock.ofType<context.Context>();
+                mockContext.setup(x => x.workspaces).returns(() => workspaces);
+            });
+            it("throws if selected package is invalid", async function () {
+                mockContext.setup(x => x.selectedPackage).returns(() => null);
+                await assertThrowsAsync(async () => {
+                    await utils.choosePackageType(mockContext.object);
+                });
+                mockWrapper.verify(x => x.showQuickPick(TypeMoq.It.isAny()), TypeMoq.Times.never());
+            });
+            it("shows a quick picker with all packages", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
 
+                let expectedChoices = new Array<{ label: string,
+                    description: string, type: context.PackageType }>();
+
+                context.PackageTypeList.allTypes.forEach((type) => {
+                    expectedChoices.push({
+                        label: type.label,
+                        description: '',
+                        type: type
+                    });
+                });
+
+                await utils.choosePackageType(mockContext.object);
+                mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
+            });
+        })
+    });
     describe("in an empty workspace", function () {
         describe("choosePackage", function () {
             it("throws an exception", async function () {
@@ -136,6 +168,13 @@ describe("Utility functions", function () {
             it("throws an exception", async function () {
                 await assertThrowsAsync(async () => {
                     await utils.buildSelectedPackage(rockContext, taskProvider);
+                });
+            })
+        })
+        describe("choosePackageType", function () {
+            it("throws an exception", async function () {
+                await assertThrowsAsync(async () => {
+                    await utils.choosePackageType(rockContext);
                 });
             })
         })

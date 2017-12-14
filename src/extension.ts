@@ -47,10 +47,14 @@ function setupCommands()
             await utils.choosePackage(rockContext);
             statusBar.updateSelectedPackage();
         }));
-
     rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
         'rock.buildPackage', async _ => {
             utils.buildSelectedPackage(rockContext, taskProvider);
+        }));
+    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
+        'rock.selectPackageType', async _ => {
+            await utils.choosePackageType(rockContext);
+            statusBar.update();
         }));
 }
 
