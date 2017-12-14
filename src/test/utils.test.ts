@@ -96,13 +96,12 @@ describe("Utility functions", function () {
         describe("buildSelectedPackage", function () {
             let mockContext: TypeMoq.IMock<context.Context>;
             let aPackage: { name: string, root: string };
-
             beforeEach(function () {
                 mockContext = TypeMoq.Mock.ofType<context.Context>();
                 mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
             });
 
-            it("throws if the selected package does not belong to an autoproj workspace", async function () {
+            it("throws if the selected package does not have a build task", async function () {
                 let d = helpers.mkdir('three');
                 aPackage = { name: 'three', root: d };
 

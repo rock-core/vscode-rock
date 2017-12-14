@@ -37,7 +37,8 @@ export function buildSelectedPackage(context: context.Context,
     assert_workspace_not_empty(context.workspaces);
 
     let task = taskProvider.buildTask(context.selectedPackage.root);
-    if (!task) throw new Error("Selected package does not belong to an autproj workspace");
+    if (!task)
+        throw new Error("Selected package does not have a build task");
 
     context.vscode.executeCommand("workbench.action.tasks.runTask",
         task.source + ": " + task.name);
