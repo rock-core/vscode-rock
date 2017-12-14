@@ -119,9 +119,12 @@ export class StatusBar implements vscode.Disposable {
         let tooltip: string;
         let command: string;
 
-        text += selectedPackageType.label;
-        tooltip = "Change package type";
+        if (!this._context.selectedPackage)
+            text = null;
+        else
+            text += selectedPackageType.label;
 
+        tooltip = "Change package type";
         command = 'rock.selectPackageType';
         this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
