@@ -35,7 +35,8 @@ export function buildSelectedPackage(context: context.Context,
     taskProvider: tasks.Provider)
 {
     assert_workspace_not_empty(context.workspaces);
-
+    if (!context.selectedPackage)
+        throw new Error("Selected package is invalid")
     let task = taskProvider.buildTask(context.selectedPackage.root);
     if (!task)
         throw new Error("Selected package does not have a build task");

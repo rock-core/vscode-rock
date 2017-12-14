@@ -100,7 +100,12 @@ describe("Utility functions", function () {
                 mockContext = TypeMoq.Mock.ofType<context.Context>();
                 mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
             });
-
+            it("throws if the selected package is invalid or null", async function () {
+                aPackage = null;
+                await assertThrowsAsync(async () => {
+                    await utils.buildSelectedPackage(mockContext.object, taskProvider);
+                });
+            });
             it("throws if the selected package does not have a build task", async function () {
                 let d = helpers.mkdir('three');
                 aPackage = { name: 'three', root: d };
