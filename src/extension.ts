@@ -8,6 +8,7 @@ import * as utils from './utils';
 import * as wrappers from './wrappers';
 import * as context from './context';
 import * as autoproj from './autoproj';
+import * as debug from './debug';
 
 let workspaces: autoproj.Workspaces;
 let rockContext: context.Context;
@@ -55,6 +56,17 @@ function setupCommands()
         'rock.selectPackageType', async _ => {
             await utils.choosePackageType(rockContext);
             statusBar.update();
+        }));
+    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
+        'rock.setDebuggingTarget', async _ => {
+            await utils.selectDebuggingTarget(rockContext,
+                new debug.TargetPickerFactory(rockContext.vscode));
+            statusBar.update();
+        }));
+    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
+        'rock.debugPackage', async _ => {
+            await utils.debugSelectedPackage(rockContext,
+                new debug.ConfigurationProvider());
         }));
 }
 

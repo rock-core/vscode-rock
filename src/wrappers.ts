@@ -36,4 +36,14 @@ export class VSCode {
     {
         return vscode.commands.executeCommand(command, ...rest);
     }
+
+    public showOpenDialog(options: vscode.OpenDialogOptions): Thenable<vscode.Uri[] | undefined>
+    {
+        return vscode.window.showOpenDialog(options);
+    }
+
+    public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Thenable<boolean>
+    {
+        return vscode.debug.startDebugging(folder, nameOrConfiguration);
+    }
 }

@@ -58,9 +58,19 @@
                 "command": "rock.selectPackageType"
             },
             {
+                "title": "Set debugging target",
+                "category": "rock",
+                "command": "rock.setDebuggingTarget"
+            },
+            {
                 "title": "Build package",
                 "category": "rock",
                 "command": "rock.buildPackage"
+            },
+            {
+                "title": "Debug package",
+                "category": "rock",
+                "command": "rock.debugPackage"
             }
         ],
         "languages": [

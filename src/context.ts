@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as wrappers from './wrappers';
 import { basename } from 'path';
 import * as autoproj from './autoproj';
+import * as debug from './debug';
 
 export class PackageTypeList
 {
@@ -58,7 +59,8 @@ export class Context
     private readonly _context: vscode.ExtensionContext;
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
-    private _selectedPackageType: PackageType;
+    private _selectedPackageType = new Map<string, PackageType>();
+    private _debuggingTarget = new Map<string, debug.Target>();
 
     public constructor(context: vscode.ExtensionContext,
                        wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces)
@@ -66,7 +68,6 @@ export class Context
         this._context = context;
         this._vscode = wrapper;
         this._workspaces = workspaces;
-        this._selectedPackageType = PackageType.fromType(PackageTypeList.OTHER);
     }
 
     public get selectedPackage(): { name:string, root:string }
@@ -75,7 +76,7 @@ export class Context
         if (!folders || folders.length == 0) {
             return null;
         }
-    
+
         const selectionMode = this.packageSelectionMode;
         let name: string;
         let root: string;
@@ -85,26 +86,26 @@ export class Context
             let exists = false;
             root = this.rockSelectedPackage;
             if (!root) return null;
-    
+
             this._vscode.workspaceFolders.forEach((entry) => {
                 if (entry.uri.fsPath == root) {
                     exists = true;
                 }
             });
-    
+
             if (!exists) {
                 return null;
             }
-    
+
             name = basename(root);
             return { name, root }
         }
-    
-        const editor = this._vscode.activeTextEditor;        
+
+        const editor = this._vscode.activeTextEditor;
         if (!editor) {
             return null;
         }
-    
+
         const resource = editor.document.uri;
         if (resource.scheme === 'file') {
             const folder = this._vscode.getWorkspaceFolder(resource);
@@ -138,14 +139,32 @@ export class Context
 
     public set selectedPackageType(type: PackageType)
     {
-        this._selectedPackageType = type;
+        if (this.selectedPackage)
+            this._selectedPackageType.set(this.selectedPackage.root, type);
     }
 
     public get selectedPackageType(): PackageType
     {
         if (!this.selectedPackage)
             return PackageType.fromType(PackageTypeList.OTHER);
-        return this._selectedPackageType;
+
+        let type = this._selectedPackageType.get(this.selectedPackage.root);
+        if (!type)
+            return PackageType.fromType(PackageTypeList.OTHER);
+        return type;
+    }
+
+    public set debuggingTarget(target: debug.Target)
+    {
+        if (this.selectedPackage)
+            this._debuggingTarget.set(this.selectedPackage.root, target);
+    }
+
+    public get debuggingTarget(): debug.Target
+    {
+        if (!this.selectedPackage)
+            return null;
+        return this._debuggingTarget.get(this.selectedPackage.root);
     }
 
     public get vscode(): wrappers.VSCode

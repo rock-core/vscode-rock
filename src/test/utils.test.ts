@@ -9,6 +9,7 @@ import * as helpers from './helpers';
 import * as autoproj from '../autoproj';
 import * as tasks from '../tasks';
 import { basename, relative } from 'path';
+import * as debug from '../debug';
 
 async function assertThrowsAsync(fn)
 {
@@ -159,6 +160,117 @@ describe("Utility functions", function () {
                 mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
             });
         })
+        describe("selectDebuggingTarget", function () {
+            let mockContext: TypeMoq.IMock<context.Context>;
+            let mockFactory: TypeMoq.IMock<debug.TargetPickerFactory>;
+            beforeEach(function () {
+                mockContext = TypeMoq.Mock.ofType<context.Context>();
+                mockContext.setup(x => x.workspaces).returns(() => workspaces);
+                mockFactory = TypeMoq.Mock.ofType<debug.TargetPickerFactory>();
+            });
+            it("throws an exception if no package is selected", async function () {
+                mockContext.setup(x => x.selectedPackage).returns(() => null);
+                await assertThrowsAsync(async () => {
+                    await utils.selectDebuggingTarget(mockContext.object, mockFactory.object);
+                });
+            })
+            it("throws an exception if there is no picker for the package type", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                let packageType = context.PackageTypeList.CXX;
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
+                mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+                mockFactory.setup(x => x.createPicker(packageType, '/path/to/iodrivers_base')).
+                    returns(() => undefined);
+                await assertThrowsAsync(async () => {
+                    await utils.selectDebuggingTarget(mockContext.object, mockFactory.object);
+                });
+            })
+            it("shows the target picker and sets the debugging target", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                let packageType = context.PackageTypeList.CXX;
+                let mockPicker = TypeMoq.Mock.ofType<debug.CXXTargetPicker>();
+                let target = new debug.Target('iodrivers_base', '/path/to/iodrivers_base');
+                let targetPromise = new Promise<debug.Target>((resolve) => {
+                    resolve(target);
+                });
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
+                mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+                mockFactory.setup(x => x.createPicker(packageType, '/path/to/iodrivers_base')).
+                    returns(() => mockPicker.object);
+
+                mockPicker.setup(x => x.show()).returns(() => targetPromise);
+                await utils.selectDebuggingTarget(mockContext.object, mockFactory.object);
+                mockPicker.verify(x => x.show(), TypeMoq.Times.once());
+                mockContext.verify(x => x.debuggingTarget = target, TypeMoq.Times.once());
+            })
+        })
+        describe("debugSelectedPackage", function () {
+            let mockContext: TypeMoq.IMock<context.Context>;
+            let mockProvider: TypeMoq.IMock<debug.ConfigurationProvider>;
+            beforeEach(function () {
+                mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+                mockContext = TypeMoq.Mock.ofType<context.Context>();
+                mockContext.setup(x => x.workspaces).returns(() => workspaces);
+                mockProvider = TypeMoq.Mock.ofType<debug.ConfigurationProvider>();
+            });
+            it("throws an exception if no package is selected", async function () {
+                mockContext.setup(x => x.selectedPackage).returns(() => null);
+                await assertThrowsAsync(async () => {
+                    await utils.debugSelectedPackage(mockContext.object, mockProvider.object);
+                });
+            })
+            it("throws an exception if debugging target is unset", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                let packageType = context.PackageTypeList.CXX;
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
+                mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+                mockContext.setup(x => x.debuggingTarget).returns(() => undefined);
+                await assertThrowsAsync(async () => {
+                    await utils.debugSelectedPackage(mockContext.object, mockProvider.object);
+                });
+            })
+            it("throws an exception if there's no debugging conf for the package", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                let packageType = context.PackageTypeList.OTHER;
+                let target = new debug.Target('test', '/path/to/iodrivers_base/build/src/test');
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
+                mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+                mockContext.setup(x => x.debuggingTarget).returns(() => target);
+                mockProvider.setup(x => x.configuration(TypeMoq.It.isAny(),
+                    TypeMoq.It.isAny(), TypeMoq.It.isAny())).returns(() => undefined);
+                await assertThrowsAsync(async () => {
+                    await utils.debugSelectedPackage(mockContext.object, mockProvider.object);
+                });
+            })
+            it("starts a debugging session", async function () {
+                let aPackage = { name: 'iodrivers_base', root: '/path/to/iodrivers_base' };
+                let packageType = context.PackageTypeList.CXX;
+                let mockPicker = TypeMoq.Mock.ofType<debug.CXXTargetPicker>();
+                let target = new debug.Target('iodrivers_base', '/path/to/iodrivers_base');
+                let targetPromise = Promise.resolve(target);
+                let uri = vscode.Uri.file(aPackage.root);
+                const options = {
+                    type: "cppdbg",
+                    name: "rock debug",
+                    request: "launch",
+                    program: target.path,
+                };
+                let folder = {
+                    uri: vscode.Uri.file('/path/to/iodrivers_base'),
+                    name: 'iodrivers_base',
+                    index: 0
+                }
+                mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
+                mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+                mockContext.setup(x => x.debuggingTarget).returns(() => target);
+                mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
+                mockWrapper.setup(x => x.getWorkspaceFolder(uri)).returns(() => folder);
+                mockProvider.setup(x => x.configuration(target, packageType, aPackage.root)).
+                    returns(async () => await options);
+                await utils.debugSelectedPackage(mockContext.object, mockProvider.object);
+                mockWrapper.verify(x => x.startDebugging(folder, options), TypeMoq.Times.once());
+            })
+        })
     });
     describe("in an empty workspace", function () {
         describe("choosePackage", function () {
@@ -179,6 +291,22 @@ describe("Utility functions", function () {
             it("throws an exception", async function () {
                 await assertThrowsAsync(async () => {
                     await utils.choosePackageType(rockContext);
+                });
+            })
+        })
+        describe("selectDebuggingTarget", function () {
+            it("throws an exception", async function () {
+                await assertThrowsAsync(async () => {
+                    const mockFactory = TypeMoq.Mock.ofType<debug.TargetPickerFactory>();
+                    await utils.selectDebuggingTarget(rockContext, mockFactory.object);
+                });
+            })
+        })
+        describe("debugSelectedPackage", function () {
+            it("throws an exception", async function () {
+                await assertThrowsAsync(async () => {
+                    const mockProvider = TypeMoq.Mock.ofType<debug.ConfigurationProvider>();
+                    await utils.debugSelectedPackage(rockContext, mockProvider.object);
                 });
             })
         })
