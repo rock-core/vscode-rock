@@ -134,7 +134,7 @@ export class StatusBar implements vscode.Disposable {
         let target: debug.Target;
         let options: boolean;
         let selectedPackage = this._context.selectedPackage;
-        if (selectedPackage)
+        if (selectedPackage && this._context.workspaces.folderToWorkspace.has(selectedPackage.root))
             target = this._context.debuggingTarget;
 
         if (target)
@@ -174,9 +174,12 @@ export class StatusBar implements vscode.Disposable {
         let command: string;
 
         let ws: autoproj.Workspace;
+        let selectedPackageType = this._context.selectedPackageType;
+        let selectedPackage = this._context.selectedPackage;
+
         const picker = new debug.TargetPickerFactory(this._context.vscode).
             createPicker(this._context.selectedPackageType);
-        if (this._context.selectedPackage)
+        if (selectedPackage && this._context.workspaces.folderToWorkspace.has(selectedPackage.root))
             ws = this._context.workspaces.folderToWorkspace.
                 get(this._context.selectedPackage.root);
         if (!this._context.selectedPackage || !picker || !ws)

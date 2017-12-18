@@ -4,17 +4,20 @@
 import * as vscode from 'vscode';
 import * as tasks from './tasks';
 import * as status from './status';
-import * as utils from './utils';
 import * as wrappers from './wrappers';
 import * as context from './context';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
+import * as commands from './commands';
 
 let workspaces: autoproj.Workspaces;
 let rockContext: context.Context;
 let statusBar: status.StatusBar;
 let taskProvider: tasks.Provider;
 let wrapper: wrappers.VSCode;
+let debugProvider: debug.ConfigurationProvider;
+let rockCommands: commands.Commands;
+let pickerFactory: debug.TargetPickerFactory;
 
 function initilizeWorkspace()
 {
@@ -41,35 +44,6 @@ function setupEvents()
     );
 }
 
-function setupCommands()
-{
-    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
-        'rock.selectPackage', async _ => {
-            await utils.choosePackage(rockContext);
-            statusBar.updateSelectedPackage();
-        }));
-    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
-        'rock.buildPackage', async _ => {
-            utils.buildSelectedPackage(rockContext, taskProvider);
-        }));
-    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
-        'rock.selectPackageType', async _ => {
-            await utils.choosePackageType(rockContext);
-            statusBar.update();
-        }));
-    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
-        'rock.setDebuggingTarget', async _ => {
-            await utils.selectDebuggingTarget(rockContext,
-                new debug.TargetPickerFactory(rockContext.vscode));
-            statusBar.update();
-        }));
-    rockContext.extensionContext.subscriptions.push(vscode.commands.registerCommand(
-        'rock.debugPackage', async _ => {
-            await utils.debugSelectedPackage(rockContext,
-                new debug.ConfigurationProvider());
-        }));
-}
-
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
@@ -78,6 +52,10 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     wrapper = new wrappers.VSCode;
     rockContext = new context.Context(extensionContext, wrapper, workspaces);
     statusBar = new status.StatusBar(rockContext, taskProvider);
+    debugProvider = new debug.ConfigurationProvider;
+    pickerFactory = new debug.TargetPickerFactory(rockContext.vscode);
+    rockCommands = new commands.Commands(rockContext, taskProvider,
+        pickerFactory, debugProvider, statusBar);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
@@ -85,7 +63,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     initilizeWorkspace();
     taskProvider.reloadTasks();
     setupEvents();
-    setupCommands();
+    rockCommands.register();
 
     // Add the status bar
     statusBar.update();
