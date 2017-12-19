@@ -225,5 +225,37 @@ describe("Autoproj helpers tests", function () {
                 assert.equal(0, this.workspaces.useCount(ws));
             })
         })
+        describe("isConfig", function () {
+            beforeEach(function () {
+                helpers.mkdir('one');
+                helpers.mkdir('two');
+                helpers.mkdir('one', '.autoproj');
+                helpers.mkdir('two', '.autoproj');
+                helpers.createInstallationManifest([], 'one');
+                helpers.createInstallationManifest([], 'two');
+            })
+            it("returns true if the folder is a child of the workspace configuration", function() {
+                let a = helpers.mkdir('one', 'autoproj');
+                let b = helpers.mkdir('one', 'autoproj', 'overrides.d');
+                let c = helpers.mkdir('two', '.autoproj', 'remotes');
+                let ws = this.workspaces.addFolder(a);
+                this.workspaces.addFolder(b);
+                this.workspaces.addFolder(c);
+                assert.equal(this.workspaces.isConfig(a), true);
+                assert.equal(this.workspaces.isConfig(b), true);
+                assert.equal(this.workspaces.isConfig(c), true);
+            })
+            it("returns false if the folder is not part of the workspace configuration", function() {
+                let a = helpers.mkdir('one', 'a');
+                let b = helpers.mkdir('one', 'b');
+                let c = helpers.mkdir('two', 'c');
+                let ws = this.workspaces.addFolder(a);
+                this.workspaces.addFolder(b);
+                this.workspaces.addFolder(c);
+                assert.equal(this.workspaces.isConfig(a), false);
+                assert.equal(this.workspaces.isConfig(b), false);
+                assert.equal(this.workspaces.isConfig(c), false);
+            })
+        })
     })
 });

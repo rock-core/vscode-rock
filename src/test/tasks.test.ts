@@ -109,12 +109,15 @@ describe("Task provider", function () {
         let a: string;
         let b: string;
         let c: string;
-
+        let d: string;
+        let e: string;
         beforeEach(function () {
             helpers.mkdir('one');
             helpers.mkdir('two');
             helpers.mkdir('one', '.autoproj');
             helpers.mkdir('two', '.autoproj');
+            d = helpers.mkdir('one', 'autoproj');
+            e = helpers.mkdir('two', 'autoproj');
 
             helpers.createInstallationManifest([], 'one');
             helpers.createInstallationManifest([], 'two');
@@ -127,6 +130,8 @@ describe("Task provider", function () {
             workspaces.addFolder(a);
             workspaces.addFolder(b);
             workspaces.addFolder(c);
+            workspaces.addFolder(d);
+            workspaces.addFolder(e);
             subject = new tasks.Provider(workspaces);
         })
         it("is initalized with all tasks", function () {

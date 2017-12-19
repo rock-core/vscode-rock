@@ -150,6 +150,7 @@ export class Provider implements vscode.TaskProvider
         })
         this.workspaces.forEachFolder((ws, folder) => {
             if (folder == ws.root) { return; }
+            if (this.workspaces.isConfig(folder)) { return; }
             let relative = path.relative(ws.root, folder);
             this.addTask(folder, this.createPackageBuildTask(`${ws.name}: Build ${relative}`, ws, folder),
                 this._buildTasks);

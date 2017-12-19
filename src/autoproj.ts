@@ -260,4 +260,29 @@ export class Workspaces
     forEachFolder(callback) {
         this.folderToWorkspace.forEach(callback);
     }
+
+    /** Check whether a given folder is part of a workspace configuration
+     *
+     * Returns true if the folder is configuration, false otherwise
+     */
+    isConfig(folder: string): boolean
+    {
+        let isConfig = false;
+        let arg = folder;
+        this.forEachWorkspace((ws) => {
+            let lastPath = ''
+            let folder = arg;
+            while (folder !== lastPath) {
+                if ((folder == path.join(ws.root, "autoproj")) ||
+                    (folder == path.join(ws.root, ".autoproj")))
+                {
+                    isConfig = true;
+                    break;
+                }
+                lastPath = folder
+                folder = path.dirname(folder);
+            }
+        })
+        return isConfig;
+    }
 }
