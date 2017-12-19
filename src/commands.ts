@@ -82,7 +82,7 @@ export class Commands
 
         const chosen = await this.context.vscode.showQuickPick(choices);
         if (chosen) {
-            this.context.selectedPackageType = chosen.type;
+            this.context.setSelectedPackageType(chosen.type);
             this.statusBar.update();
         }
     }
@@ -95,7 +95,7 @@ export class Commands
         if (!this.context.workspaces.folderToWorkspace.has(this.context.selectedPackage.root))
             throw new Error("Selected package is not part of an autoproj workspace");
 
-        let packageType = this.context.selectedPackageType;
+        let packageType = await this.context.getSelectedPackageType();
         let packageRoot = this.context.selectedPackage.root
         const picker = this.pickerFactory.createPicker(packageType, packageRoot);
         if (!picker)
@@ -121,7 +121,7 @@ export class Commands
             throw new Error("Debugging target is unset");
 
         const target = this.context.debuggingTarget;
-        const type = this.context.selectedPackageType;
+        const type = await this.context.getSelectedPackageType();
         const cwd = this.context.selectedPackage.root;
 
         const options = await this.debugProvider.configuration(target, type, cwd);

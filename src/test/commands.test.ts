@@ -189,7 +189,7 @@ describe("Commands", function () {
 
             await subject.selectPackageType();
             mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
-            mockContext.verify(x => x.selectedPackageType = context.PackageTypeList.RUBY,
+            mockContext.verify(x => x.setSelectedPackageType(context.PackageTypeList.RUBY),
                 TypeMoq.Times.once());
         });
     })
@@ -204,7 +204,8 @@ describe("Commands", function () {
             let aPackage = { name: 'iodrivers_base', root: a };
             let packageType = context.PackageTypeList.CXX;
             mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
-            mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+            mockContext.setup(x => x.getSelectedPackageType()).
+                returns(() => Promise.resolve(packageType));
             mockFactory.setup(x => x.createPicker(packageType, a)).
                 returns(() => undefined);
             await assertThrowsAsync(async () => {
@@ -226,7 +227,8 @@ describe("Commands", function () {
             let target = new debug.Target('iodrivers_base', a);
             let targetPromise = Promise.resolve(target);
             mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
-            mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+            mockContext.setup(x => x.getSelectedPackageType()).
+                returns(() => Promise.resolve(packageType));
             mockFactory.setup(x => x.createPicker(packageType, a)).
                 returns(() => mockPicker.object);
 
@@ -247,7 +249,8 @@ describe("Commands", function () {
             let aPackage = { name: 'iodrivers_base', root: a };
             let packageType = context.PackageTypeList.CXX;
             mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
-            mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+            mockContext.setup(x => x.getSelectedPackageType()).
+                returns(() => Promise.resolve(packageType));
             mockContext.setup(x => x.debuggingTarget).returns(() => undefined);
             await assertThrowsAsync(async () => {
                 await subject.debugPackage();
@@ -266,7 +269,8 @@ describe("Commands", function () {
             let packageType = context.PackageTypeList.OTHER;
             let target = new debug.Target('test', '/path/to/iodrivers_base/build/src/test');
             mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
-            mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+            mockContext.setup(x => x.getSelectedPackageType()).
+                returns(() => Promise.resolve(packageType));
             mockContext.setup(x => x.debuggingTarget).returns(() => target);
             mockDebugProvider.setup(x => x.configuration(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).returns(() => undefined);
@@ -293,7 +297,8 @@ describe("Commands", function () {
                 index: 0
             }
             mockContext.setup(x => x.selectedPackage).returns(() => aPackage);
-            mockContext.setup(x => x.selectedPackageType).returns(() => packageType);
+            mockContext.setup(x => x.getSelectedPackageType()).
+                returns(() => Promise.resolve(packageType));
             mockContext.setup(x => x.debuggingTarget).returns(() => target);
             mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
             mockWrapper.setup(x => x.getWorkspaceFolder(uri)).returns(() => folder);

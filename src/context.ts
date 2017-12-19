@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import * as wrappers from './wrappers';
-import { basename } from 'path';
+import { basename, relative } from 'path';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
 
 export class PackageTypeList
 {
-    static CXX = { id: 0, name: 'cxx', label: 'C/C++' };
-    static RUBY = { id: 1, name: 'ruby', label: 'Ruby' };
-    static OROGEN = { id: 2, name: 'orogen', label: 'oroGen' };
-    static OTHER = { id: 3, name: 'other', label: 'Other' };
+    static CXX = { id: 0, name: 'cxx', label: 'C/C++', autobuild: [
+        'Autobuild::CMake', 'Autobuild::Autotools'] };
+    static RUBY = { id: 1, name: 'ruby', label: 'Ruby', autobuild: [
+        'Autobuild::Ruby'] };
+    static OROGEN = { id: 2, name: 'orogen', label: 'Orogen', autobuild: [
+        'Autobuild::Orogen'] };
+    static OTHER = { id: 3, name: 'other', label: 'Other', autobuild: new Array<string>() };
 
     private constructor() { }
     static get allTypes()
@@ -32,25 +35,36 @@ export class PackageType
     }
 
     static fromName(name: string) {
+        let match = new PackageType(PackageTypeList.OTHER);
         PackageTypeList.allTypes.forEach(type => {
             if (type.name == name)
-                return new PackageType(type);
+                match = new PackageType(type);
         });
-        return new PackageType(PackageTypeList.OTHER);
+        return match;
     }
     static fromId(id: number) {
+        let match = new PackageType(PackageTypeList.OTHER);
         PackageTypeList.allTypes.forEach(type => {
             if (type.id == id)
-                return new PackageType(type);
+                match = new PackageType(type);
         });
-        return new PackageType(PackageTypeList.OTHER);
+        return match;
+    }
+    static fromAutobuild(autobuildType: string) {
+        let match = new PackageType(PackageTypeList.OTHER);
+        PackageTypeList.allTypes.forEach(type => {
+            if (type.autobuild.find((item) => { return (item == autobuildType) }))
+                match = new PackageType(type);
+        });
+        return match;
     }
     static fromType(type: { id: number, name: string, label: string }) {
+        let match = new PackageType(PackageTypeList.OTHER);
         PackageTypeList.allTypes.forEach(_type => {
             if (type == _type)
-                return new PackageType(type);
+                match = new PackageType(type);
         });
-        return new PackageType(PackageTypeList.OTHER);
+        return match;
     }
 }
 
@@ -137,21 +151,44 @@ export class Context
         return this._context;
     }
 
-    public set selectedPackageType(type: PackageType)
+    public setSelectedPackageType(type: PackageType)
     {
         if (this.selectedPackage)
             this._selectedPackageType.set(this.selectedPackage.root, type);
     }
 
-    public get selectedPackageType(): PackageType
+    public async getSelectedPackageType(): Promise<PackageType>
     {
-        if (!this.selectedPackage)
-            return PackageType.fromType(PackageTypeList.OTHER);
+        let selectedPackage = this.selectedPackage;
+        if (!selectedPackage)
+            return Promise.resolve(PackageType.fromType(PackageTypeList.OTHER));
 
-        let type = this._selectedPackageType.get(this.selectedPackage.root);
-        if (!type)
-            return PackageType.fromType(PackageTypeList.OTHER);
-        return type;
+        let type = this._selectedPackageType.get(selectedPackage.root);
+        if (type)
+            return Promise.resolve(type);
+
+        let ws = this.workspaces.folderToWorkspace.get(selectedPackage.root);
+        if (!ws)
+            return Promise.resolve(PackageType.fromType(PackageTypeList.OTHER));
+
+        let promise = new Promise<PackageType>((resolve, reject) => {
+            ws.info().then((wsInfo) => {
+                let relativePath = relative(ws.root, selectedPackage.root)
+                let defs = wsInfo.packages.get(relativePath);
+                if (!defs)
+                {
+                    resolve(PackageType.fromType(PackageTypeList.OTHER));
+                }
+                else
+                {
+                    type = PackageType.fromAutobuild(defs.type)
+                    resolve(type)
+                }
+            }, (reason) => {
+                resolve(PackageType.fromType(PackageTypeList.OTHER));
+            });
+        })
+        return promise;
     }
 
     public set debuggingTarget(target: debug.Target)

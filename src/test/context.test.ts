@@ -5,6 +5,8 @@ import * as TypeMoq from 'typemoq';
 import * as wrappers from '../wrappers';
 import * as context from '../context';
 import * as autoproj from '../autoproj';
+import * as helpers from './helpers';
+import { PackageType, PackageTypeList } from '../context';
 
 describe("Context tests", function () {
     let subject: context.Context;
@@ -41,6 +43,96 @@ describe("Context tests", function () {
         let selectionMode = subject.packageSelectionMode;
         mockWorkspaceConf.verify(x => x.get('packageSelectionMode'), TypeMoq.Times.once());
     });
+
+    describe("getSelectedPackageType", function () {
+        let root: string;
+        let a: string;
+        let b: string;
+        let mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;
+        let mockWorkspaceConf: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
+        let mockWorkspaceFolder1: TypeMoq.IMock<vscode.WorkspaceFolder>;
+        let mockWorkspaceFolder2: TypeMoq.IMock<vscode.WorkspaceFolder>;
+        let workspaceFolders = new Array<vscode.WorkspaceFolder>();
+        const MANIFEST_TEST_FILE = `
+- name: drivers/iodrivers_base
+  type: Autobuild::CMake
+  vcs:
+    :type: git
+    :url: git@github.com:/rock-core/drivers-iodrivers_base.git
+    :push_to: git@github.com:/rock-core/drivers-iodrivers_base.git
+    :interactive: false
+    :retry_count: 10
+    :repository_id: github:/rock-core/drivers-iodrivers_base.git
+    :branch: master
+  srcdir: "/home/arjones/flat_fish/dev/drivers/iodrivers_base"
+  builddir: "/home/arjones/flat_fish/dev/drivers/iodrivers_base/build"
+  logdir: "/home/arjones/flat_fish/dev/install/log"
+  prefix: "/home/arjones/flat_fish/dev/install"
+  dependencies:
+    - base/types
+    - base/logging
+`
+
+        beforeEach(function () {
+            root = helpers.init();
+            helpers.mkdir('one');
+            helpers.mkdir('one', '.autoproj');
+            helpers.mkfile(MANIFEST_TEST_FILE, "one", ".autoproj", "installation-manifest");
+            helpers.mkdir('one', 'drivers');
+            a = helpers.mkdir('one', 'drivers', 'iodrivers_base');
+            b = helpers.mkdir('one', 'drivers', 'dummy_driver');
+            workspaces.addFolder(a);
+            workspaces.addFolder(b);
+
+            mockWorkspaceState = TypeMoq.Mock.ofType<vscode.Memento>();
+            mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
+
+            let uri1 = vscode.Uri.file(a);
+            let uri2 = vscode.Uri.file(b);
+            mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
+            mockWorkspaceFolder1 = TypeMoq.Mock.ofType<vscode.WorkspaceFolder>();
+            mockWorkspaceFolder1.setup(x => x.uri).returns(() => uri1);
+            mockWorkspaceFolder2 = TypeMoq.Mock.ofType<vscode.WorkspaceFolder>();
+            mockWorkspaceFolder2.setup(x => x.uri).returns(() => uri2);
+
+            workspaceFolders.push(mockWorkspaceFolder1.object);
+            workspaceFolders.push(mockWorkspaceFolder2.object);
+            mockWrapper.setup(x => x.getConfiguration('rock')).returns(() => mockWorkspaceConf.object);
+            mockWorkspaceConf.setup(x => x.get('packageSelectionMode')).returns(() => 'manual');
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => workspaceFolders);
+            mockContext.setup(x => x.workspaceState).returns(() => mockWorkspaceState.object);
+        })
+        afterEach(function () {
+            helpers.clear();
+        })
+        it("returns OTHER if no package is selected", async function () {
+            mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => undefined);
+            let type = await subject.getSelectedPackageType()
+            assert.deepEqual(type, PackageType.fromType(PackageTypeList.OTHER));
+        })
+        it("returns the type set by the user", async function () {
+            mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => a);
+            subject.setSelectedPackageType(PackageType.fromType(PackageTypeList.RUBY))
+            let type = await subject.getSelectedPackageType()
+            assert.deepEqual(type, PackageType.fromType(PackageTypeList.RUBY));
+        })
+        it("returns other if the package is not part of an autoproj workspace", async function () {
+            let aPackage = { name: 'package', root: '/path/to/package' };
+            mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => aPackage.root);
+            let type = await subject.getSelectedPackageType()
+            assert.deepEqual(type, PackageType.fromType(PackageTypeList.OTHER));
+        })
+        it("returns other if the package is not in the manifest", async function () {
+            mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => b);
+            let type = await subject.getSelectedPackageType()
+            assert.deepEqual(type, PackageType.fromType(PackageTypeList.OTHER));
+        })
+        it("returns the type defined in the manifest", async function () {
+            mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => a);
+            let type = await subject.getSelectedPackageType()
+            assert.deepEqual(type, PackageType.fromType(PackageTypeList.CXX));
+        })
+    })
 
     it("sets the selected package", function () {
         let mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;

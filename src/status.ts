@@ -83,13 +83,13 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    public update() {
-        this.updateSelectedPackage();
-        this.updateBuildButton();
-        this.updateDebugButton();
-        this.updateDebuggingTarget();
-        this.updatePackageType();
-        this.reloadVisibility();
+    public async update() {
+        await this.updateSelectedPackage();
+        await this.updateBuildButton();
+        await this.updateDebugButton();
+        await this.updateDebuggingTarget();
+        await this.updatePackageType();
+        await this.reloadVisibility();
     }
 
     public updateSelectedPackage() {
@@ -126,7 +126,7 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._buildPackageButton, text, tooltip, command);
     }
 
-    public updateDebugButton() {
+    public async updateDebugButton() {
         let text: string = "$(bug) ";
         let tooltip: string;
         let command: string;
@@ -139,7 +139,7 @@ export class StatusBar implements vscode.Disposable {
 
         if (target)
             options = new debug.ConfigurationProvider().
-                hasConfiguration(this._context.selectedPackageType);
+                hasConfiguration(await this._context.getSelectedPackageType());
 
         if (!selectedPackage || !target || !options) {
             text = null;
@@ -152,8 +152,8 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._debugButton, text, tooltip, command);
     }
 
-    public updatePackageType() {
-        const selectedPackageType = this._context.selectedPackageType;
+    public async updatePackageType() {
+        const selectedPackageType = await this._context.getSelectedPackageType();
         let text: string = "$(file-code)  ";
         let tooltip: string;
         let command: string;
@@ -168,17 +168,17 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
 
-    public updateDebuggingTarget() {
+    public async updateDebuggingTarget() {
         let text: string;
         let tooltip: string;
         let command: string;
 
         let ws: autoproj.Workspace;
-        let selectedPackageType = this._context.selectedPackageType;
+        let selectedPackageType = await this._context.getSelectedPackageType();
         let selectedPackage = this._context.selectedPackage;
 
         const picker = new debug.TargetPickerFactory(this._context.vscode).
-            createPicker(this._context.selectedPackageType);
+            createPicker(await this._context.getSelectedPackageType());
         if (selectedPackage && this._context.workspaces.folderToWorkspace.has(selectedPackage.root))
             ws = this._context.workspaces.folderToWorkspace.
                 get(this._context.selectedPackage.root);
