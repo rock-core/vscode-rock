@@ -20,7 +20,6 @@ function setVisible<T extends Hideable>(i: T, v: boolean) {
 
 export class StatusBar implements vscode.Disposable {
     private readonly _context: context.Context;
-    private readonly _taskProvider: tasks.Provider;
     private readonly _selectPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 4.5);
 
@@ -48,11 +47,10 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    constructor(context: context.Context, taskProvider: tasks.Provider) {
+    constructor(context: context.Context) {
         this._selectPackageButton.text = null;
         this._buildPackageButton.text = null;
         this._context = context;
-        this._taskProvider = taskProvider;
         this.reloadVisibility();
 
         let events: { (listener: (e: any) => any): vscode.Disposable; } [] = [
@@ -92,56 +90,42 @@ export class StatusBar implements vscode.Disposable {
         await this.reloadVisibility();
     }
 
-    public updateSelectedPackage() {
-        const selectedPackage = this._context.selectedPackage;
+    private async updateSelectedPackage() {
+        const selectedPackage = await this._context.getSelectedPackage();
         let text: string = "$(file-submodule)  ";
         let tooltip: string;
         let command: string;
 
-        if (!selectedPackage) {
-            text += '(invalid package)';
-            tooltip = 'Invalid package';
-        } else {
-            text += selectedPackage.name;
-            tooltip = selectedPackage.root;
-        }
+        text += selectedPackage.name;
+        tooltip = selectedPackage.path;
         command = this._context.packageSelectionMode == "auto" ? null : 'rock.selectPackage';
         this.updateButton(this._selectPackageButton, text, tooltip, command);
     }
 
-    public updateBuildButton()
+    private async updateBuildButton()
     {
-        const selectedPackage = this._context.selectedPackage;
+        const selectedPackage = await this._context.getSelectedPackage();
         let text: string = "$(gear)  ";
         let tooltip: string;
         let command: string;
 
-        if (!selectedPackage || !this._taskProvider.buildTask(selectedPackage.root)) {
+        if (!selectedPackage.buildTask) {
             text = null;
         } else {
             text += 'Build';
-            tooltip = 'Build selected package'
+            tooltip = 'Build package'
         }
         command = 'rock.buildPackage';
         this.updateButton(this._buildPackageButton, text, tooltip, command);
     }
 
-    public async updateDebugButton() {
+    private async updateDebugButton() {
         let text: string = "$(bug) ";
         let tooltip: string;
         let command: string;
 
-        let target: debug.Target;
-        let options: boolean;
-        let selectedPackage = this._context.selectedPackage;
-        if (selectedPackage && this._context.workspaces.folderToWorkspace.has(selectedPackage.root))
-            target = this._context.debuggingTarget;
-
-        if (target)
-            options = new debug.ConfigurationProvider().
-                hasConfiguration(await this._context.getSelectedPackageType());
-
-        if (!selectedPackage || !target || !options) {
+        const selectedPackage = await this._context.getSelectedPackage();
+        if (!selectedPackage.debugable || !selectedPackage.target) {
             text = null;
         } else {
             text += "Debug";
@@ -152,42 +136,34 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._debugButton, text, tooltip, command);
     }
 
-    public async updatePackageType() {
-        const selectedPackageType = await this._context.getSelectedPackageType();
+    private async updatePackageType() {
+        const selectedPackage = await this._context.getSelectedPackage();
         let text: string = "$(file-code)  ";
         let tooltip: string;
         let command: string;
 
-        if (!this._context.selectedPackage)
+        if (!selectedPackage.type.label)
             text = null;
         else
-            text += selectedPackageType.label;
+            text += selectedPackage.type.label;
 
         tooltip = "Change package type";
         command = 'rock.selectPackageType';
         this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
 
-    public async updateDebuggingTarget() {
+    private async updateDebuggingTarget() {
         let text: string;
         let tooltip: string;
         let command: string;
+        const selectedPackage = await this._context.getSelectedPackage();
 
-        let ws: autoproj.Workspace;
-        let selectedPackageType = await this._context.getSelectedPackageType();
-        let selectedPackage = this._context.selectedPackage;
-
-        const picker = new debug.TargetPickerFactory(this._context.vscode).
-            createPicker(await this._context.getSelectedPackageType());
-        if (selectedPackage && this._context.workspaces.folderToWorkspace.has(selectedPackage.root))
-            ws = this._context.workspaces.folderToWorkspace.
-                get(this._context.selectedPackage.root);
-        if (!this._context.selectedPackage || !picker || !ws)
+        if (!selectedPackage.debugable)
             text = null;
-        else if (!this._context.debuggingTarget) {
+        else if (!selectedPackage.target) {
             text = '(No debugging target)'
         } else {
-            text = this._context.debuggingTarget.name;
+            text = selectedPackage.target.name;
         }
 
         tooltip = "Change debugging target";

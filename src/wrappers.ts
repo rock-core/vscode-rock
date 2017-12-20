@@ -46,4 +46,9 @@ export class VSCode {
     {
         return vscode.debug.startDebugging(folder, nameOrConfiguration);
     }
+
+    public showErrorMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
+    {
+        return vscode.window.showErrorMessage(message, ...items);
+    }
 }

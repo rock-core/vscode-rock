@@ -1,10 +1,8 @@
 import * as vscode from 'vscode';
 import { basename, relative } from 'path';
-import * as autoproj from './autoproj';
 import * as context from './context';
-import * as tasks from './tasks';
-import * as debug from './debug';
 import * as status from './status';
+import * as packages from './packages';
 
 function assert_workspace_not_empty(context: context.Context)
 {
@@ -14,123 +12,59 @@ function assert_workspace_not_empty(context: context.Context)
 
 export class Commands
 {
-    readonly context: context.Context;
-    readonly taskProvider: tasks.Provider;
-    readonly pickerFactory: debug.TargetPickerFactory;
-    readonly debugProvider: debug.ConfigurationProvider;
-    readonly statusBar: status.StatusBar;
-
-    constructor(context: context.Context, taskProvider: tasks.Provider,
-        pickerFactory: debug.TargetPickerFactory,
-        debugProvider: debug.ConfigurationProvider, statusBar: status.StatusBar)
+    private readonly _context: context.Context;
+    constructor(context: context.Context)
     {
-        this.context = context;
-        this.taskProvider = taskProvider;
-        this.pickerFactory = pickerFactory;
-        this.debugProvider = debugProvider;
-        this.statusBar = statusBar;
+        this._context = context;
     }
 
     async selectPackage()
     {
-        assert_workspace_not_empty(this.context);
+        assert_workspace_not_empty(this._context);
         let choices = new Array<{ label: string,
                                   description: string,
-                                  root: string,
-                                  name: string }>();
+                                  path: string }>();
 
-        this.context.workspaces.forEachFolder((ws, folder) => {
+        this._context.workspaces.forEachFolder((ws, folder) => {
             choices.push({ label: relative(ws.root, folder),
                            description: ws.name,
-                           root: folder,
-                           name: basename(folder) });
+                           path: folder });
         });
 
-        const chosen = await this.context.vscode.showQuickPick(choices);
+        const chosen = await this._context.vscode.showQuickPick(choices);
         if (chosen) {
-            this.context.selectedPackage = { name: chosen.name, root: chosen.root };
-            this.statusBar.update();
+            this._context.setSelectedPackage(chosen.path);
         }
     }
 
-    buildPackage()
+    private handlePromise<T>(promise: Promise<T>)
     {
-        if (!this.context.selectedPackage)
-            throw new Error("Selected package is invalid")
-        let task = this.taskProvider.buildTask(this.context.selectedPackage.root);
-        if (!task)
-            throw new Error("Selected package does not have a build task");
-
-        this.context.vscode.executeCommand("workbench.action.tasks.runTask",
-            task.source + ": " + task.name);
+        promise.catch(err => {
+            this._context.vscode.showErrorMessage(err.message);
+        })
+    }
+    async buildPackage()
+    {
+        let pkg = await this._context.getSelectedPackage();
+        this.handlePromise(pkg.build());
     }
 
     async selectPackageType()
     {
-        if (!this.context.selectedPackage)
-            throw new Error("Selected package is invalid");
-
-        let choices = new Array<{ label: string,
-                                  description: string,
-                                  type: context.PackageType }>();
-
-        context.PackageTypeList.allTypes.forEach((type) => {
-            choices.push({ label: type.label,
-                           description: '',
-                           type: type});
-        });
-
-        const chosen = await this.context.vscode.showQuickPick(choices);
-        if (chosen) {
-            this.context.setSelectedPackageType(chosen.type);
-            this.statusBar.update();
-        }
+        let pkg = await this._context.getSelectedPackage();
+        this.handlePromise(pkg.pickType());
     }
 
     async setDebuggingTarget()
     {
-        if (!this.context.selectedPackage)
-            throw new Error("Selected package is invalid");
-
-        if (!this.context.workspaces.folderToWorkspace.has(this.context.selectedPackage.root))
-            throw new Error("Selected package is not part of an autoproj workspace");
-
-        let packageType = await this.context.getSelectedPackageType();
-        let packageRoot = this.context.selectedPackage.root
-        const picker = this.pickerFactory.createPicker(packageType, packageRoot);
-        if (!picker)
-            throw new Error('Debugging is not available for this package');
-
-        const target = await picker.show();
-        if (target)
-        {
-            this.context.debuggingTarget = target;
-            this.statusBar.update();
-        }
+        let pkg = await this._context.getSelectedPackage();
+        this.handlePromise(pkg.pickTarget());
     }
 
     async debugPackage()
     {
-        if (!this.context.selectedPackage)
-            throw new Error("Selected package is invalid");
-
-        if (!this.context.workspaces.folderToWorkspace.has(this.context.selectedPackage.root))
-            throw new Error("Selected package is not part of an autoproj workspace");
-
-        if (!this.context.debuggingTarget)
-            throw new Error("Debugging target is unset");
-
-        const target = this.context.debuggingTarget;
-        const type = await this.context.getSelectedPackageType();
-        const cwd = this.context.selectedPackage.root;
-
-        const options = await this.debugProvider.configuration(target, type, cwd);
-        if (!options)
-            throw new Error('Debugging is not available for this package');
-
-        const uri = vscode.Uri.file(this.context.selectedPackage.root);
-        const folder = this.context.vscode.getWorkspaceFolder(uri);
-        this.context.vscode.startDebugging(folder, options);
+        let pkg = await this._context.getSelectedPackage();
+        this.handlePromise(pkg.debug());
     }
 
     register()
@@ -146,7 +80,7 @@ export class Commands
                            'setDebuggingTarget',
                            'debugPackage'])
         {
-            this.context.extensionContext.subscriptions.
+            this._context.extensionContext.subscriptions.
                 push(register(this, key));
         }
     }
