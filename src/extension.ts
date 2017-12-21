@@ -9,6 +9,8 @@ import * as context from './context';
 import * as autoproj from './autoproj';
 import * as commands from './commands';
 import * as packages from './packages';
+import * as async from './async';
+import * as debug from './debug';
 
 let workspaces: autoproj.Workspaces;
 let rockContext: context.Context;
@@ -18,6 +20,8 @@ let wrapper: wrappers.VSCode;
 let rockCommands: commands.Commands;
 let packageFactory: packages.PackageFactory;
 let onContextUpdate: vscode.EventEmitter<void>;
+let envBridge: async.EnvironmentBridge;
+let preLaunchTaskProvider: debug.PreLaunchTaskProvider;
 
 function initilizeWorkspace()
 {
@@ -50,18 +54,23 @@ function setupEvents()
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
+    envBridge = new async.EnvironmentBridge;
     onContextUpdate = new vscode.EventEmitter<void>();
     workspaces = new autoproj.Workspaces;
     taskProvider = new tasks.Provider(workspaces);
     wrapper = new wrappers.VSCode;
     packageFactory = new packages.PackageFactory(taskProvider); 
     rockContext = new context.Context(extensionContext, wrapper,
-        workspaces, packageFactory, onContextUpdate);
+        workspaces, packageFactory, onContextUpdate, envBridge);
     statusBar = new status.StatusBar(rockContext);
     rockCommands = new commands.Commands(rockContext);
+    preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
+
+    extensionContext.subscriptions.push(
+        vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
 
     initilizeWorkspace();
     taskProvider.reloadTasks();

@@ -10,6 +10,7 @@ import * as tasks from '../tasks'
 import * as status from '../status'
 import * as wrappers from '../wrappers'
 import * as debug from '../debug'
+import * as async from '../async'
 import { dirname, basename } from 'path'
 
 async function assertThrowsAsync(fn, msg?: RegExp)
@@ -306,7 +307,9 @@ describe("RockRubyPackage", function () {
     let subject: packages.RockRubyPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     beforeEach(function () {
+        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         subject = new packages.RockRubyPackage("/path/to/package",
@@ -349,18 +352,34 @@ describe("RockRubyPackage", function () {
                 await subject.debug();
             }, /Select a debugging target/);
         })
+        it("throws if environment cannot be loaded", async function () {
+            let error = new Error("test");
+            const target = new debug.Target('package', '/path/to/package/build/test');            
+            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.reject(error));
+            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
+            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
+                returns(() => target);
+
+            await assertThrowsAsync(async () => {
+                await subject.debug();
+            }, /test/);
+        })
         it("starts a ruby debugging session", async function () {
             let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
 
             const target = new debug.Target('package', '/path/to/package/build/test');
             const type = packages.TypeList.RUBY;
+            let env = {
+                key: 'KEY',
+                value: 'VALUE'
+            }
             const options = {
                 type: "Ruby",
                 name: "rock debug",
                 request: "launch",
                 program: target.path,
                 cwd: dirname(target.path),
-                env: undefined
+                env: env
             };
             const uri = vscode.Uri.file(subject.path);
             let folder = {
@@ -369,11 +388,10 @@ describe("RockRubyPackage", function () {
                 index: 0
             }
 
+            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
+            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
-
-            let env = (await subject.debugConfiguration()).env;
-            options.env = env;
 
             mockWrapper.setup(x => x.getWorkspaceFolder(uri)).returns(() => folder);
             mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
@@ -533,5 +551,99 @@ describe("RockOtherPackage", function () {
     })
     it("returns the OTHER package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OTHER));
+    })
+})
+
+describe("RockOrogenPackage", function () {
+    let subject: packages.RockRubyPackage;
+    let mockContext: TypeMoq.IMock<context.Context>;
+    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;    
+    beforeEach(function () {
+        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();        
+        mockContext = TypeMoq.Mock.ofType<context.Context>();
+        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        subject = new packages.RockOrogenPackage("/path/to/package",
+            mockContext.object, mockTaskProvider.object);
+    })
+    it("returns the basename", function () {
+        assert.equal(subject.name, "package");
+    })
+    it("returns the task provided by the task provider", async function () {
+        let defs: vscode.TaskDefinition = { type: "test" };
+        let task = new vscode.Task(defs, "test", "test");
+
+        mockTaskProvider.setup(x => x.buildTask(subject.path)).
+            returns(() => task);
+
+        let theTask = subject.buildTask;
+        assert.deepEqual(theTask, task);
+    })
+    it("starts an autoproj build task", async function () {
+        let defs: vscode.TaskDefinition = { type: "test" };
+        let task = new vscode.Task(defs, "test", "test");
+        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+
+        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
+        mockTaskProvider.setup(x => x.buildTask(subject.path)).
+            returns(() => task);
+
+        let taskName = task.source + ": " + task.name;
+
+        await subject.build();
+        mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName),
+            TypeMoq.Times.once());
+    })
+    describe("pickTarget()", function () {
+        it("throws if orogen project loading fails", async function () {
+            let error = new Error("test");
+            mockBridge.setup(x => x.describeOrogenProject(subject.path,
+                subject.name)).returns(() => Promise.reject(error));
+            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
+            await assertThrowsAsync(async () => {
+                await subject.pickTarget();
+            }, /test/);
+        })
+        it("shows the target picking ui and sets the debugging target", async function () {
+            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+            let expectedChoices = new Array<{
+                label: string,
+                description: string,
+                task: async.IOrogenTask
+            }>();
+            let task: async.IOrogenTask = {
+                model_name: 'task1',
+                deployment_name: "orogen_task1",
+                file: '/some/bin/deployment/binfile'
+            }
+
+            expectedChoices.push({
+                label: 'task1',
+                description: '',
+                task: task
+            });
+            mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
+                .returns(() => Promise.resolve([ task ]));
+            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
+            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
+            mockWrapper.setup(x => x.showQuickPick(expectedChoices)).
+                returns(() => Promise.resolve(expectedChoices[0]));
+        
+            await subject.pickTarget();
+            let target = new debug.Target(task.model_name, task.file);
+            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
+                returns(() => target)
+            mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
+            mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
+                TypeMoq.Times.once());
+            assert.equal(subject.target.name, 'task1');
+            assert.equal(subject.target.path, '/some/bin/deployment/binfile');        
+        })
+    })
+    it("shows the type picking ui and sets the package type", async function () {
+        await testTypePicker(subject, mockContext);
+    })
+    it("returns the OROGEN package type", function () {
+        assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
     })
 })

@@ -7,6 +7,7 @@ import * as context from '../context';
 import * as autoproj from '../autoproj';
 import * as helpers from './helpers';
 import * as packages from '../packages';
+import * as async from '../async';
 
 describe("Context tests", function () {
     let subject: context.Context;
@@ -15,6 +16,7 @@ describe("Context tests", function () {
     let mockEventEmitter: TypeMoq.IMock<vscode.EventEmitter<void>>;
     let mockPackageFactory: TypeMoq.IMock<packages.PackageFactory>;
     let mockPackage: TypeMoq.IMock<packages.Package>;
+    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     let workspaces: autoproj.Workspaces;
     beforeEach(function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
@@ -22,11 +24,12 @@ describe("Context tests", function () {
         mockEventEmitter = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
         mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
         mockPackage = TypeMoq.Mock.ofType<packages.Package>();
+        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockPackage.setup((x: any) => x.then).returns(() => undefined);
         workspaces = new autoproj.Workspaces;
 
-        subject = new context.Context(mockContext.object,
-            mockWrapper.object, workspaces, mockPackageFactory.object, mockEventEmitter.object);
+        subject = new context.Context(mockContext.object, mockWrapper.object,
+            workspaces, mockPackageFactory.object, mockEventEmitter.object, mockBridge.object);
     })
 
     it("returns the given vscode wrapper", function () {
@@ -39,6 +42,10 @@ describe("Context tests", function () {
 
     it("returns the given workspaces", function () {
         assert.strictEqual(workspaces, subject.workspaces);
+    });
+
+    it("returns the given environment bridge", function () {
+        assert.strictEqual(mockBridge.object, subject.bridge);
     });
 
     it("gets the package selection mode", function () {

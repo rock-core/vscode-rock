@@ -7,29 +7,151 @@ import * as path from 'path';
 import * as autoproj from './autoproj';
 import { SpawnOptions } from 'child_process';
 
+const ENV_DUMP_SCRIPT = "require 'json'; puts ENV.to_hash.to_json";
+const OROGEN_DESCRIBE_SCRIPT = `
+require 'orogen'
+require 'json'
 
-export async function extractEnv(root: string): Promise<{ key: string, value: string }> {
+class OrogenProject
+    attr_reader :project, :loader
+    def initialize(name)
+        @loader = OroGen::Loaders::RTT.new
+        @project = @loader.project_model_from_name(name)
+    end
+
+    def tasks
+        project.self_tasks.keys
+    end
+
+    def deployment_name(model_name)
+        OroGen::Spec::Project.default_deployment_name(model_name)
+    end
+
+    def deployment_binfile(model_name)
+        loader.find_deployment_binfile(deployment_name(model_name))
+    end
+
+    def describe
+        description = {}
+        description[:tasks] = []
+        description[:error] = nil
+        tasks.each do |name|
+            description[:tasks] << { model_name: name, deployment_name: deployment_name(name),
+                                     file: deployment_binfile(name) }
+        end
+        description
+    end
+end
+
+begin
+    OroGen.log_level = :fatal
+    project = OrogenProject.new ARGV[0]
+    puts project.describe.to_json
+rescue Exception => e
+    description = {}
+    description[:tasks] = nil
+    description[:error] = e.message.lines.first
+    puts description.to_json
+end
+`
+
+export interface IOrogenTask {
+    model_name: string,
+    deployment_name: string,
+    file: string
+}
+
+export class EnvironmentBridge
+{
+    constructor()
+    {
+    }
+
+    async describeOrogenProject(root: string,
+        project: string): Promise<IOrogenTask[]>
+    {
+        let description = jsonFromRubyScript(root, OROGEN_DESCRIBE_SCRIPT, project);
+        let promise = new Promise<IOrogenTask[]>((resolve, reject) => {
+            description.then(
+                result => {
+                    if (result["error"])
+                    {
+                        reject(new Error("Could not load orogen project: " +
+                            result["error"]));
+                    }
+                    else if (result["tasks"].length == 0)
+                    {
+                        reject(new Error("No targets available for this project"));
+                    }
+                    else
+                    {
+                        resolve(result["tasks"]);
+                    }
+                },
+                err => {
+                    reject(err);
+                }
+            )
+        });
+        return promise;
+    }
+
+    async env(root: string): Promise<any>
+    {
+        let env = jsonFromRubyScript(root, ENV_DUMP_SCRIPT);
+        let promise = new Promise<{ key: string, value: string }>((resolve, reject) => {
+            env.then(
+                result => {
+                    resolve(result);
+                },
+                err => {
+                    reject(new Error("Could load environment: " + err.message));
+                }
+            )
+        });
+        return promise;
+    }
+}
+
+export async function jsonFromRubyScript(root: string, script: string,
+    ...args): Promise<{ key: string, value: string }>
+{
+    let argList = args.join(' ');
     let tempRoot = temp.mkdirSync();
-    let filePath = path.join(tempRoot, 'extract_env.rb');
-    let rubyScript = "require 'json'; puts ENV.to_hash.to_json";
+    let filePath = path.join(tempRoot, 'temp_script.rb');
     let wsRoot = autoproj.findWorkspaceRoot(root);
     let options: SpawnOptions = {
         cwd: wsRoot
     }
-    fs.writeFileSync(filePath, rubyScript);
 
-    let promise = new Promise<{ key: string, value: string }>((resolve, reject) => {
-        execute("bash", ["-c", "source env.sh; ruby " + filePath], options).then(
+    if (!wsRoot)
+        return Promise.reject(new Error("Could not find autoproj root"));
+
+    if (argList.length > 0) argList = " " + argList;
+    fs.writeFileSync(filePath, script);
+
+    let promise = new Promise<any>((resolve, reject) => {
+        execute("bash", ["-c", "source env.sh && ruby " + filePath + argList], options).then(
             result => {
                 fs.unlinkSync(filePath);
                 fs.rmdirSync(tempRoot);
-                resolve(JSON.parse(result.stdout));
+                console.log(result.stdout);
+                console.log(result.stderr);
+
+                if (result.retc != 0)
+                {
+                    reject(new Error(result.stderr));
+                }
+                else
+                {
+                    resolve(JSON.parse(result.stdout));
+                }
             },
-            result => {
+            err => {
                 fs.unlinkSync(filePath);
                 fs.rmdirSync(tempRoot);
-                console.log("Could not extract environment: " + result.message);
-                reject(result.stderr);
+                console.log(err.message);
+                reject(err);
             }
         );
     });

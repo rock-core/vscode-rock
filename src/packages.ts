@@ -217,6 +217,7 @@ abstract class RockPackage extends GenericPackage
 {
     readonly debugable: boolean;
     private readonly _taskProvider: tasks.Provider;
+
     constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
     {
         super(path, context);
@@ -225,6 +226,7 @@ abstract class RockPackage extends GenericPackage
     }
 
     abstract async debugConfiguration(): Promise<vscode.DebugConfiguration>;
+    abstract async preLaunchTask(): Promise<void>;
 
     async debug()
     {
@@ -232,6 +234,8 @@ abstract class RockPackage extends GenericPackage
             throw new Error("Select a debugging target before debugging")
 
         const options = await this.debugConfiguration();
+
+        await this.preLaunchTask();
 
         const uri = vscode.Uri.file(this.path);
         const folder = this._context.vscode.getWorkspaceFolder(uri);
@@ -393,23 +397,42 @@ export class ForeignPackage extends GenericPackage
 
 export class RockRubyPackage extends RockPackageWithTargetPicker
 {
+    async preLaunchTask(): Promise<void>
+    {
+    }
+
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
-        const options: vscode.DebugConfiguration = {
-            type: "Ruby",
-            name: "rock debug",
-            request: "launch",
-            program: this.target.path,
-            env: await async.extractEnv(this.path),
-            cwd: dirname(this.target.path),
-        };
-        return options;
+        let env = this._context.bridge.env(this.path);
+        let promise = new Promise<vscode.DebugConfiguration>((resolve, reject) => {
+            env.then(
+                result => {
+                    const options: vscode.DebugConfiguration = {
+                        type: "Ruby",
+                        name: "rock debug",
+                        request: "launch",
+                        program: this.target.path,
+                        env: result,
+                        cwd: dirname(this.target.path),
+                    };
+                    resolve(options);
+                },
+                err => {
+                    reject(err);
+                }
+            )
+        });
+        return promise;
     }
     get type() { return Type.fromType(TypeList.RUBY); }
 }
 
 export class RockCXXPackage extends RockPackageWithTargetPicker
 {
+    async preLaunchTask(): Promise<void>
+    {
+    }
+
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         const options: vscode.DebugConfiguration = {
@@ -433,20 +456,77 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
     get type() { return Type.fromType(TypeList.CXX); }
 }
 
-export class RockOrogenPackage extends RockPackageWithTargetPicker
+async function sleep(ms: number): Promise<void>
 {
-    async debugConfiguration(): Promise<vscode.DebugConfiguration>
+    return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+export class RockOrogenPackage extends RockPackage
+{
+    async preLaunchTask(): Promise<void>
     {
-        return undefined;
+        let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context);
+        let preTaskName = preLaunchTask.source + ": " + preLaunchTask.name
+
+        this._context.vscode.executeCommand("workbench.action.tasks.runTask", preTaskName);
+        await sleep(3000); // give some time for rock-run to finish loading
     }
 
-    async debug()
+    async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
-        throw new Error("Debugging Orogen packages is not supported yet");
+        const options: vscode.DebugConfiguration = {
+            type: "cppdbg",
+            name: "rock debug",
+            request: "launch",
+            program: this.target.path,
+            externalConsole: true,
+            MIMode: "gdb",
+            miDebuggerServerAddress: "localhost:30001",
+            cwd: dirname(this.path),
+            setupCommands: [
+                {
+                    description: "Enable pretty-printing for gdb",
+                    text: "-enable-pretty-printing",
+                    ignoreFailures: false
+                }
+            ]
+        };
+        return options;
     }
-    async pickTarget()
+
+    async pickTarget(): Promise<void>
     {
-        throw new Error("Debugging Orogen packages is not supported yet")
+        let description = this._context.bridge.describeOrogenProject(this.path, this.name);
+        let promise = new Promise<void>((resolve, reject) => {
+            description.then(
+                async result => {
+                    let choices = new Array<{ 
+                        label: string,
+                        description: string,
+                        task: async.IOrogenTask }>();
+
+                    result.forEach((task) => {
+                        choices.push({
+                            label: task.model_name,
+                            description: '',
+                            task: task
+                        });
+                    });
+
+                    const targetTask = (await this._context.vscode.showQuickPick(choices)).task;
+                    if (targetTask)
+                    {
+                        let target = new debug.Target(targetTask.model_name, targetTask.file);
+                        this._context.setDebuggingTarget(this.path, target);
+                    }
+                    resolve();
+                },
+                err => {
+                    reject(err);
+                }
+            )
+        });
+        return promise;
     }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }

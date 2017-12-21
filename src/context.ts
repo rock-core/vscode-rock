@@ -4,6 +4,7 @@ import { basename, relative } from 'path';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
 import * as packages from './packages'
+import * as async from './async'
 
 export class Context
 {
@@ -14,10 +15,13 @@ export class Context
     private readonly _folderToDebuggingTarget: Map<string, debug.Target>;
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _eventEmitter: vscode.EventEmitter<void>;
+    private readonly _bridge: async.EnvironmentBridge;
+
     public constructor(context: vscode.ExtensionContext,
                        wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
-                       eventEmitter: vscode.EventEmitter<void>)
+                       eventEmitter: vscode.EventEmitter<void>,
+                       bridge: async.EnvironmentBridge)
     {
         this._context = context;
         this._vscode = wrapper;
@@ -26,6 +30,7 @@ export class Context
         this._folderToDebuggingTarget = new Map<string, debug.Target>();
         this._folderToPackageType = new Map<string, packages.Type>();
         this._eventEmitter = eventEmitter;
+        this._bridge = bridge;
     }
 
     public setPackageType(path: string, type: packages.Type): void
@@ -123,6 +128,11 @@ export class Context
     public get workspaces(): autoproj.Workspaces
     {
         return this._workspaces;
+    }
+
+    public get bridge(): async.EnvironmentBridge
+    {
+        return this._bridge;
     }
 
     private get rockSelectedPackage(): string
