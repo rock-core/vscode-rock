@@ -84,6 +84,9 @@ export class Context
             return this._packageFactory.createPackage(root, this);
         }
 
+        if (folders.length == 1 && folders[0].uri.scheme == 'file')
+            return this._packageFactory.createPackage(folders[0].uri.fsPath, this);
+
         const editor = this._vscode.activeTextEditor;
         if (!editor) {
             return this._packageFactory.createPackage(null, this);
