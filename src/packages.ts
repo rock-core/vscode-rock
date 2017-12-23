@@ -205,7 +205,10 @@ abstract class GenericPackage implements Package
             });
         });
 
-        const chosen = await this._context.vscode.showQuickPick(choices);
+        let options: vscode.QuickPickOptions = {
+            placeHolder: 'Select the package type' }
+
+        const chosen = await this._context.vscode.showQuickPick(choices, options);
         if (chosen)
         {
             this._context.setPackageType(this.path, chosen.type);
@@ -513,7 +516,10 @@ export class RockOrogenPackage extends RockPackage
                         });
                     });
 
-                    const targetTask = (await this._context.vscode.showQuickPick(choices)).task;
+                    let options: vscode.QuickPickOptions = {
+                        placeHolder: 'Select a task to debug' }
+
+                    const targetTask = (await this._context.vscode.showQuickPick(choices, options)).task;
                     if (targetTask)
                     {
                         let target = new debug.Target(targetTask.model_name, targetTask.file);

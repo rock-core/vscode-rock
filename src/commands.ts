@@ -31,7 +31,10 @@ export class Commands
                            path: folder });
         });
 
-        const chosen = await this._context.vscode.showQuickPick(choices);
+        let options: vscode.QuickPickOptions = {
+            placeHolder: 'Select the package to work on' }
+
+        const chosen = await this._context.vscode.showQuickPick(choices, options);
         if (chosen) {
             this._context.setSelectedPackage(chosen.path);
         }

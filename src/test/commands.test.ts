@@ -106,11 +106,12 @@ describe("Commands", function () {
                 });
             });
 
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny())).
+            mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
                 returns(() => Promise.resolve(chosen));
 
             await subject.selectPackage();
-            mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.showQuickPick(expectedChoices,
+                TypeMoq.It.isAny()), TypeMoq.Times.once());
             mockContext.verify(x => x.setSelectedPackage(chosen.path), TypeMoq.Times.once());
         });
     })

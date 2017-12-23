@@ -263,11 +263,11 @@ async function testTypePicker(subject: packages.Package,
         type: packages.TypeList.RUBY
     }
     mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-    mockWrapper.setup(x => x.showQuickPick(expectedChoices)).
+    mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
         returns(() => Promise.resolve(packageType));
 
     await subject.pickType();
-    mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
+    mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()), TypeMoq.Times.once());
     mockContext.verify(x => x.setPackageType(subject.path, packages.TypeList.RUBY),
         TypeMoq.Times.once());
 }
@@ -626,14 +626,15 @@ describe("RockOrogenPackage", function () {
                 .returns(() => Promise.resolve([ task ]));
             mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-            mockWrapper.setup(x => x.showQuickPick(expectedChoices)).
+            mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
                 returns(() => Promise.resolve(expectedChoices[0]));
         
             await subject.pickTarget();
             let target = new debug.Target(task.model_name, task.file);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target)
-            mockWrapper.verify(x => x.showQuickPick(expectedChoices), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()),
+                TypeMoq.Times.once());
             mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
                 TypeMoq.Times.once());
             assert.equal(subject.target.name, 'task1');
