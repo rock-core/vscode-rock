@@ -464,6 +464,13 @@ async function sleep(ms: number): Promise<void>
     return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
+export interface IOrogenTaskPickerModel
+{
+    label: string,
+    description: string,
+    task: async.IOrogenTask
+}
+
 export class RockOrogenPackage extends RockPackage
 {
     async preLaunchTask(): Promise<void>
@@ -500,14 +507,11 @@ export class RockOrogenPackage extends RockPackage
     async pickTarget(): Promise<void>
     {
         let description = this._context.bridge.describeOrogenProject(this.path, this.name);
-        let promise = new Promise<void>((resolve, reject) => {
+        let tokenSource = new vscode.CancellationTokenSource();
+        let promise = new Promise<IOrogenTaskPickerModel[]>((resolve, reject) => {
             description.then(
                 async result => {
-                    let choices = new Array<{ 
-                        label: string,
-                        description: string,
-                        task: async.IOrogenTask }>();
-
+                    let choices = new Array<IOrogenTaskPickerModel>();
                     result.forEach((task) => {
                         choices.push({
                             label: task.model_name,
@@ -515,24 +519,33 @@ export class RockOrogenPackage extends RockPackage
                             task: task
                         });
                     });
-
-                    let options: vscode.QuickPickOptions = {
-                        placeHolder: 'Select a task to debug' }
-
-                    const targetTask = (await this._context.vscode.showQuickPick(choices, options)).task;
-                    if (targetTask)
-                    {
-                        let target = new debug.Target(targetTask.model_name, targetTask.file);
-                        this._context.setDebuggingTarget(this.path, target);
-                    }
-                    resolve();
+                    resolve(choices);
                 },
                 err => {
+                    tokenSource.cancel();
                     reject(err);
                 }
             )
         });
-        return promise;
+        let options: vscode.QuickPickOptions = {
+            placeHolder: 'Select a task to debug' }
+
+        let contents;
+        const targetTasks = await this._context.vscode.showQuickPick(promise, options, tokenSource.token);
+        if (targetTasks)
+        {
+            let target = new debug.Target(targetTasks.task.model_name, targetTasks.task.file);
+            this._context.setDebuggingTarget(this.path, target);
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            promise.then(sucess => {
+                resolve();
+            },
+            err => {
+                reject(err);
+            })
+        });
     }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }

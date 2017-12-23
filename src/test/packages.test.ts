@@ -597,6 +597,9 @@ describe("RockOrogenPackage", function () {
     describe("pickTarget()", function () {
         it("throws if orogen project loading fails", async function () {
             let error = new Error("test");
+            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
+            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
             mockBridge.setup(x => x.describeOrogenProject(subject.path,
                 subject.name)).returns(() => Promise.reject(error));
             mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
@@ -606,11 +609,7 @@ describe("RockOrogenPackage", function () {
         })
         it("shows the target picking ui and sets the debugging target", async function () {
             let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-            let expectedChoices = new Array<{
-                label: string,
-                description: string,
-                task: async.IOrogenTask
-            }>();
+            let expectedChoices = new Array<packages.IOrogenTaskPickerModel>();
             let task: async.IOrogenTask = {
                 model_name: 'task1',
                 deployment_name: "orogen_task1",
@@ -622,23 +621,32 @@ describe("RockOrogenPackage", function () {
                 description: '',
                 task: task
             });
+
+            let choices;
             mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
                 .returns(() => Promise.resolve([ task ]));
             mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-            mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.is((x: packages.IOrogenTaskPickerModel[]) => {
+                choices = x;
+                return true;
+            }), TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 returns(() => Promise.resolve(expectedChoices[0]));
         
             await subject.pickTarget();
             let target = new debug.Target(task.model_name, task.file);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target)
-            mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()),
-                TypeMoq.Times.once());
             mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
                 TypeMoq.Times.once());
             assert.equal(subject.target.name, 'task1');
-            assert.equal(subject.target.path, '/some/bin/deployment/binfile');        
+            assert.equal(subject.target.path, '/some/bin/deployment/binfile');
+            return new Promise<void>((resolve, reject) => {
+                choices.then(result => {
+                    assert.deepEqual(result, expectedChoices);
+                    resolve();
+                });
+            })
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
