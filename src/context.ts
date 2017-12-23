@@ -6,6 +6,13 @@ import * as debug from './debug';
 import * as packages from './packages'
 import * as async from './async'
 
+function exists(folders: vscode.WorkspaceFolder[], uri: string)
+{
+    return folders.find((item) => {
+        return (item.uri.fsPath == uri);
+    })
+}
+
 export class Context
 {
     private readonly _context: vscode.ExtensionContext;
@@ -16,6 +23,7 @@ export class Context
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _eventEmitter: vscode.EventEmitter<void>;
     private readonly _bridge: async.EnvironmentBridge;
+    private _lastSelectedRoot: string;
 
     public constructor(context: vscode.ExtensionContext,
                        wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
@@ -57,53 +65,42 @@ export class Context
 
     public async getSelectedPackage(): Promise<packages.Package>
     {
+        let selectedRoot: string;
         let folders = this._vscode.workspaceFolders;
-        if (!folders || folders.length == 0) {
-            return this._packageFactory.createPackage(null, this);
-        }
 
-        const selectionMode = this.packageSelectionMode;
-        let root: string;
-
-        if (selectionMode == "manual")
+        if (folders && folders.length > 0)
         {
-            let exists = false;
-            root = this.rockSelectedPackage;
-            if (!root) return this._packageFactory.createPackage(null, this);
-
-            this._vscode.workspaceFolders.forEach((entry) => {
-                if (entry.uri.fsPath == root) {
-                    exists = true;
+            const selectionMode = this.packageSelectionMode;
+            if (selectionMode == "manual")
+            {
+                let root = this.rockSelectedPackage;
+                if (root)
+                {
+                    if (exists(folders, root))
+                        selectedRoot = root;
                 }
-            });
+            } else
+            {
+                if (folders.length == 1 && folders[0].uri.scheme == 'file')
+                    selectedRoot = folders[0].uri.fsPath;
 
-            if (!exists) {
-                return this._packageFactory.createPackage(null, this);
+                const editor = this._vscode.activeTextEditor;
+                if (editor)
+                {
+                    const resource = editor.document.uri;
+                    if (resource.scheme === 'file')
+                    {
+                        const folder = this._vscode.getWorkspaceFolder(resource);
+                        if (folder)
+                            selectedRoot = folder.uri.fsPath;
+                    }
+                }
             }
-
-            return this._packageFactory.createPackage(root, this);
+            if (!selectedRoot && exists(folders, this._lastSelectedRoot))
+                selectedRoot = this._lastSelectedRoot;
         }
-
-        if (folders.length == 1 && folders[0].uri.scheme == 'file')
-            return this._packageFactory.createPackage(folders[0].uri.fsPath, this);
-
-        const editor = this._vscode.activeTextEditor;
-        if (!editor) {
-            return this._packageFactory.createPackage(null, this);
-        }
-
-        const resource = editor.document.uri;
-        if (resource.scheme === 'file') {
-            const folder = this._vscode.getWorkspaceFolder(resource);
-            if (!folder) {
-                return this._packageFactory.createPackage(null, this);;
-            } else {
-                root = folder.uri.fsPath;
-            }
-        } else {
-            return this._packageFactory.createPackage(null, this);;
-        }
-        return this._packageFactory.createPackage(root, this);
+        this._lastSelectedRoot = selectedRoot;
+        return this._packageFactory.createPackage(selectedRoot, this);
     }
 
     public setSelectedPackage(path: string): void
