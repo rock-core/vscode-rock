@@ -67,9 +67,9 @@
                                     "description": "Start vizkit task inspector",
                                     "default": true
                                 },
-                                "conf_dir": {
+                                "confDir": {
                                     "type": "string",
-                                    "description": "Directory to load task configuration from",
+                                    "description": "Directory to load task configurations from",
                                     "default": "${workspaceFolder}/scripts"
                                 }
                             }
@@ -82,7 +82,7 @@
                         "orogen": {
                             "start": false,
                             "gui": true,
-                            "conf_dir": "${workspaceFolder}/scripts"
+                            "confDir": "${workspaceFolder}/scripts"
                         }
                     }
                 }

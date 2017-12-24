@@ -374,7 +374,7 @@ describe("RockRubyPackage", function () {
                 orogen: {
                     start: true,
                     gui: true,
-                    conf_dir: subject.path
+                    confDir: subject.path
                 }
             }
             const type = packages.TypeList.RUBY;
@@ -475,7 +475,7 @@ describe("RockCXXPackage", function () {
                 orogen: {
                     start: true,
                     gui: true,
-                    conf_dir: subject.path
+                    confDir: subject.path
                 }
             }
             const options = {

@@ -57,7 +57,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
                 if (userConf.orogen.gui) args.push('--gui');
                 args.push('--gdbserver');
                 args.push('--conf-dir');
-                args.push(userConf.orogen.conf_dir);
+                args.push(userConf.orogen.confDir);
                 args.push(target.name);
 
                 task = this.createTask(taskName, folder, ws, userConf.cwd, args);

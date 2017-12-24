@@ -10,7 +10,7 @@ export interface RockOrogenDebugConfig
 {
     start: boolean,
     gui: boolean,
-    conf_dir: string
+    confDir: string
 }
 
 export interface RockDebugConfig

@@ -105,7 +105,7 @@ describe("Pre Launch Task Provider", function () {
                 orogen: {
                     start: true,
                     gui: true,
-                    conf_dir: a
+                    confDir: a
                 }
             }
             let folder: vscode.WorkspaceFolder = {

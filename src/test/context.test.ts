@@ -173,7 +173,7 @@ describe("Context tests", function () {
             orogen: {
                 start: true,
                 gui: true,
-                conf_dir: '/some/path'
+                confDir: '/some/path'
             }
         }
         testContext.addWorkspaceConfiguration('rock', '/the/package');
