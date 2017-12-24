@@ -4,6 +4,7 @@
     "description": "Base support for Rock workspaces",
     "version": "0.0.1",
     "publisher": "rock-robotics",
+    "license": "SEE LICENSE IN LICENSE.txt",
     "engines": {
         "vscode": "^1.18.0"
     },
