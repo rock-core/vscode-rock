@@ -8,10 +8,13 @@ import * as autoproj from '../autoproj';
 import * as helpers from './helpers';
 import * as packages from '../packages';
 import * as async from '../async';
-import { basename } from 'path';
+import { basename, join } from 'path';
+import * as fs from 'fs'
+import * as debug from '../debug'
 
 class TestContext
 {
+    root: string;
     mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     mockContext: TypeMoq.IMock<vscode.ExtensionContext>;
     mockEventEmitter: TypeMoq.IMock<vscode.EventEmitter<void>>;
@@ -29,6 +32,7 @@ class TestContext
     private _activeEditor;
     constructor()
     {
+        this.root = helpers.init();
         this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
         this.mockEventEmitter = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
@@ -58,6 +62,17 @@ class TestContext
 
         this.mockTextEditor.setup(x => x.document).
             returns(() => this.mockDocument.object);
+    }
+
+    clear(): void
+    {
+        try
+        {
+            fs.unlinkSync(join(this.root, '.vscode', '.rock.json'));
+            fs.rmdirSync(join(this.root, '.vscode'));
+        }
+        catch {}
+        helpers.clear();
     }
 
     private editor(): vscode.TextEditor
@@ -143,6 +158,176 @@ describe("Context tests", function () {
     beforeEach(function () {
         testContext = new TestContext;
     })
+    afterEach(function () {
+        testContext.clear();
+    })
+    function loadRockJson()
+    {
+        let path = join(testContext.root, '.vscode', '.rock.json');
+        let writtenData: context.PackageInternalData;
+        let jsonString = fs.readFileSync(path, 'utf8');
+        writtenData = JSON.parse(jsonString);
+        return writtenData;
+    }
+    describe("setPackageType", function () {
+        it("writes a json file with the type only", function () {
+            let type = packages.Type.fromName("ruby");
+            testContext.subject.setPackageType(testContext.root, type);
+            let writtenData = loadRockJson();
+
+            assert.equal(writtenData.type, "ruby");
+            assert.equal(writtenData.debuggingTarget.name, undefined);
+            assert.equal(writtenData.debuggingTarget.path, undefined);
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type keeping previous data", function () {
+            let type = packages.Type.fromName("cxx");
+            let previous = {
+                debuggingTarget: {
+                    name: 'target',
+                    path: '/path/to/target'
+                }
+            }
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            testContext.subject.setPackageType(testContext.root, type);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "cxx");
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type discarding previous data", function () {
+            let type = packages.Type.fromName("cxx");
+            let previous = "invalid json";
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), previous);
+            testContext.subject.setPackageType(testContext.root, type);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "cxx");
+            assert.equal(writtenData.debuggingTarget.name, undefined);
+            assert.equal(writtenData.debuggingTarget.path, undefined);
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+    })
+    describe("getPackageType", function () {
+        function writeJson(type: string)
+        {
+            let jsonData = JSON.stringify({ type: type });
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+        }
+        it("reads the package type from the json file", function () {
+            writeJson("orogen");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type.name, "orogen");
+        })
+        it("returns OTHER if the type is invalid", function () {
+            writeJson("invalid package type");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type.name, "other");
+        })
+        it("returns undefined if the file is missing", function () {
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+        it("returns undefined if the type is unset", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+                JSON.stringify({ data: "garbage" }));
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+        it("returns undefined if the file is invalid", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+    })
+    describe("setDebuggingTarget", function () {
+        it("writes a json file with the target only", function () {
+            let target = new debug.Target("target", "/path/to/target");
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+            let writtenData = loadRockJson();
+
+            assert.equal(writtenData.type, undefined);
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the target keeping previous data", function () {
+            let previous = { type: "orogen" }
+            let target = new debug.Target("target", "/path/to/target");
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "orogen");
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type discarding previous data", function () {
+            let previous = { type: "orogen" }
+            let target = new debug.Target("target", "/path/to/target");
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "invalid data");
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, undefined);
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+    })
+    describe("getDebuggingTarget", function () {
+        function writeJson(name: string, path: string)
+        {
+            let jsonData = JSON.stringify({ debuggingTarget: { name: name, path: path }});
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+        }
+        it("reads the package type from the json file", function () {
+            writeJson("target", "/path/to/target");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target.name, "target");
+            assert.equal(target.path, "/path/to/target");
+        })
+        it("returns undefiend name is missing", function () {
+            writeJson(undefined, "/path/to/json");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefiend path is missing", function () {
+            writeJson("target", undefined);
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefined if the target is unset", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+                JSON.stringify({ data: "garbage" }));
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefined if the file is invalid", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+    })
     it("returns the given vscode wrapper", function () {
         assert.strictEqual(testContext.mockWrapper.object, testContext.subject.vscode);
     });
@@ -195,8 +380,6 @@ describe("Context tests", function () {
 
     describe("get selectedPackage", function() {
         describe("on an empty workspace", function() {
-            beforeEach(function () {
-            })
             it("creates an invalid package", async function () {
                 let mock = testContext.addPackageFactory(undefined);
                 let pkg = await testContext.subject.getSelectedPackage();

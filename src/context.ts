@@ -5,6 +5,17 @@ import * as autoproj from './autoproj';
 import * as debug from './debug';
 import * as packages from './packages'
 import * as async from './async'
+import * as fs from 'fs'
+import { join } from 'path'
+
+export interface PackageInternalData
+{
+    type: string;
+    debuggingTarget: {
+        name: string,
+        path: string
+    }
+}
 
 export interface RockOrogenDebugConfig
 {
@@ -57,24 +68,41 @@ export class Context
 
     public setPackageType(path: string, type: packages.Type): void
     {
-        this._folderToPackageType.set(path, type);
+        let data = this.loadPersistedData(path);
+        data.type = type.name;
+        this.persistData(path, data);
         this._eventEmitter.fire();
     }
 
     public getPackageType(path: string): packages.Type
     {
-        return this._folderToPackageType.get(path);
+        let pkgType: packages.Type;
+        let data = this.loadPersistedData(path);
+
+        if (data.type)
+            pkgType = packages.Type.fromName(data.type);
+
+        return pkgType;
     }
 
     public setDebuggingTarget(path: string, target: debug.Target): void
     {
-        this._folderToDebuggingTarget.set(path, target);
+        let data = this.loadPersistedData(path);
+        data.debuggingTarget.name = target.name;
+        data.debuggingTarget.path = target.path;
+        this.persistData(path, data);
         this._eventEmitter.fire();
     }
 
     public getDebuggingTarget(path: string): debug.Target
     {
-        return this._folderToDebuggingTarget.get(path);
+        let data = this.loadPersistedData(path);
+        if (!data || !data.debuggingTarget ||
+            !data.debuggingTarget.name || !data.debuggingTarget.path)
+            return undefined;
+
+        return new debug.Target(data.debuggingTarget.name,
+            data.debuggingTarget.path);
     }
 
     public async getSelectedPackage(): Promise<packages.Package>
@@ -153,6 +181,41 @@ export class Context
     {
         let resource = vscode.Uri.file(path);
         return this._vscode.getConfiguration('rock', resource).get('debug');
+    }
+
+    private loadPersistedData(path: string): PackageInternalData
+    {
+        let dataPath = join(path, '.vscode', '.rock.json');
+        let jsonData: string;
+        let data: PackageInternalData = {
+            type: undefined,
+            debuggingTarget: {
+                name: undefined,
+                path: undefined
+            }
+        }
+        try
+        {
+            jsonData = fs.readFileSync(dataPath, "utf8");
+            Object.assign(data, JSON.parse(jsonData));
+        }
+        catch
+        {
+        }
+        return data;
+    }
+
+    private persistData(path: string, data: PackageInternalData): void
+    {
+        let jsonData = JSON.stringify(data);
+        let options = {
+            mode: 0o644,
+            flag: 'w'
+        };
+        if (!fs.existsSync(join(path, '.vscode')))
+            fs.mkdirSync(join(path, '.vscode'), 0o755);
+
+        fs.writeFileSync(join(path, '.vscode', '.rock.json'), jsonData, options);
     }
 
     private get rockSelectedPackage(): string
