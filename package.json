@@ -14,6 +14,13 @@
     "categories": [
         "Other"
     ],
+    "keywords": [
+        "rock",
+        "robotics",
+        "autoproj",
+        "syskit",
+        "roby"
+    ],
     "contributes": {
         "configuration": {
             "title": "Rock integration with Visual Studio Code",
