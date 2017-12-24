@@ -8,6 +8,7 @@ import * as autoproj from '../autoproj'
 import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../packages'
+import { basename } from 'path'
 
 describe("Target", function () {
     let subject: debug.Target;
@@ -22,17 +23,56 @@ describe("Target", function () {
     })
 })
 
+class TestContext
+{
+    workspaces: autoproj.Workspaces;
+    mockContext: TypeMoq.IMock<context.Context>;
+    mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
+    subject: debug.PreLaunchTaskProvider;
+    constructor(workspaces: autoproj.Workspaces)
+    {
+        this.workspaces = workspaces;
+        this.mockContext = TypeMoq.Mock.ofType<context.Context>();
+        this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        this.mockContext.setup(x => x.workspaces).returns(() => workspaces);
+        this.mockContext.setup(x => x.vscode).returns(() => this.mockWrapper.object);
+        this.subject = new debug.PreLaunchTaskProvider(this.mockContext.object);
+    }
+
+    setDebuggingTargetForPackage(path: string): debug.Target
+    {
+        let target = new debug.Target(basename(path), path);
+        this.mockContext.setup(x => x.getDebuggingTarget(path)).returns(() => target);
+        return target;
+    }
+    setSelectedPackage(path: string, type: packages.Type): TypeMoq.IMock<packages.Package>
+    {
+        let mockPkg = TypeMoq.Mock.ofType<packages.Package>();
+        mockPkg.setup((x: any) => x.then).returns(() => undefined);
+        this.mockContext.setup(x => x.getSelectedPackage()).
+            returns(() => Promise.resolve(mockPkg.object));
+        mockPkg.setup(x => x.path).returns(() => path);
+        mockPkg.setup(x => x.type).returns(() => type);
+        return mockPkg;
+    }
+    associateResourceWithFolder(resource: vscode.Uri,
+        folder: vscode.WorkspaceFolder): void
+    {
+        this.mockWrapper.setup(x => x.getWorkspaceFolder(resource)).
+            returns(() => folder);
+    }
+    setDebuggingConfigurationForPkg(path: string, config: context.RockDebugConfig)
+    {
+        this.mockContext.setup(x => x.debugConfig(path)).returns(() => config);
+    }
+}
+
 describe("Pre Launch Task Provider", function () {
     let root: string;
     let workspaces: autoproj.Workspaces;
-    let mockContext: TypeMoq.IMock<context.Context>;
-    let subject: debug.PreLaunchTaskProvider;
-
     beforeEach(function () {
         root = helpers.init();
         workspaces = new autoproj.Workspaces()
-        mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockContext.setup(x => x.workspaces).returns(() => workspaces);
     })
     afterEach(function () {
         helpers.clear();
@@ -48,47 +88,60 @@ describe("Pre Launch Task Provider", function () {
 
     describe("in a non empty workspace", function () {
         let a: string;
-        let target: debug.Target;
-        let mockPkg: TypeMoq.IMock<packages.RockOrogenPackage>;
+        let test: TestContext;
         beforeEach(function () {
             helpers.mkdir('one');
             helpers.mkdir('one', '.autoproj');
             helpers.createInstallationManifest([], 'one');
             helpers.mkdir('one', 'drivers');
             a = helpers.mkdir('one', 'drivers', 'iodrivers_base');
-
             workspaces.addFolder(a);
-            subject = new debug.PreLaunchTaskProvider(mockContext.object);
-
-            target = new debug.Target('iodrivers_base', a);
-            mockContext.setup(x => x.getDebuggingTarget(a)).returns(() => target);
-            mockPkg = TypeMoq.Mock.ofType<packages.RockOrogenPackage>();
-            mockPkg.setup((x: any) => x.then).returns(() => undefined);
-            mockContext.setup(x => x.getSelectedPackage()).
-                returns(() => Promise.resolve(mockPkg.object));
-            mockPkg.setup(x => x.path).returns(() => a);
-            mockPkg.setup(x => x.type).
-                returns(() => packages.Type.fromType(packages.TypeList.OROGEN));
+            test = new TestContext(workspaces);
         })
         it("creates the tasks to launch orogen components", async function () {
-            let tasks = await subject.provideTasks();
+            let userConf: context.RockDebugConfig = {
+                cwd: a,
+                args: ['--test'],
+                orogen: {
+                    start: true,
+                    gui: true,
+                    conf_dir: a
+                }
+            }
+            let folder: vscode.WorkspaceFolder = {
+                uri: vscode.Uri.file(a),
+                name: basename(a),
+                index: 0
+            };
+
+            let resource = vscode.Uri.file(a);
+            test.setSelectedPackage(a, packages.Type.fromType(packages.TypeList.OROGEN));
+            test.associateResourceWithFolder(resource, folder);
+            test.setDebuggingConfigurationForPkg(a, userConf);
+            let target = test.setDebuggingTargetForPackage(a);
+            let tasks = await test.subject.provideTasks();
             assert.equal(tasks.length, 1);
 
             let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(a));
-            let args = ['exec', 'rock-run', '--gui', '--gdbserver', '--conf-dir',
-                path.join(a, 'scripts'), target.name]
-            assertTask(tasks[0], process, args);
+            let args = ['exec', 'rock-run', '--start', '--gui', '--gdbserver',
+                '--conf-dir', a, target.name]
+
+            let actual_process = (<vscode.ProcessExecution>tasks[0].execution).process;
+            let actual_args = (<vscode.ProcessExecution>tasks[0].execution).args;
+            assert.equal(actual_process, process);
+            assert.deepEqual(actual_args, args);
+            assert.equal(tasks[0].scope, folder);
         });
     });
     describe("in an empty workspace", function () {
+        let test: TestContext;
         beforeEach(function () {
-            subject = new debug.PreLaunchTaskProvider(mockContext.object);
+            test = new TestContext(workspaces);
         });
         it("provides an empty array of tasks", async function () {
-            mockContext.setup(x => x.getSelectedPackage()).
-                returns(() => Promise.resolve(new packages.InvalidPackage));
-
-            let tasks = await subject.provideTasks();
+            let pkg = new packages.InvalidPackage();
+            test.setSelectedPackage(pkg.path, pkg.type);
+            let tasks = await test.subject.provideTasks();
             assert.equal(tasks.length, 0);
         })
     });

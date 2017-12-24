@@ -6,6 +6,20 @@ import * as debug from './debug';
 import * as packages from './packages'
 import * as async from './async'
 
+export interface RockOrogenDebugConfig
+{
+    start: boolean,
+    gui: boolean,
+    conf_dir: string
+}
+
+export interface RockDebugConfig
+{
+    cwd: string;
+    args: string[],
+    orogen: RockOrogenDebugConfig
+}
+
 function exists(folders: vscode.WorkspaceFolder[], uri: string)
 {
     return folders.find((item) => {
@@ -133,6 +147,12 @@ export class Context
     public get bridge(): async.EnvironmentBridge
     {
         return this._bridge;
+    }
+
+    public debugConfig(path: string): RockDebugConfig
+    {
+        let resource = vscode.Uri.file(path);
+        return this._vscode.getConfiguration('rock', resource).get('debug');
     }
 
     private get rockSelectedPackage(): string

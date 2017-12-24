@@ -368,6 +368,15 @@ describe("RockRubyPackage", function () {
             let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
 
             const target = new debug.Target('package', '/path/to/package/build/test');
+            let userConf: context.RockDebugConfig = {
+                cwd: subject.path,
+                args: ['--test'],
+                orogen: {
+                    start: true,
+                    gui: true,
+                    conf_dir: subject.path
+                }
+            }
             const type = packages.TypeList.RUBY;
             let env = {
                 key: 'KEY',
@@ -378,7 +387,8 @@ describe("RockRubyPackage", function () {
                 name: "rock debug",
                 request: "launch",
                 program: target.path,
-                cwd: dirname(target.path),
+                cwd: userConf.cwd,
+                args: userConf.args,
                 env: env
             };
             const uri = vscode.Uri.file(subject.path);
@@ -389,6 +399,7 @@ describe("RockRubyPackage", function () {
             }
 
             mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
+            mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
             mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
@@ -458,6 +469,15 @@ describe("RockCXXPackage", function () {
             let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
             const target = new debug.Target('package', '/path/to/package/build/test');
             const type = packages.TypeList.CXX;
+            let userConf: context.RockDebugConfig = {
+                cwd: subject.path,
+                args: ['--test'],
+                orogen: {
+                    start: true,
+                    gui: true,
+                    conf_dir: subject.path
+                }
+            }
             const options = {
                 type: "cppdbg",
                 name: "rock debug",
@@ -465,7 +485,8 @@ describe("RockCXXPackage", function () {
                 program: target.path,
                 externalConsole: false,
                 MIMode: "gdb",
-                cwd: dirname(target.path),
+                cwd: userConf.cwd,
+                args: userConf.args,
                 setupCommands: [
                     {
                         description: "Enable pretty-printing for gdb",
@@ -480,7 +501,7 @@ describe("RockCXXPackage", function () {
                 name: basename(subject.path),
                 index: 0
             }
-
+            mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 

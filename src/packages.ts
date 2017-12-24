@@ -410,13 +410,15 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
         let promise = new Promise<vscode.DebugConfiguration>((resolve, reject) => {
             env.then(
                 result => {
+                    let userConf = this._context.debugConfig(this.path);
                     const options: vscode.DebugConfiguration = {
                         type: "Ruby",
                         name: "rock debug",
                         request: "launch",
                         program: this.target.path,
                         env: result,
-                        cwd: dirname(this.target.path),
+                        cwd: userConf.cwd,
+                        args: userConf.args
                     };
                     resolve(options);
                 },
@@ -438,6 +440,7 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
+        let userConf = this._context.debugConfig(this.path);
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
@@ -445,7 +448,8 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
             program: this.target.path,
             externalConsole: false,
             MIMode: "gdb",
-            cwd: dirname(this.target.path),
+            cwd: userConf.cwd,
+            args: userConf.args,
             setupCommands: [
                 {
                     description: "Enable pretty-printing for gdb",
@@ -484,6 +488,7 @@ export class RockOrogenPackage extends RockPackage
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
+        let userConf = this._context.debugConfig(this.path);
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
@@ -492,7 +497,8 @@ export class RockOrogenPackage extends RockPackage
             externalConsole: true,
             MIMode: "gdb",
             miDebuggerServerAddress: "localhost:30001",
-            cwd: dirname(this.path),
+            cwd: userConf.cwd,
+            serverLaunchTimeout: 30000,
             setupCommands: [
                 {
                     description: "Enable pretty-printing for gdb",

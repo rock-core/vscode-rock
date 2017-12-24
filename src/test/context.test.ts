@@ -65,13 +65,21 @@ class TestContext
         return this._activeEditor;
     }
 
-    addWorkspaceConfiguration(section: string): void
+    addWorkspaceConfiguration(section: string, path?: string): void
     {
-        this.mockWrapper.setup(x => x.getConfiguration(section))
-            .returns(() => this.mockWorkspaceConf.object);
+        if (path)
+        {
+            let resource = vscode.Uri.file(path);
+            this.mockWrapper.setup(x => x.getConfiguration(section, resource))
+                .returns(() => this.mockWorkspaceConf.object);
+        } else
+        {
+            this.mockWrapper.setup(x => x.getConfiguration(section))
+                .returns(() => this.mockWorkspaceConf.object);
+        }
     }
 
-    addConfigurationValue(section: string, value: string): void
+    addConfigurationValue<T>(section: string, value: T): void
     {
         this.mockWorkspaceConf.setup(x => x.get(section))
             .returns(() => value);
@@ -157,6 +165,22 @@ describe("Context tests", function () {
 
         let selectionMode = testContext.subject.packageSelectionMode;
         assert.equal(selectionMode, "auto");
+    });
+    it("gets the debugging configuration", function () {
+        let config: context.RockDebugConfig = {
+            cwd: '/a/path/to/something',
+            args: ["--test", "--argument"],
+            orogen: {
+                start: true,
+                gui: true,
+                conf_dir: '/some/path'
+            }
+        }
+        testContext.addWorkspaceConfiguration('rock', '/the/package');
+        testContext.addConfigurationValue('debug', config);
+
+        let debugConfig = testContext.subject.debugConfig('/the/package');
+        assert.deepEqual(debugConfig, config);
     });
     it("sets the selected package and fires the event", function () {
         let path = '/path/to/package';

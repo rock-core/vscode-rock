@@ -47,12 +47,20 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
             let target = context.getDebuggingTarget(pkg.path);
             if (target)
             {
+                let args = ['exec', 'rock-run'];
+                let folder = context.vscode.getWorkspaceFolder(vscode.Uri.file(pkg.path));
                 let taskName = "Run " + relative(ws.root, pkg.path);
                 taskName = taskName + " (gdbserver)";
 
-                let args = ['exec', 'rock-run', '--gui', '--gdbserver', '--conf-dir',
-                    path.join(pkg.path, 'scripts'), target.name]
-                task = this.createTask(taskName, null, ws, pkg.path, args);
+                let userConf = context.debugConfig(pkg.path);
+                if (userConf.orogen.start) args.push('--start');
+                if (userConf.orogen.gui) args.push('--gui');
+                args.push('--gdbserver');
+                args.push('--conf-dir');
+                args.push(userConf.orogen.conf_dir);
+                args.push(target.name);
+
+                task = this.createTask(taskName, folder, ws, userConf.cwd, args);
             }
         }
         return task;
@@ -62,11 +70,11 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
         return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: cwd })
     }
 
-    private static createTask(name: string, group: vscode.TaskGroup, ws: autoproj.Workspace, cwd: string, args = []) {
+    private static createTask(name: string, target: vscode.WorkspaceFolder, ws: autoproj.Workspace, cwd: string, args = []) {
         let definition = { type: 'rock', workspace: ws.root }
         let exec = this.runAutoproj(ws, cwd, ...args);
-        let task = new vscode.Task(definition, name, 'rock', exec, []);
-        task.group = group;
+        let folder = context
+        let task = new vscode.Task(definition, target, name, 'rock', exec, []);
         return task;
     }
 
