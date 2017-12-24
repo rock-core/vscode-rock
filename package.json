@@ -5,6 +5,10 @@
     "version": "0.0.1",
     "publisher": "rock-robotics",
     "license": "SEE LICENSE IN LICENSE.txt",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rock-core/vscode-rock.git"
+    },
     "engines": {
         "vscode": "^1.18.0"
     },
