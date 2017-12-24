@@ -89,7 +89,7 @@ export class EnvironmentBridge
                     }
                 },
                 err => {
-                    reject(err);
+                    reject(new Error("Could not load orogen project: " + err.message));
                 }
             )
         });
@@ -105,7 +105,7 @@ export class EnvironmentBridge
                     resolve(result);
                 },
                 err => {
-                    reject(new Error("Could load environment: " + err.message));
+                    reject(new Error("Could not load environment: " + err.message));
                 }
             )
         });
