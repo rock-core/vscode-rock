@@ -74,18 +74,18 @@ export class EnvironmentBridge
         let promise = new Promise<IOrogenTask[]>((resolve, reject) => {
             description.then(
                 result => {
-                    if (result["error"])
+                    if (result.error)
                     {
                         reject(new Error("Could not load orogen project: " +
                             result["error"]));
                     }
-                    else if (result["tasks"].length == 0)
+                    else if (result.tasks.length == 0)
                     {
                         reject(new Error("No targets available for this project"));
                     }
                     else
                     {
-                        resolve(result["tasks"]);
+                        resolve(result.tasks);
                     }
                 },
                 err => {
@@ -96,10 +96,10 @@ export class EnvironmentBridge
         return promise;
     }
 
-    async env(root: string): Promise<any>
+    async env(root: string): Promise<{ [key: string]: string }>
     {
         let env = jsonFromRubyScript(root, ENV_DUMP_SCRIPT);
-        let promise = new Promise<{ key: string, value: string }>((resolve, reject) => {
+        let promise = new Promise<{ [key: string]: string }>((resolve, reject) => {
             env.then(
                 result => {
                     resolve(result);
@@ -114,7 +114,7 @@ export class EnvironmentBridge
 }
 
 export async function jsonFromRubyScript(root: string, script: string,
-    ...args): Promise<{ key: string, value: string }>
+    ...args): Promise<any>
 {
     let argList = args.join(' ');
     let tempRoot = temp.mkdirSync();
