@@ -7,14 +7,26 @@ workspace.
 ## Features
 
 - Sets up syntax highlighting for Rock files with non-standard extensions (e.g. .autobuild, .osdeps and .orogen)
+- Autoproj integration
+  - Build
+  - Update
+  - Checkout
+- Rock integration
+    - Debug (C/C++, Ruby, Orogen)
 
 ## Requirements
 
-No additional requirements so far.
+- Microsoft CPP Tools Extension
+- Rebornix Ruby Extension
+- Ruby gems:
+  - debase
+  - ruby-debug-ide
+  - rubocop (optional but recommended)
 
 ## Extension Settings
 
-No settings so far.
+- Package selection mode
+- Debugging configuration
 
 ## Known Issues
 
