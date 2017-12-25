@@ -6,6 +6,19 @@
     "publisher": "rock-robotics",
     "license": "SEE LICENSE IN LICENSE.txt",
     "icon": "images/icon.png",
+    "author": {
+        "name": "Rock Robotics"
+    },
+    "contributors": [
+        {
+            "name": "Gabriel Arjones",
+            "email": "arjones@arjones.com"
+        },
+        {
+            "name": "Sylvain Joyeux",
+            "email": "sylvain.joyeux@m4x.org"
+        }
+    ],
     "galleryBanner": {
         "color": "#458ccc",
         "theme": "dark"
