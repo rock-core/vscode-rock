@@ -1,8 +1,8 @@
-import * as vscode from 'vscode';
 import { basename, relative } from 'path';
 import * as context from './context';
 import * as status from './status';
 import * as packages from './packages';
+import * as wrappers from './wrappers';
 
 function assert_workspace_not_empty(context: context.Context)
 {
@@ -13,9 +13,12 @@ function assert_workspace_not_empty(context: context.Context)
 export class Commands
 {
     private readonly _context: context.Context;
-    constructor(context: context.Context)
+    private _vscode : wrappers.VSCode;
+
+    constructor(context: context.Context, vscode : wrappers.VSCode)
     {
         this._context = context;
+        this._vscode  = vscode;
     }
 
     async selectPackage()
@@ -31,10 +34,9 @@ export class Commands
                            path: folder });
         });
 
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select the package to work on' }
+        let options = { placeHolder: 'Select the package to work on' }
 
-        const chosen = await this._context.vscode.showQuickPick(choices, options);
+        const chosen = await this._vscode.showQuickPick(choices, options);
         if (chosen) {
             this._context.setSelectedPackage(chosen.path);
         }
@@ -43,7 +45,7 @@ export class Commands
     private handlePromise<T>(promise: Promise<T>)
     {
         promise.catch(err => {
-            this._context.vscode.showErrorMessage(err.message);
+            this._vscode.showErrorMessage(err.message);
         })
     }
     async buildPackage()
@@ -72,19 +74,10 @@ export class Commands
 
     register()
     {
-        function register(receiver, name) {
-            let fn = receiver[name].bind(receiver);
-            return vscode.commands.registerCommand('rock.' + name, _ => fn());
-        }
-
-        for (const key of ['selectPackage',
-                           'buildPackage',
-                           'selectPackageType',
-                           'setDebuggingTarget',
-                           'debugPackage'])
-        {
-            this._context.extensionContext.subscriptions.
-                push(register(this, key));
-        }
+        this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.buildPackage', (...args) => { this.buildPackage(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.selectPackageType', (...args) => { this.selectPackageType(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.setDebuggingTarget', (...args) => { this.setDebuggingTarget(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
     }
 }

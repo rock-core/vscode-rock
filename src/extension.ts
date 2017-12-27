@@ -47,12 +47,12 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let onContextUpdate = new vscode.EventEmitter<void>();
     let workspaces = new autoproj.Workspaces;
     let taskProvider = new tasks.Provider(workspaces);
-    let vscodeWrapper = new wrappers.VSCode();
+    let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let packageFactory = new packages.PackageFactory(taskProvider); 
-    let rockContext = new context.Context(extensionContext, vscodeWrapper,
+    let rockContext = new context.Context(vscodeWrapper,
             workspaces, packageFactory, onContextUpdate, envBridge);
-    let statusBar = new status.StatusBar(rockContext);
-    let rockCommands = new commands.Commands(rockContext);
+    let statusBar = new status.StatusBar(extensionContext, rockContext);
+    let rockCommands = new commands.Commands(rockContext, vscodeWrapper);
     let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext);
 
     extensionContext.subscriptions.push(

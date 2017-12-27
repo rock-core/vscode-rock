@@ -35,6 +35,7 @@ describe("Commands", function () {
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockPackage: TypeMoq.IMock<packages.Package>;
+    let mockExtensionContext: TypeMoq.IMock<vscode.ExtensionContext>;
     let subject: commands.Commands;
 
     let a: string;
@@ -49,7 +50,7 @@ describe("Commands", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockPackage = TypeMoq.Mock.ofType<packages.Package>();
-        subject = new commands.Commands(mockContext.object);
+        subject = new commands.Commands(mockContext.object, mockWrapper.object);
         mockContext.setup(x => x.workspaces).returns(() => workspaces);
 
         helpers.mkdir('one');

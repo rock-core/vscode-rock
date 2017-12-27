@@ -9,6 +9,7 @@ import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../packages'
 import { basename } from 'path'
+import { EnvironmentBridge } from '../async';
 
 describe("Target", function () {
     let subject: debug.Target;
@@ -32,11 +33,19 @@ class TestContext
     constructor(workspaces: autoproj.Workspaces)
     {
         this.workspaces = workspaces;
-        this.mockContext = TypeMoq.Mock.ofType<context.Context>();
         this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        this.mockContext.setup(x => x.workspaces).returns(() => workspaces);
-        this.mockContext.setup(x => x.vscode).returns(() => this.mockWrapper.object);
-        this.subject = new debug.PreLaunchTaskProvider(this.mockContext.object);
+        let mockFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
+        let mockBridge  = TypeMoq.Mock.ofType<EnvironmentBridge>();
+
+        let ctxt = new context.Context(this.mockWrapper.object,
+            workspaces,
+            mockFactory.object,
+            new vscode.EventEmitter(),
+            mockBridge.object);
+        this.mockContext = TypeMoq.Mock.ofInstance(ctxt);
+        this.mockContext.callBase = true;
+        this.subject = new debug.PreLaunchTaskProvider(
+            this.mockContext.object);
     }
 
     setDebuggingTargetForPackage(path: string): debug.Target
@@ -139,8 +148,6 @@ describe("Pre Launch Task Provider", function () {
             test = new TestContext(workspaces);
         });
         it("provides an empty array of tasks", async function () {
-            let pkg = new packages.InvalidPackage();
-            test.setSelectedPackage(pkg.path, pkg.type);
             let tasks = await test.subject.provideTasks();
             assert.equal(tasks.length, 0);
         })

@@ -250,17 +250,17 @@ async function testTypePicker(subject: packages.Package,
         type: packages.Type
     }>();
 
-    packages.TypeList.allTypes.forEach((type) => {
+    packages.TypeList.ALL_TYPES.forEach((type) => {
         expectedChoices.push({
             label: type.label,
             description: '',
-            type: type
+            type: packages.Type.fromType(type)
         });
     });
     let packageType = {
         label: 'Ruby',
         description: '',
-        type: packages.TypeList.RUBY
+        type: packages.Type.fromType(packages.TypeList.RUBY)
     }
     mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
     mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
@@ -268,7 +268,7 @@ async function testTypePicker(subject: packages.Package,
 
     await subject.pickType();
     mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()), TypeMoq.Times.once());
-    mockContext.verify(x => x.setPackageType(subject.path, packages.TypeList.RUBY),
+    mockContext.verify(x => x.setPackageType(subject.path, packages.Type.fromType(packages.TypeList.RUBY)),
         TypeMoq.Times.once());
 }
 

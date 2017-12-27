@@ -41,7 +41,6 @@ function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
 
 export class Context
 {
-    private readonly _context: vscode.ExtensionContext;
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
     private readonly _packageFactory: packages.PackageFactory;
@@ -49,14 +48,12 @@ export class Context
     private readonly _bridge: async.EnvironmentBridge;
     private _lastSelectedRoot: string;
 
-    public constructor(context: vscode.ExtensionContext,
-                       wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
+    public constructor(vscode: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
                        contextUpdatedEvent: vscode.EventEmitter<void>,
                        bridge: async.EnvironmentBridge)
     {
-        this._context = context;
-        this._vscode = wrapper;
+        this._vscode = vscode;
         this._workspaces = workspaces;
         this._packageFactory = packageFactory;
         this._contextUpdatedEvent = contextUpdatedEvent;
@@ -123,13 +120,9 @@ export class Context
                 if (folders.length == 1 && folders[0].uri.scheme == 'file')
                     selectedRoot = folders[0].uri.fsPath;
 
-                const editor = this._vscode.activeTextEditor;
-                if (editor)
-                {
-                    const resource = editor.document.uri;
-                    if (resource.scheme === 'file')
-                    {
-                        const folder = this._vscode.getWorkspaceFolder(resource);
+                const currentDocumentURI = this._vscode.activeDocumentURI;
+                if (currentDocumentURI && currentDocumentURI.scheme === 'file') {
+                    const folder = this._vscode.getWorkspaceFolder(currentDocumentURI);
                         if (folder)
                             selectedRoot = folder.uri.fsPath;
                     }
@@ -152,11 +145,6 @@ export class Context
     {
         return this._vscode.getConfiguration('rock').
             get('packageSelectionMode');
-    }
-
-    public get extensionContext(): vscode.ExtensionContext
-    {
-        return this._context;
     }
 
     public get vscode(): wrappers.VSCode
@@ -217,11 +205,11 @@ export class Context
 
     private get rockSelectedPackage(): string
     {
-        return this._context.workspaceState.get('rockSelectedPackage');
+        return this._vscode.getWorkspaceState('rockSelectedPackage');
     }
 
     private set rockSelectedPackage(root: string)
     {
-        this._context.workspaceState.update('rockSelectedPackage', root);
+        this._vscode.updateWorkspaceState('rockSelectedPackage', root);
     }
 }
