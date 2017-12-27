@@ -3,6 +3,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as TypeMoq from 'typemoq';
 import * as wrappers from '../wrappers';
+import * as tasks from '../tasks';
 import * as context from '../context';
 import * as autoproj from '../autoproj';
 import * as helpers from './helpers';
@@ -17,51 +18,43 @@ class TestContext
     root: string;
     mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     mockContext: TypeMoq.IMock<vscode.ExtensionContext>;
-    mockEventEmitter: TypeMoq.IMock<vscode.EventEmitter<void>>;
+    mockContextUpdatedEvent: TypeMoq.IMock<vscode.EventEmitter<void>>;
     mockPackageFactory: TypeMoq.IMock<packages.PackageFactory>;
     mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     workspaces: autoproj.Workspaces;
 
     mockWorkspaceConf: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
-    mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;
     workspaceFolders: vscode.WorkspaceFolder[];
     mockTextEditor: TypeMoq.IMock<vscode.TextEditor>;
-    mockDocument: TypeMoq.IMock<vscode.TextDocument>;
 
     subject: context.Context;
-    private _activeEditor;
+    private _activeDocumentURI : vscode.Uri | undefined;
     constructor()
     {
         this.root = helpers.init();
         this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        this.mockWrapper.setup(x => x.workspaceFolders)
+            .returns(() => this.workspaceFolders);
+        this.mockWrapper.setup(x => x.activeDocumentURI)
+            .returns(() => this._activeDocumentURI);
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
-        this.mockEventEmitter = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
-        this.mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
+        this.mockContextUpdatedEvent = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
+        let taskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        let packageFactory = new packages.PackageFactory(taskProvider.object);
+        this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
+        this.mockPackageFactory.callBase = true;
         this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         this.workspaces = new autoproj.Workspaces;
 
-        this.subject = new context.Context(this.mockContext.object,
-            this.mockWrapper.object, this.workspaces,
-            this.mockPackageFactory.object, this.mockEventEmitter.object,
+
+        this.subject = new context.Context(
+            this.mockWrapper.object,
+            this.workspaces,
+            this.mockPackageFactory.object,
+            this.mockContextUpdatedEvent.object,
             this.mockBridge.object);
 
         this.mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
-        this.mockWorkspaceState = TypeMoq.Mock.ofType<vscode.Memento>();
-        this.workspaceFolders = new Array<vscode.WorkspaceFolder>();
-        this.mockTextEditor = TypeMoq.Mock.ofType<vscode.TextEditor>();
-        this.mockDocument = TypeMoq.Mock.ofType<vscode.TextDocument>();
-
-        this.mockContext.setup(x => x.workspaceState).
-            returns(() => this.mockWorkspaceState.object);
-
-        this.mockWrapper.setup(x => x.workspaceFolders).
-            returns(() => this.workspaceFolders);
-
-        this.mockWrapper.setup(x => x.activeTextEditor).
-            returns(() => this.editor());
-
-        this.mockTextEditor.setup(x => x.document).
-            returns(() => this.mockDocument.object);
     }
 
     clear(): void
@@ -73,11 +66,6 @@ class TestContext
         }
         catch {}
         helpers.clear();
-    }
-
-    private editor(): vscode.TextEditor
-    {
-        return this._activeEditor;
     }
 
     addWorkspaceConfiguration(section: string, path?: string): void
@@ -113,6 +101,10 @@ class TestContext
 
     addCodeWorkspaceFolder(path: string): void
     {
+        if (!this.workspaceFolders) {
+            this.workspaceFolders = [];
+        }
+
         let folder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(path),
             name: basename(path),
@@ -122,17 +114,22 @@ class TestContext
         this.workspaceFolders.push(folder);
     }
 
-    addWorkspaceState<T>(key: string, value: T): void
+    addWorkspaceState<T>(key: string, value: string): void
     {
-        this.mockWorkspaceState.setup(x =>
-            x.get(key)).returns(() => value);
+        this.mockWrapper.setup(x => x.getWorkspaceState(key))
+            .returns(() => value);
     }
 
-    setEditingResource(uri: string): vscode.Uri
+    openEditor(uri: string): vscode.Uri
     {
         let resource = vscode.Uri.parse(uri);
-        this.mockDocument.setup(x => x.uri).returns(() => resource);
+        this._activeDocumentURI = resource;
         return resource;
+    }
+
+    closeEditor()
+    {
+        this._activeDocumentURI = undefined;
     }
 
     associateResourceWithFolder(resource: vscode.Uri,
@@ -140,16 +137,6 @@ class TestContext
     {
         this.mockWrapper.setup(x => x.getWorkspaceFolder(resource)).
             returns(() => folder);
-    }
-
-    openEditor(): void
-    {
-        this._activeEditor = this.mockTextEditor.object;
-    }
-
-    closeEditor(): void
-    {
-        this._activeEditor = undefined;
     }
 }
 
@@ -178,7 +165,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "ruby");
             assert.equal(writtenData.debuggingTarget.name, undefined);
             assert.equal(writtenData.debuggingTarget.path, undefined);
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
         it("writes a json file with the type keeping previous data", function () {
@@ -197,7 +184,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "cxx");
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
         it("writes a json file with the type discarding previous data", function () {
@@ -211,7 +198,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "cxx");
             assert.equal(writtenData.debuggingTarget.name, undefined);
             assert.equal(writtenData.debuggingTarget.path, undefined);
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
     })
@@ -259,7 +246,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, undefined);
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
         it("writes a json file with the target keeping previous data", function () {
@@ -273,7 +260,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "orogen");
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
         it("writes a json file with the type discarding previous data", function () {
@@ -287,7 +274,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, undefined);
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockEventEmitter.verify(x =>
+            testContext.mockContextUpdatedEvent.verify(x =>
                 x.fire(), TypeMoq.Times.once());
         })
     })
@@ -332,10 +319,6 @@ describe("Context tests", function () {
         assert.strictEqual(testContext.mockWrapper.object, testContext.subject.vscode);
     });
 
-    it("returns the given extension context", function () {
-        assert.strictEqual(testContext.mockContext.object, testContext.subject.extensionContext);
-    });
-
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });
@@ -371,22 +354,18 @@ describe("Context tests", function () {
         let path = '/path/to/package';
         testContext.subject.setSelectedPackage(path);
 
-        testContext.mockWorkspaceState.verify(x =>
-            x.update('rockSelectedPackage', path), TypeMoq.Times.once());
+        testContext.mockWrapper.verify(x =>
+            x.updateWorkspaceState('rockSelectedPackage', path), TypeMoq.Times.once());
 
-        testContext.mockEventEmitter.verify(x =>
+        testContext.mockContextUpdatedEvent.verify(x =>
             x.fire(), TypeMoq.Times.once());
     });
 
     describe("get selectedPackage", function() {
         describe("on an empty workspace", function() {
             it("creates an invalid package", async function () {
-                let mock = testContext.addPackageFactory(undefined);
                 let pkg = await testContext.subject.getSelectedPackage();
-
-                assert.equal(pkg, mock);
-                testContext.mockPackageFactory.verify(x =>
-                    x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
+                assert(!pkg.type.isValid());
             });
         })
         describe("on a non-empty workspace", function() {
@@ -400,21 +379,14 @@ describe("Context tests", function () {
                     testContext.addConfigurationValue('packageSelectionMode', 'manual');
                 })
                 it("creates an invalid package if no package is selected", async function () {
-                    let mock = testContext.addPackageFactory(undefined);
                     let pkg = await testContext.subject.getSelectedPackage();
-                    assert.equal(pkg, mock);
-                    testContext.mockPackageFactory.verify(x =>
-                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
+                    assert(!pkg.type.isValid());
                 });
                 it("creates an invalid package if the selected package no longer belongs to workspace", async function () {
                     testContext.addWorkspaceState('rockSelectedPackage', '/a/foreign/package');
 
-                    let mock = testContext.addPackageFactory(undefined);
                     let pkg = await testContext.subject.getSelectedPackage();
-
-                    assert.equal(pkg, mock);
-                    testContext.mockPackageFactory.verify(x =>
-                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
+                    assert(!pkg.type.isValid());
                 });
                 it("creates the package representation", async function () {
                     testContext.addWorkspaceState('rockSelectedPackage', '/my/workspace/foo');
@@ -434,29 +406,18 @@ describe("Context tests", function () {
                     testContext.addConfigurationValue('packageSelectionMode', 'auto');
                 })
                 it("creates an invalid package if no file is being edited", async function () {
-                    let mock = testContext.addPackageFactory(undefined);
                     let pkg = await testContext.subject.getSelectedPackage();
-                    assert.equal(pkg, mock);
-                    testContext.mockPackageFactory.verify(x => x.createPackage(
-                        undefined, testContext.subject), TypeMoq.Times.once());
+                    assert(!pkg.type.isValid());
                 });
                 it("creates an invalid package if the file's uri scheme is not 'file'", async function () {
-                    testContext.openEditor();
-                    testContext.setEditingResource('ftp://ftp.foo.com/bar/');
-                    let mock = testContext.addPackageFactory(undefined);
+                    testContext.openEditor('ftp://ftp.foo.com/bar/');
                     let pkg = await testContext.subject.getSelectedPackage();
-                    assert.equal(pkg, mock);
-                    testContext.mockPackageFactory.verify(x =>
-                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
+                    assert(!pkg.type.isValid());
                 });
                 it("creates an invalid package if the file does not belong to any package", async function () {
-                    testContext.openEditor();
-                    testContext.setEditingResource('file:///a/foreign/package');
-                    let mock = testContext.addPackageFactory(undefined);
+                    testContext.openEditor('file:///a/foreign/package');
                     let pkg = await testContext.subject.getSelectedPackage();
-                    assert.equal(pkg, mock);
-                    testContext.mockPackageFactory.verify(x =>
-                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
+                    assert(!pkg.type.isValid());
                 });
                 it("auto selects the package in single root workspaces", async function () {
                     testContext.workspaceFolders.pop();
@@ -468,8 +429,7 @@ describe("Context tests", function () {
                         x.createPackage(pkgPath, testContext.subject), TypeMoq.Times.once());
                 });
                 it("creates the package representation of the package that owns the file", async function () {
-                    testContext.openEditor();
-                    let resource = testContext.setEditingResource('file://my/workspace/foo/file.cpp');
+                    let resource = testContext.openEditor('file://my/workspace/foo/file.cpp');
                     let mock = testContext.addPackageFactory('/my/workspace/foo');
                     testContext.associateResourceWithFolder(resource, testContext.workspaceFolders[0]);
                     let pkg = await testContext.subject.getSelectedPackage();
@@ -480,8 +440,7 @@ describe("Context tests", function () {
                 });
                 it("returns a cached package if current is invalid", async function () {
                     testContext.addCodeWorkspaceFolder('/my/workspace/package');
-                    testContext.openEditor();
-                    let resource = testContext.setEditingResource('file://my/workspace/foo/file.cpp');
+                    let resource = testContext.openEditor('file://my/workspace/foo/file.cpp');
                     let mock = testContext.addPackageFactory('/my/workspace/foo');
                     testContext.associateResourceWithFolder(resource, testContext.workspaceFolders[0]);
                     let pkg = await testContext.subject.getSelectedPackage();
@@ -493,7 +452,7 @@ describe("Context tests", function () {
 
                     testContext.workspaceFolders.shift();
                     pkg = await testContext.subject.getSelectedPackage();
-                    assert.equal(pkg, undefined);
+                    assert(!pkg.type.isValid());
                 });
             })
         })

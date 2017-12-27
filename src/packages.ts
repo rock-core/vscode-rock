@@ -14,16 +14,21 @@ export class TypeList
     static OTHER = { id: 3, name: 'other', label: 'Other', autobuild: new Array<string>() };
 
     // For internal use only
-    static INVALID = { id: 4, name: undefined, label: undefined, autobuild: new Array<string>() };
-    static CONFIG = { id: 5, name: undefined, label: undefined, autobuild: new Array<string>() };
+    static INVALID = { id: 4, name: 'invalid', label: 'internal', autobuild: new Array<string>() };
+    static CONFIG = { id: 5, name: 'config', label: 'internal', autobuild: new Array<string>() };
 
-    private constructor() { }
-    static get allTypes()
+    static ALL_TYPES =
+        [TypeList.CXX, TypeList.RUBY, TypeList.OROGEN, TypeList.OTHER];
+
+    static findType(callback)
     {
-        return [this.CXX,
-                this.RUBY,
-                this.OROGEN,
-                this.OTHER];
+        let type = TypeList.ALL_TYPES.find(callback);
+        if (type) {
+            return type;
+        }
+        else {
+            return TypeList.OTHER;
+        }
     }
 }
 
@@ -40,37 +45,31 @@ export class Type
         this.label = type.label;
     }
 
+    isInternal() : boolean
+    {
+        return this.label === 'internal';
+    }
+
+    isValid() : boolean
+    {
+        return this.id != TypeList.INVALID.id;
+    }
+
     static fromName(name: string) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.name == name)
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.name == name);
+        return new Type(type);
     }
     static fromId(id: number) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.id == id)
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.id == id);
+        return new Type(type);
     }
     static fromAutobuild(autobuildType: string) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.autobuild.find((item) => { return (item == autobuildType) }))
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.autobuild.find((item) => { return (item == autobuildType) }));
+        return new Type(type);
     }
     static fromType(type: { id: number, name: string, label: string }) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(_type => {
-            if (type == _type)
-                match = new Type(type);
-        });
-        return match;
+        let matchedType = TypeList.findType(_type => type == _type);
+        return new Type(matchedType);
     }
     static invalid()
     {
@@ -120,6 +119,11 @@ export class PackageFactory
             }
         }
         return new ForeignPackage(path, context);
+    }
+
+    static createInvalidPackage(): InvalidPackage
+    {
+        return new InvalidPackage();
     }
 
     private async packageType(path: string, context: context.Context): Promise<Type>
@@ -197,11 +201,11 @@ abstract class GenericPackage implements Package
             type: Type
         }>();
 
-        TypeList.allTypes.forEach((type) => {
+        TypeList.ALL_TYPES.forEach((type) => {
             choices.push({
                 label: type.label,
                 description: '',
-                type: type
+                type: Type.fromType(type)
             });
         });
 

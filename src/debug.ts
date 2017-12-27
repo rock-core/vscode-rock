@@ -81,13 +81,17 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
     async provideTasks(token?: vscode.CancellationToken): Promise<vscode.Task[]>
     {
         let pkg = await this._context.getSelectedPackage();
-        let tasks = new Array<vscode.Task>();
+        if (!pkg.type.isValid()) {
+            return [];
+        }
+
         let task = PreLaunchTaskProvider.task(pkg, this._context)
-
-        if (task)
-            tasks.push(task);
-
-        return tasks;
+        if (task) {
+            return [task];
+        }
+        else {
+            return [];
+        }
     }
 
     resolveTask(task: vscode.Task, token?: vscode.CancellationToken): vscode.ProviderResult<vscode.Task>

@@ -48,7 +48,7 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    constructor(context: context.Context) {
+    constructor(extensionContext : vscode.ExtensionContext, context: context.Context) {
         this._selectPackageButton.text = null;
         this._buildPackageButton.text = null;
         this._context = context;
@@ -64,7 +64,7 @@ export class StatusBar implements vscode.Disposable {
         ]
 
         for (const event of events) {
-            context.extensionContext.subscriptions.push(event(e => this.update()));
+            extensionContext.subscriptions.push(event(e => this.update()));
         }
     }
 
