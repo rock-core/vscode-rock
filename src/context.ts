@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as wrappers from './wrappers';
-import { basename, relative } from 'path';
+import { basename, relative, dirname } from 'path';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
 import * as packages from './packages'
@@ -168,10 +168,14 @@ export class Context
         return this._vscode.getConfiguration('rock', resource).get('debug');
     }
 
+    private persistedDataPath(rootPath: string)
+    {
+        return joinPath(rootPath, '.vscode', '.rock.json');
+
+    }
+
     private loadPersistedData(path: string): PackageInternalData
     {
-        let dataPath = join(path, '.vscode', '.rock.json');
-        let jsonData: string;
         let data: PackageInternalData = {
             type: undefined,
             debuggingTarget: {
@@ -181,7 +185,8 @@ export class Context
         }
         try
         {
-            jsonData = fs.readFileSync(dataPath, "utf8");
+            let dataPath = this.persistedDataPath(path);
+            let jsonData = fs.readFileSync(dataPath, "utf8");
             Object.assign(data, JSON.parse(jsonData));
         }
         catch
@@ -192,15 +197,17 @@ export class Context
 
     private persistData(path: string, data: PackageInternalData): void
     {
+        let dataPath = this.persistedDataPath(path);
+        let dataDir  = dirname(dataPath);
         let jsonData = JSON.stringify(data);
         let options = {
             mode: 0o644,
             flag: 'w'
         };
-        if (!fs.existsSync(join(path, '.vscode')))
-            fs.mkdirSync(join(path, '.vscode'), 0o755);
+        if (!fs.existsSync(dataDir))
+            fs.mkdirSync(dataDir, 0o755);
 
-        fs.writeFileSync(join(path, '.vscode', '.rock.json'), jsonData, options);
+        fs.writeFileSync(dataPath, jsonData, options);
     }
 
     private get rockSelectedPackage(): string
