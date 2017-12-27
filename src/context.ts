@@ -6,7 +6,7 @@ import * as debug from './debug';
 import * as packages from './packages'
 import * as async from './async'
 import * as fs from 'fs'
-import { join } from 'path'
+import { join as joinPath } from 'path'
 
 export interface PackageInternalData
 {
@@ -31,10 +31,11 @@ export interface RockDebugConfig
     orogen: RockOrogenDebugConfig
 }
 
-function exists(folders: vscode.WorkspaceFolder[], uri: string)
+/** Checks that a given filesystem path is registered in a list of workspace folders */
+function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
 {
     return folders.find((item) => {
-        return (item.uri.fsPath == uri);
+        return (item.uri.fsPath == fsPath);
     })
 }
 
@@ -43,26 +44,22 @@ export class Context
     private readonly _context: vscode.ExtensionContext;
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
-    private readonly _folderToPackageType: Map<string, packages.Type>;
-    private readonly _folderToDebuggingTarget: Map<string, debug.Target>;
     private readonly _packageFactory: packages.PackageFactory;
-    private readonly _eventEmitter: vscode.EventEmitter<void>;
+    private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
     private readonly _bridge: async.EnvironmentBridge;
     private _lastSelectedRoot: string;
 
     public constructor(context: vscode.ExtensionContext,
                        wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
-                       eventEmitter: vscode.EventEmitter<void>,
+                       contextUpdatedEvent: vscode.EventEmitter<void>,
                        bridge: async.EnvironmentBridge)
     {
         this._context = context;
         this._vscode = wrapper;
         this._workspaces = workspaces;
         this._packageFactory = packageFactory;
-        this._folderToDebuggingTarget = new Map<string, debug.Target>();
-        this._folderToPackageType = new Map<string, packages.Type>();
-        this._eventEmitter = eventEmitter;
+        this._contextUpdatedEvent = contextUpdatedEvent;
         this._bridge = bridge;
     }
 
@@ -71,7 +68,7 @@ export class Context
         let data = this.loadPersistedData(path);
         data.type = type.name;
         this.persistData(path, data);
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
     public getPackageType(path: string): packages.Type
@@ -91,7 +88,7 @@ export class Context
         data.debuggingTarget.name = target.name;
         data.debuggingTarget.path = target.path;
         this.persistData(path, data);
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
     public getDebuggingTarget(path: string): debug.Target
@@ -148,7 +145,7 @@ export class Context
     public setSelectedPackage(path: string): void
     {
         this.rockSelectedPackage = path;
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
     public get packageSelectionMode(): string
