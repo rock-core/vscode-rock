@@ -211,12 +211,12 @@ describe("Context tests", function () {
         }
         it("reads the package type from the json file", function () {
             writeJson("orogen");
-            let type = testContext.subject.getPackageType(testContext.root);
+            let type = testContext.subject.getPackageType(testContext.root) as packages.Type;
             assert.equal(type.name, "orogen");
         })
         it("returns OTHER if the type is invalid", function () {
             writeJson("invalid package type");
-            let type = testContext.subject.getPackageType(testContext.root);
+            let type = testContext.subject.getPackageType(testContext.root) as packages.Type;
             assert.equal(type.name, "other");
         })
         it("returns undefined if the file is missing", function () {
@@ -279,7 +279,7 @@ describe("Context tests", function () {
         })
     })
     describe("getDebuggingTarget", function () {
-        function writeJson(name: string, path: string)
+        function writeJson(name: string | undefined, path: string | undefined)
         {
             let jsonData = JSON.stringify({ debuggingTarget: { name: name, path: path }});
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
@@ -287,7 +287,7 @@ describe("Context tests", function () {
         }
         it("reads the package type from the json file", function () {
             writeJson("target", "/path/to/target");
-            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            let target = testContext.subject.getDebuggingTarget(testContext.root) as debug.Target;
             assert.equal(target.name, "target");
             assert.equal(target.path, "/path/to/target");
         })

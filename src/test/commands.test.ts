@@ -13,7 +13,7 @@ import * as debug from '../debug';
 import * as commands from '../commands';
 import * as packages from '../packages'
 
-async function assertThrowsAsync(fn, msg?: RegExp)
+async function assertThrowsAsync(fn, msg: RegExp)
 {
     let f = () => {};
     try {

@@ -131,7 +131,8 @@ describe("Pre Launch Task Provider", function () {
             let tasks = await test.subject.provideTasks();
             assert.equal(tasks.length, 1);
 
-            let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(a));
+            let wsRoot = autoproj.findWorkspaceRoot(a) as string;
+            let process = autoproj.autoprojExePath(wsRoot);
             let args = ['exec', 'rock-run', '--start', '--gui', '--gdbserver',
                 '--conf-dir', a, target.name]
 

@@ -120,6 +120,9 @@ export async function jsonFromRubyScript(root: string, script: string,
     let tempRoot = temp.mkdirSync();
     let filePath = path.join(tempRoot, 'temp_script.rb');
     let wsRoot = autoproj.findWorkspaceRoot(root);
+    if (!wsRoot) {
+        throw new Error(root + " is not within an autoproj workspace");
+    }
     let options: SpawnOptions = {
         cwd: wsRoot
     }

@@ -91,11 +91,7 @@ export class PackageFactory
 
     async createPackage(path: string, context: context.Context): Promise<Package>
     {
-        if (!path)
-        {
-            return new InvalidPackage();
-        }
-        else if (context.workspaces.isConfig(path))
+        if (context.workspaces.isConfig(path))
         {
             return new ConfigPackage(path);
         }
@@ -132,7 +128,7 @@ export class PackageFactory
         if (type)
             return Promise.resolve(type);
 
-        let ws = context.workspaces.folderToWorkspace.get(path);
+        const ws = context.workspaces.folderToWorkspace.get(path);
         if (!ws)
             return Promise.resolve(Type.fromType(TypeList.OTHER));
 
@@ -160,11 +156,12 @@ export class PackageFactory
 export interface Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
     readonly name: string;
     readonly type: Type;
+
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     debug(): Promise<void>
     build(): Promise<void>
@@ -175,9 +172,9 @@ export interface Package
 abstract class GenericPackage implements Package
 {
     abstract readonly debugable: boolean;
-    abstract readonly buildTask: vscode.Task;
-    abstract readonly target: debug.Target;
     abstract readonly type: Type;
+    abstract readonly buildTask: vscode.Task | undefined;
+    abstract readonly debugTarget: debug.Target | undefined;
 
     abstract debug(): Promise<void>
     abstract build(): Promise<void>
@@ -237,7 +234,7 @@ abstract class RockPackage extends GenericPackage
 
     async debug()
     {
-        if (!this.target)
+        if (!this.debugTarget)
             throw new Error("Select a debugging target before debugging")
 
         const options = await this.debugConfiguration();
@@ -260,7 +257,7 @@ abstract class RockPackage extends GenericPackage
             this.buildTask.source + ": " + this.buildTask.name);
     }
 
-    get target()
+    get debugTarget()
     {
         return this._context.getDebuggingTarget(this.path);
     }
@@ -290,9 +287,9 @@ abstract class RockPackageWithTargetPicker extends RockPackage
 export class InvalidPackage implements Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     get name () { return '(Invalid package)' }
     async debug(): Promise<void>
@@ -324,16 +321,14 @@ export class InvalidPackage implements Package
 export class ConfigPackage implements Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string)
     {
         this.debugable = false;
-        this.buildTask = undefined;
         this.path = path;
-        this.target = undefined;
     }
 
     get name() { return basename(this.path); }
@@ -366,15 +361,13 @@ export class ConfigPackage implements Package
 export class ForeignPackage extends GenericPackage
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string, context: context.Context)
     {
         super(path, context);
         this.debugable = false;
-        this.buildTask = undefined;
-        this.target = undefined;
     }
 
     get type()
@@ -410,28 +403,21 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
-        let env = this._context.bridge.env(this.path);
-        let promise = new Promise<vscode.DebugConfiguration>((resolve, reject) => {
-            env.then(
-                result => {
+        const debugTarget = this.debugTarget as debug.Target;
+        return this._context.bridge.env(this.path).
+            then(result => {
                     let userConf = this._context.debugConfig(this.path);
                     const options: vscode.DebugConfiguration = {
                         type: "Ruby",
                         name: "rock debug",
                         request: "launch",
-                        program: this.target.path,
+                        program: debugTarget.path,
                         env: result,
                         cwd: userConf.cwd,
                         args: userConf.args
                     };
-                    resolve(options);
-                },
-                err => {
-                    reject(err);
-                }
-            )
-        });
-        return promise;
+                    return options;
+                });
     }
     get type() { return Type.fromType(TypeList.RUBY); }
 }
@@ -445,11 +431,12 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         let userConf = this._context.debugConfig(this.path);
+        let debugTarget = this.debugTarget as debug.Target;
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
             request: "launch",
-            program: this.target.path,
+            program: debugTarget.path,
             externalConsole: false,
             MIMode: "gdb",
             cwd: userConf.cwd,
@@ -484,6 +471,8 @@ export class RockOrogenPackage extends RockPackage
     async preLaunchTask(): Promise<void>
     {
         let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context);
+        if (!preLaunchTask)
+            return;
         let preTaskName = preLaunchTask.source + ": " + preLaunchTask.name
 
         this._context.vscode.executeCommand("workbench.action.tasks.runTask", preTaskName);
@@ -493,11 +482,12 @@ export class RockOrogenPackage extends RockPackage
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         let userConf = this._context.debugConfig(this.path);
+        let debugTarget = this.debugTarget as debug.Target;
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
             request: "launch",
-            program: this.target.path,
+            program: debugTarget.path,
             externalConsole: true,
             MIMode: "gdb",
             miDebuggerServerAddress: "localhost:30001",
@@ -563,14 +553,13 @@ export class RockOrogenPackage extends RockPackage
 export class RockOtherPackage extends GenericPackage
 {
     readonly debugable: boolean;
-    readonly target: debug.Target;
+    readonly debugTarget: debug.Target | undefined;
 
     private readonly _taskProvider: tasks.Provider;
     constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
     {
         super(path, context);
         this.debugable = false;
-        this.target = undefined;
         this._taskProvider = taskProvider;
     }
 

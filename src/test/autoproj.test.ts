@@ -116,7 +116,7 @@ describe("Autoproj helpers tests", function () {
             it("sets the workspace name using the folder's basename", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
-                let ws = autoproj.Workspace.fromDir(root);
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 assert.equal(path.basename(root), ws.name);
             })
         })
@@ -124,7 +124,8 @@ describe("Autoproj helpers tests", function () {
             it("returns a promise that gives access to the info", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                return autoproj.Workspace.fromDir(root).info().then(function (manifest) {
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
+                return ws.info().then(function (manifest) {
                     assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
                     assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
                 })
@@ -132,7 +133,8 @@ describe("Autoproj helpers tests", function () {
             it("creates and returns the promise if the constructor was not instructed to load it", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                return autoproj.Workspace.fromDir(root, false).info().then(function (manifest) {
+                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                return ws.info().then(function (manifest) {
                     assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
                     assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
                 })
@@ -140,14 +142,14 @@ describe("Autoproj helpers tests", function () {
             it("returns always the same promise", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let workspace = autoproj.Workspace.fromDir(root, false)
-                let promise = workspace.info()
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                let promise = workspace.info();
                 assert.equal(promise, workspace.info());
             })
             it("creates a new promise on reload()", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let workspace = autoproj.Workspace.fromDir(root, false)
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
                 let initial = workspace.info()
                 let reloaded = workspace.reload();
                 assert.notEqual(reloaded, initial);
@@ -166,7 +168,7 @@ describe("Autoproj helpers tests", function () {
             it ("leaves the workspace name alone if no devFolder has been given", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
-                let ws = autoproj.Workspace.fromDir(root);
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 ws.name = 'test';
                 this.workspaces.add(ws);
                 assert.equal('test', ws.name);
@@ -175,7 +177,7 @@ describe("Autoproj helpers tests", function () {
                 this.workspaces.devFolder = root
                 let dir = helpers.mkdir('a');
                 helpers.createInstallationManifest([], 'a')
-                let ws = autoproj.Workspace.fromDir(dir);
+                let ws = autoproj.Workspace.fromDir(dir) as autoproj.Workspace;
                 ws.name = 'test';
                 this.workspaces.add(ws);
                 assert.equal('a', ws.name);

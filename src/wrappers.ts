@@ -23,12 +23,12 @@ export class VSCode {
         return editor.document.uri;
     }
 
-    public get workspaceFolders(): vscode.WorkspaceFolder[]
+    public get workspaceFolders(): vscode.WorkspaceFolder[] | undefined
     {
         return vscode.workspace.workspaceFolders;
     }
 
-    public getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder
+    public getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined
     {
         return vscode.workspace.getWorkspaceFolder(uri);
     }
@@ -40,7 +40,7 @@ export class VSCode {
     }
 
     public showQuickPick<T extends vscode.QuickPickItem>(items: T[] | Thenable<T[]>,
-        options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): Thenable<T>
+        options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): Thenable<T | undefined>
     {
         return vscode.window.showQuickPick<T>(items, options, token);
     }
@@ -71,12 +71,12 @@ export class VSCode {
         return vscode.window.showErrorMessage(message, ...items);
     }
 
-    public getWorkspaceState(key : string) : string
+    public getWorkspaceState(key : string) : string | undefined
     {
         return this._extensionContext.workspaceState.get(key);
     }
 
-    public updateWorkspaceState(key : string, value : string)
+    public updateWorkspaceState(key : string, value : string | undefined)
     {
         this._extensionContext.workspaceState.update(key, value);
     }
