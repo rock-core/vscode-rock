@@ -25,19 +25,19 @@ export class Provider implements vscode.TaskProvider
         this.reloadTasks();
     }
 
-    private createTask(name, ws, defs = {}, args = []) {
+    private createTask(name, ws, defs = {}, args : string[] = []) {
         let definition = { type: 'autoproj', workspace: ws.root, ...defs }
         let exec = this.runAutoproj(ws, ...args);
         return new vscode.Task(definition, name, 'autoproj', exec, []);
     }
 
-    private createOsdepsTask(name, ws, defs = {}, args = []) {
+    private createOsdepsTask(name, ws, defs = {}, args : string[] = []) {
         return this.createTask(name, ws,
             { mode: 'osdeps', ...defs },
             ['osdeps', '--color', ...args]);
     }
 
-    private createBuildTask(name, ws, defs = {}, args = []) {
+    private createBuildTask(name, ws, defs = {}, args : string[] = []) {
         let task = this.createTask(name, ws,
             { mode: 'build', ...defs },
             ['build', '--tool', ...args]);
@@ -51,7 +51,7 @@ export class Provider implements vscode.TaskProvider
         return task;
     }
 
-    private createUpdateTask(name, ws, defs = {}, args = []) {
+    private createUpdateTask(name, ws, defs = {}, args : string[] = []) {
         let task = this.createTask(name, ws,
             { mode: 'update', ...defs },
             ['update', '--progress=f', '-k', '--color', ...args]);
@@ -59,7 +59,7 @@ export class Provider implements vscode.TaskProvider
         return task;
     }
 
-    private createUpdateConfigTask(name, ws, defs = {}, args = []) {
+    private createUpdateConfigTask(name, ws, defs = {}, args : string[] = []) {
         let task= this.createUpdateTask(name, ws,
             { mode: 'update-config', ...defs },
             [ '--config', ...args]);
@@ -67,7 +67,7 @@ export class Provider implements vscode.TaskProvider
         return task;
     }
 
-    private createCheckoutTask(name, ws, defs = {}, args = []) {
+    private createCheckoutTask(name, ws, defs = {}, args : string[] = []) {
         let task = this.createUpdateTask(name, ws,
             { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
@@ -75,19 +75,19 @@ export class Provider implements vscode.TaskProvider
         return task;
     }
 
-    private createPackageBuildTask(name, ws, folder, defs = {}, args = []) {
+    private createPackageBuildTask(name, ws, folder, defs = {}, args : string[] = []) {
         return this.createBuildTask(name, ws,
             { folder: folder, ...defs },
             [...args, folder])
     }
 
-    private createPackageForceBuildTask(name, ws, folder, defs = {}, args = []) {
+    private createPackageForceBuildTask(name, ws, folder, defs = {}, args : string[] = []) {
         return this.createPackageBuildTask(name, ws, folder,
             { mode: 'force-build', ...defs },
             ['--force', '--deps=f', '--no-confirm', ...args]);
     }
 
-    private createPackageUpdateTask(name, ws, folder, defs = {}, args = []) {
+    private createPackageUpdateTask(name, ws, folder, defs = {}, args : string[] = []) {
         let task = this.createUpdateTask(name, ws,
             { folder: folder, ...defs },
             [...args, folder]);
@@ -95,42 +95,50 @@ export class Provider implements vscode.TaskProvider
         return task;
     }
 
-    private createPackageCheckoutTask(name, ws, folder, defs = {}, args = []) {
-        let task = this.createPackageUpdateTask(name, ws,
+    private createPackageCheckoutTask(name, ws, folder, defs = {}, args : string[] = []) {
+        let task = this.createPackageUpdateTask(name, ws, folder,
             { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
         task.problemMatchers = ['$autoproj'];
         return task;
     }
 
+    private getCache(cache, key)
+    {
+        let value = cache.get(key);
+        if (value) {
+            return value;
+        }
+        throw new Error("no entry for " + path);
+    }
     public buildTask(path: string): vscode.Task
     {
-        return this._buildTasks.get(path);
+        return this.getCache(this._buildTasks, path);
     }
 
     public forceBuildTask(path: string): vscode.Task
     {
-        return this._forceBuildTasks.get(path);
+        return this.getCache(this._forceBuildTasks, path);
     }
 
     public updateTask(path: string): vscode.Task
     {
-        return this._updateTasks.get(path);
+        return this.getCache(this._updateTasks, path);
     }
 
     public checkoutTask(path: string): vscode.Task
     {
-        return this._checkoutTasks.get(path);
+        return this.getCache(this._checkoutTasks, path);
     }
 
     public osdepsTask(path: string): vscode.Task
     {
-        return this._osdepsTasks.get(path);
+        return this.getCache(this._osdepsTasks, path);
     }
 
     public updateConfigTask(path: string): vscode.Task
     {
-        return this._updateConfigTasks.get(path);
+        return this.getCache(this._updateConfigTasks, path);
     }
 
     private addTask(root: string, task: vscode.Task,

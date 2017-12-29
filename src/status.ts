@@ -49,8 +49,8 @@ export class StatusBar implements vscode.Disposable {
     }
 
     constructor(extensionContext : vscode.ExtensionContext, context: context.Context) {
-        this._selectPackageButton.text = null;
-        this._buildPackageButton.text = null;
+        this._selectPackageButton.text = '';
+        this._buildPackageButton.text = '';
         this._context = context;
         this.reloadVisibility();
 
@@ -93,83 +93,69 @@ export class StatusBar implements vscode.Disposable {
     }
 
     private updateSelectedPackage(selectedPackage: packages.Package) {
-        let text: string = "$(file-submodule)  ";
-        let tooltip: string;
-        let command: string;
-
-        text += selectedPackage.name;
-        tooltip = selectedPackage.path;
-        command = this._context.packageSelectionMode == "auto" ? null : 'rock.selectPackage';
+        let text = "$(file-submodule)  " + selectedPackage.name;
+        let tooltip = selectedPackage.path;
+        let command = this._context.packageSelectionMode == "auto" ? undefined : 'rock.selectPackage';
         this.updateButton(this._selectPackageButton, text, tooltip, command);
     }
 
     private updateBuildButton(selectedPackage: packages.Package)
     {
         let text: string = "$(gear)  ";
-        let tooltip: string;
-        let command: string;
+        let tooltip: string | undefined;
 
         if (!selectedPackage.buildTask) {
-            text = null;
+            text = '';
         } else {
             text += 'Build';
             tooltip = 'Build package'
         }
-        command = 'rock.buildPackage';
-        this.updateButton(this._buildPackageButton, text, tooltip, command);
+        this.updateButton(this._buildPackageButton, text, tooltip, 'rock.buildPackage');
     }
 
     private updateDebugButton(selectedPackage: packages.Package) {
-        let text: string = "$(bug) ";
-        let tooltip: string;
-        let command: string;
-
-        if (!selectedPackage.debugable || !selectedPackage.target) {
-            text = null;
-        } else {
-            text += "Debug";
+        let text: string = '';
+        let tooltip = "Debug package";
+        let command : string | undefined;
+        if (selectedPackage.debugable && selectedPackage.debugTarget) {
+            text = "$(bug) Debug";
+            command = 'rock.debugPackage';
         }
 
-        tooltip = "Debug package";
-        command = 'rock.debugPackage';
         this.updateButton(this._debugButton, text, tooltip, command);
     }
 
     private updatePackageType(selectedPackage: packages.Package) {
-        let text: string = "$(file-code)  ";
-        let tooltip: string;
-        let command: string;
+        let text: string = '';
+        let tooltip: string | undefined;
+        let command: string | undefined;
 
-        if (!selectedPackage.type.label)
-            text = null;
-        else
-            text += selectedPackage.type.label;
-
-        tooltip = "Change package type";
-        command = 'rock.selectPackageType';
+        if (!selectedPackage.type.isInternal())
+        {
+            text = "$(file-code)  " + selectedPackage.type.label;
+            tooltip = "Change package type";
+            command = 'rock.selectPackageType';
+        }
         this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
 
     private updateDebuggingTarget(selectedPackage: packages.Package) {
         let text: string;
-        let tooltip: string;
-        let command: string;
-
         if (!selectedPackage.debugable)
-            text = null;
-        else if (!selectedPackage.target) {
+            text = '';
+        else if (!selectedPackage.debugTarget) {
             text = '(No debugging target)'
         } else {
-            text = selectedPackage.target.name;
+            text = selectedPackage.debugTarget.name;
         }
 
-        tooltip = "Change debugging target";
-        command = 'rock.setDebuggingTarget';
+        let tooltip = "Change debugging target";
+        let command = 'rock.setDebuggingTarget';
         this.updateButton(this._debuggingTargetButton, text, tooltip, command);
     }
 
     private updateButton(item: vscode.StatusBarItem, text: string,
-                        tooltip: string, command: string)
+                        tooltip: string | undefined, command: string | undefined)
     {
         item.text = text;
         item.tooltip = tooltip;

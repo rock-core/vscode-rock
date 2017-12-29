@@ -27,41 +27,46 @@ describe("Task provider", function () {
         assert.equal(actual_process, process);
         assert.deepEqual(actual_args, args);
     }
+    function autoprojExePath(basePath)
+    {
+        let wsRoot = autoproj.findWorkspaceRoot(basePath) as string;
+        return autoproj.autoprojExePath(wsRoot);
+    }
     function assertBuildTask(task: vscode.Task, path: string, isPackage = true)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['build', '--tool']; if (isPackage) args.push(path);
         assertTask(task, process, args);
     }
     function assertForceBuildTask(task: vscode.Task, path: string)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['build', '--tool', '--force', '--deps=f', '--no-confirm', path];
         assertTask(task, process, args);
     }
     function assertUpdateTask(task: vscode.Task, path: string, isPackage = true)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['update', '--progress=f', '-k', '--color'];
         if (isPackage) args.push(path);        
         assertTask(task, process, args);
     }
     function assertCheckoutTask(task: vscode.Task, path: string, isPackage = true)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['update', '--progress=f', '-k', '--color', '--checkout-only'];
         if (isPackage) args.push(path);
         assertTask(task, process, args);
     }
     function assertOsdepsTask(task: vscode.Task, path: string)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['osdeps', '--color'];
         assertTask(task, process, args);
     }
     function assertUpdateConfigTask(task: vscode.Task, path: string)
     {
-        let process = autoproj.autoprojExePath(autoproj.findWorkspaceRoot(path));
+        let process = autoprojExePath(path);
         let args = ['update', '--progress=f', '-k', '--color', '--config'];
         assertTask(task, process, args);
     }
@@ -83,26 +88,27 @@ describe("Task provider", function () {
         assert.notEqual(checkoutTask, undefined);
         assertCheckoutTask(checkoutTask, path);
 
-        let ws = workspaces.folderToWorkspace.get(path).root;
-        buildTask = subject.buildTask(ws);
+        let ws = workspaces.folderToWorkspace.get(path) as autoproj.Workspace;
+        let wsRoot = ws.root;
+        buildTask = subject.buildTask(wsRoot);
         assert.notEqual(buildTask, undefined);
-        assertBuildTask(buildTask, ws, false);
+        assertBuildTask(buildTask, wsRoot, false);
 
-        checkoutTask = subject.checkoutTask(ws);
+        checkoutTask = subject.checkoutTask(wsRoot);
         assert.notEqual(checkoutTask, undefined);
-        assertCheckoutTask(checkoutTask, ws, false);
+        assertCheckoutTask(checkoutTask, wsRoot, false);
 
-        let osdepsTask = subject.osdepsTask(ws);
+        let osdepsTask = subject.osdepsTask(wsRoot);
         assert.notEqual(osdepsTask, undefined);
-        assertOsdepsTask(osdepsTask, ws);
+        assertOsdepsTask(osdepsTask, wsRoot);
 
-        let updateConfigTask = subject.updateConfigTask(ws);
+        let updateConfigTask = subject.updateConfigTask(wsRoot);
         assert.notEqual(updateConfigTask, undefined);
-        assertUpdateConfigTask(updateConfigTask, ws);
+        assertUpdateConfigTask(updateConfigTask, wsRoot);
 
-        updateTask = subject.updateTask(ws);
+        updateTask = subject.updateTask(wsRoot);
         assert.notEqual(updateTask, undefined);
-        assertUpdateTask(updateTask, ws, false);
+        assertUpdateTask(updateTask, wsRoot, false);
     }
 
     describe("in a non empty workspace", function () {

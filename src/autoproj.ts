@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as global from 'glob';
 import * as fs from 'fs';
 
-export function findWorkspaceRoot(rootPath: string): string
+export function findWorkspaceRoot(rootPath: string): string | null
 {
     let lastPath = ''
     while (rootPath !== lastPath) {
@@ -15,7 +15,7 @@ export function findWorkspaceRoot(rootPath: string): string
         lastPath = rootPath
         rootPath = path.dirname(rootPath);
     }
-    return null
+    return null;
 }
 
 export function autoprojExePath(workspacePath: string): string

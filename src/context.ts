@@ -10,10 +10,10 @@ import { join as joinPath } from 'path'
 
 export interface PackageInternalData
 {
-    type: string;
+    type: string | undefined;
     debuggingTarget: {
-        name: string,
-        path: string
+        name: string | undefined,
+        path: string | undefined
     }
 }
 
@@ -21,15 +21,27 @@ export interface RockOrogenDebugConfig
 {
     start: boolean,
     gui: boolean,
-    confDir: string
+    confDir: string | undefined
 }
 
 export interface RockDebugConfig
 {
-    cwd: string;
+    cwd: string | undefined;
     args: string[],
     orogen: RockOrogenDebugConfig
 }
+
+const NullOrogenDebugConfig = {
+    start: false,
+    gui: false,
+    confDir: undefined
+};
+
+const NullRockDebugConfig = {
+    cwd: undefined,
+    args: [],
+    orogen: NullOrogenDebugConfig
+};
 
 /** Checks that a given filesystem path is registered in a list of workspace folders */
 function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
@@ -46,7 +58,7 @@ export class Context
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
     private readonly _bridge: async.EnvironmentBridge;
-    private _lastSelectedRoot: string;
+    private _lastSelectedRoot: string | undefined;
 
     public constructor(vscode: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
@@ -68,9 +80,9 @@ export class Context
         this._contextUpdatedEvent.fire();
     }
 
-    public getPackageType(path: string): packages.Type
+    public getPackageType(path: string): packages.Type | undefined
     {
-        let pkgType: packages.Type;
+        let pkgType: packages.Type | undefined;
         let data = this.loadPersistedData(path);
 
         if (data.type)
@@ -88,7 +100,7 @@ export class Context
         this._contextUpdatedEvent.fire();
     }
 
-    public getDebuggingTarget(path: string): debug.Target
+    public getDebuggingTarget(path: string): debug.Target | undefined
     {
         let data = this.loadPersistedData(path);
         if (!data || !data.debuggingTarget ||
@@ -101,38 +113,41 @@ export class Context
 
     public async getSelectedPackage(): Promise<packages.Package>
     {
-        let selectedRoot: string;
+        let selectedRoot: string | undefined;
         let folders = this._vscode.workspaceFolders;
 
         if (folders && folders.length > 0)
         {
             const selectionMode = this.packageSelectionMode;
-            if (selectionMode == "manual")
-            {
+            if (selectionMode == "manual") {
                 let root = this.rockSelectedPackage;
                 if (root)
                 {
                     if (exists(folders, root))
                         selectedRoot = root;
                 }
-            } else
-            {
+            }
+            else {
                 if (folders.length == 1 && folders[0].uri.scheme == 'file')
                     selectedRoot = folders[0].uri.fsPath;
 
                 const currentDocumentURI = this._vscode.activeDocumentURI;
                 if (currentDocumentURI && currentDocumentURI.scheme === 'file') {
                     const folder = this._vscode.getWorkspaceFolder(currentDocumentURI);
-                        if (folder)
-                            selectedRoot = folder.uri.fsPath;
-                    }
+                    if (folder)
+                        selectedRoot = folder.uri.fsPath;
                 }
             }
-            if (!selectedRoot && exists(folders, this._lastSelectedRoot))
+            if (!selectedRoot && this._lastSelectedRoot && exists(folders, this._lastSelectedRoot))
                 selectedRoot = this._lastSelectedRoot;
         }
         this._lastSelectedRoot = selectedRoot;
-        return this._packageFactory.createPackage(selectedRoot, this);
+        if (selectedRoot) {
+            return this._packageFactory.createPackage(selectedRoot, this);
+        }
+        else {
+            return packages.PackageFactory.createInvalidPackage();
+        }
     }
 
     public setSelectedPackage(path: string): void
@@ -141,7 +156,7 @@ export class Context
         this._contextUpdatedEvent.fire();
     }
 
-    public get packageSelectionMode(): string
+    public get packageSelectionMode(): string | undefined
     {
         return this._vscode.getConfiguration('rock').
             get('packageSelectionMode');
@@ -165,7 +180,13 @@ export class Context
     public debugConfig(path: string): RockDebugConfig
     {
         let resource = vscode.Uri.file(path);
-        return this._vscode.getConfiguration('rock', resource).get('debug');
+        let conf = this._vscode.getConfiguration('rock', resource).get('debug');
+        if (conf) {
+            return conf as RockDebugConfig;
+        }
+        else {
+            return NullRockDebugConfig;
+        }
     }
 
     private persistedDataPath(rootPath: string)
@@ -210,12 +231,12 @@ export class Context
         fs.writeFileSync(dataPath, jsonData, options);
     }
 
-    private get rockSelectedPackage(): string
+    private get rockSelectedPackage(): string | undefined
     {
         return this._vscode.getWorkspaceState('rockSelectedPackage');
     }
 
-    private set rockSelectedPackage(root: string)
+    private set rockSelectedPackage(root: string | undefined)
     {
         this._vscode.updateWorkspaceState('rockSelectedPackage', root);
     }
