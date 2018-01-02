@@ -4,6 +4,7 @@ import * as tasks from './tasks';
 import { basename } from 'path';
 import * as debug from './debug';
 import * as autoproj from './autoproj';
+import * as packages from './packages';
 
 interface Hideable {
     show(): void;
@@ -82,16 +83,16 @@ export class StatusBar implements vscode.Disposable {
     }
 
     public async update() {
-        await this.updateSelectedPackage();
-        await this.updateBuildButton();
-        await this.updateDebugButton();
-        await this.updateDebuggingTarget();
-        await this.updatePackageType();
-        await this.reloadVisibility();
+        const selectedPackage = await this._context.getSelectedPackage();
+        this.updateSelectedPackage(selectedPackage);
+        this.updateBuildButton(selectedPackage);
+        this.updateDebugButton(selectedPackage);
+        this.updateDebuggingTarget(selectedPackage);
+        this.updatePackageType(selectedPackage);
+        this.reloadVisibility();
     }
 
-    private async updateSelectedPackage() {
-        const selectedPackage = await this._context.getSelectedPackage();
+    private updateSelectedPackage(selectedPackage: packages.Package) {
         let text: string = "$(file-submodule)  ";
         let tooltip: string;
         let command: string;
@@ -102,9 +103,8 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._selectPackageButton, text, tooltip, command);
     }
 
-    private async updateBuildButton()
+    private updateBuildButton(selectedPackage: packages.Package)
     {
-        const selectedPackage = await this._context.getSelectedPackage();
         let text: string = "$(gear)  ";
         let tooltip: string;
         let command: string;
@@ -119,12 +119,11 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._buildPackageButton, text, tooltip, command);
     }
 
-    private async updateDebugButton() {
+    private updateDebugButton(selectedPackage: packages.Package) {
         let text: string = "$(bug) ";
         let tooltip: string;
         let command: string;
 
-        const selectedPackage = await this._context.getSelectedPackage();
         if (!selectedPackage.debugable || !selectedPackage.target) {
             text = null;
         } else {
@@ -136,8 +135,7 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._debugButton, text, tooltip, command);
     }
 
-    private async updatePackageType() {
-        const selectedPackage = await this._context.getSelectedPackage();
+    private updatePackageType(selectedPackage: packages.Package) {
         let text: string = "$(file-code)  ";
         let tooltip: string;
         let command: string;
@@ -152,11 +150,10 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._packageTypeButton, text, tooltip, command);
     }
 
-    private async updateDebuggingTarget() {
+    private updateDebuggingTarget(selectedPackage: packages.Package) {
         let text: string;
         let tooltip: string;
         let command: string;
-        const selectedPackage = await this._context.getSelectedPackage();
 
         if (!selectedPackage.debugable)
             text = null;
@@ -171,7 +168,7 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._debuggingTargetButton, text, tooltip, command);
     }
 
-    public updateButton(item: vscode.StatusBarItem, text: string,
+    private updateButton(item: vscode.StatusBarItem, text: string,
                         tooltip: string, command: string)
     {
         item.text = text;
