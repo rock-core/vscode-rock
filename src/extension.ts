@@ -21,9 +21,9 @@ function initializeWorkspacesFromVSCodeFolders(workspaces)
     }
 }
 
-function setupEvents(onContextUpdate, extensionContext, workspaces, statusBar, taskProvider)
+function setupEvents(rockContext, extensionContext, workspaces, statusBar, taskProvider)
 {
-    onContextUpdate.event(() => {
+    rockContext.onUpdate(() => {
         statusBar.update();
     })
     extensionContext.subscriptions.push(
@@ -44,13 +44,12 @@ function setupEvents(onContextUpdate, extensionContext, workspaces, statusBar, t
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
     let envBridge = new async.EnvironmentBridge;
-    let onContextUpdate = new vscode.EventEmitter<void>();
     let workspaces = new autoproj.Workspaces;
     let taskProvider = new tasks.Provider(workspaces);
     let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let packageFactory = new packages.PackageFactory(taskProvider); 
     let rockContext = new context.Context(vscodeWrapper,
-            workspaces, packageFactory, onContextUpdate, envBridge);
+            workspaces, packageFactory, envBridge);
     let statusBar = new status.StatusBar(extensionContext, rockContext);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper);
     let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext);
@@ -63,12 +62,12 @@ export function activate(extensionContext: vscode.ExtensionContext) {
 
     initializeWorkspacesFromVSCodeFolders(workspaces);
     taskProvider.reloadTasks();
-    setupEvents(onContextUpdate, extensionContext, workspaces, statusBar, taskProvider);
+    setupEvents(rockContext, extensionContext, workspaces, statusBar, taskProvider);
     rockCommands.register();
 
     statusBar.update();
     extensionContext.subscriptions.push(statusBar);
-    extensionContext.subscriptions.push(onContextUpdate);
+    extensionContext.subscriptions.push(rockContext);
 }
 
 // this method is called when your extension is deactivated
