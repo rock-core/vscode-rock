@@ -1,6 +1,5 @@
 import { basename, relative } from 'path';
 import * as context from './context';
-import * as status from './status';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
 
