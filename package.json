@@ -100,8 +100,7 @@
                     },
                     "default": {
                         "cwd": "${workspaceFolder}",
-                        "args": [
-                        ],
+                        "args": [],
                         "orogen": {
                             "start": false,
                             "gui": true,
@@ -111,21 +110,6 @@
                 }
             }
         },
-        "problemMatchers": [
-            {
-                "name": "autoproj-build",
-                "owner": "rock",
-                "fileLocation": "absolute",
-                "pattern": {
-                    "regexp": "^(.*):(.*):\\s+(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
-                    "file": 3,
-                    "line": 4,
-                    "column": 5,
-                    "severity": 6,
-                    "message": 7
-                }
-            }
-        ],
         "commands": [
             {
                 "title": "Select package",
@@ -156,12 +140,92 @@
         "languages": [
             {
                 "id": "ruby",
-                "extensions": [".orogen", ".autobuild"]
+                "extensions": [
+                    ".orogen",
+                    ".autobuild"
+                ]
             },
             {
                 "id": "yaml",
-                "extensions": [".osdeps"],
-                "filenames": ["manifest"]
+                "extensions": [
+                    ".osdeps"
+                ],
+                "filenames": [
+                    "manifest"
+                ]
+            }
+        ],
+        "problemMatchers": [
+            {
+                "name": "autoproj",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "pattern":
+                {
+                    "regexp": "^\\(\\d+\\) .+\\(([^\\)]+)\\): (failed in .* phase)$",
+                    "file": 1,
+                    "message": 2
+                }
+            },
+            {
+                "name": "autoproj-cmake-configure-error",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "pattern": [
+                    {
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Error at ([/0-9a-zA-Z\\._-]+):(\\d+).*",
+                        "file": 1,
+                        "line": 2,
+                        "message": 0
+                    }
+                ]
+            },
+            {
+                "name": "autoproj-cmake-configure-warning",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "pattern": [
+                    {
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Warning at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
+                        "file": 1,
+                        "line": 2,
+                        "message": 0
+                    }
+                ]
+            },
+            {
+                "name": "autoproj-gcc-compile-error",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "pattern": {
+                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (.+):(\\d+):(\\d+):\\s+error:\\s+(.+)",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "message": 4
+                }
+            },
+            {
+                "name": "autoproj-gcc-compile-warning",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "pattern": {
+                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (?:.+:\\d+:\\d+:\n)?(.+):(\\d+):(\\d+):\\s+(?:.*\\s+)?warning:\\s+(.+)",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "message": 4
+                }
             }
         ]
     },

@@ -25,43 +25,54 @@ export class Provider implements vscode.TaskProvider
         this.reloadTasks();
     }
 
-    private createTask(name, group, problemMatchers, ws, defs = {}, args = []) {
+    private createTask(name, ws, defs = {}, args = []) {
         let definition = { type: 'autoproj', workspace: ws.root, ...defs }
         let exec = this.runAutoproj(ws, ...args);
-        let task = new vscode.Task(definition, name, 'autoproj', exec, []);
-        task.group = group;
-        task.problemMatchers = problemMatchers;
-        return task;
+        return new vscode.Task(definition, name, 'autoproj', exec, []);
     }
 
     private createOsdepsTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, null, null, ws,
+        return this.createTask(name, ws,
             { mode: 'osdeps', ...defs },
             ['osdeps', '--color', ...args]);
     }
 
     private createBuildTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, vscode.TaskGroup.Build, ['$autoproj-build'],
-            ws, { mode: 'build', ...defs },
+        let task = this.createTask(name, ws,
+            { mode: 'build', ...defs },
             ['build', '--tool', ...args]);
+        task.group = vscode.TaskGroup.Build;
+        task.problemMatchers = [
+            '$autoproj-cmake-configure-error',
+            '$autoproj-cmake-configure-warning',
+            '$autoproj-gcc-compile-error',
+            '$autoproj-gcc-compile-warning'
+        ];
+        return task;
     }
 
     private createUpdateTask(name, ws, defs = {}, args = []) {
-        return this.createTask(name, null, null, ws,
+        let task = this.createTask(name, ws,
             { mode: 'update', ...defs },
             ['update', '--progress=f', '-k', '--color', ...args]);
+        task.problemMatchers = ['$autoproj'];
+        return task;
     }
 
     private createUpdateConfigTask(name, ws, defs = {}, args = []) {
-        return this.createUpdateTask(name, ws,
+        let task= this.createUpdateTask(name, ws,
             { mode: 'update-config', ...defs },
             [ '--config', ...args]);
+        task.problemMatchers = ['$autoproj'];
+        return task;
     }
 
     private createCheckoutTask(name, ws, defs = {}, args = []) {
-        return this.createUpdateTask(name, ws,
+        let task = this.createUpdateTask(name, ws,
             { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
+        task.problemMatchers = ['$autoproj'];
+        return task;
     }
 
     private createPackageBuildTask(name, ws, folder, defs = {}, args = []) {
@@ -77,15 +88,19 @@ export class Provider implements vscode.TaskProvider
     }
 
     private createPackageUpdateTask(name, ws, folder, defs = {}, args = []) {
-        return this.createUpdateTask(name, ws,
+        let task = this.createUpdateTask(name, ws,
             { folder: folder, ...defs },
             [...args, folder]);
+        task.problemMatchers = ['$autoproj'];
+        return task;
     }
 
     private createPackageCheckoutTask(name, ws, folder, defs = {}, args = []) {
-        return this.createPackageUpdateTask(name, ws, folder,
+        let task = this.createPackageUpdateTask(name, ws,
             { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
+        task.problemMatchers = ['$autoproj'];
+        return task;
     }
 
     public buildTask(path: string): vscode.Task
