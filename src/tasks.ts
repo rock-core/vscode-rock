@@ -67,7 +67,7 @@ export class Provider implements vscode.TaskProvider
     private createPackageBuildTask(name, ws, folder, defs = {}, args = []) {
         return this.createBuildTask(name, ws,
             { folder: folder, ...defs },
-            [folder, ...args])
+            [...args, folder])
     }
 
     private createPackageForceBuildTask(name, ws, folder, defs = {}, args = []) {
@@ -79,11 +79,11 @@ export class Provider implements vscode.TaskProvider
     private createPackageUpdateTask(name, ws, folder, defs = {}, args = []) {
         return this.createUpdateTask(name, ws,
             { folder: folder, ...defs },
-            [folder, ...args]);
+            [...args, folder]);
     }
 
     private createPackageCheckoutTask(name, ws, folder, defs = {}, args = []) {
-        return this.createPackageUpdateTask(name, ws,
+        return this.createPackageUpdateTask(name, ws, folder,
             { mode: 'checkout', ...defs },
             ['--checkout-only', ...args]);
     }
@@ -91,6 +91,31 @@ export class Provider implements vscode.TaskProvider
     public buildTask(path: string): vscode.Task
     {
         return this._buildTasks.get(path);
+    }
+
+    public forceBuildTask(path: string): vscode.Task
+    {
+        return this._forceBuildTasks.get(path);
+    }
+
+    public updateTask(path: string): vscode.Task
+    {
+        return this._updateTasks.get(path);
+    }
+
+    public checkoutTask(path: string): vscode.Task
+    {
+        return this._checkoutTasks.get(path);
+    }
+
+    public osdepsTask(path: string): vscode.Task
+    {
+        return this._osdepsTasks.get(path);
+    }
+
+    public updateConfigTask(path: string): vscode.Task
+    {
+        return this._updateConfigTasks.get(path);
     }
 
     private addTask(root: string, task: vscode.Task,
@@ -125,6 +150,7 @@ export class Provider implements vscode.TaskProvider
         })
         this.workspaces.forEachFolder((ws, folder) => {
             if (folder == ws.root) { return; }
+            if (this.workspaces.isConfig(folder)) { return; }
             let relative = path.relative(ws.root, folder);
             this.addTask(folder, this.createPackageBuildTask(`${ws.name}: Build ${relative}`, ws, folder),
                 this._buildTasks);

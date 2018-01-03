@@ -4,6 +4,29 @@
     "description": "Base support for Rock workspaces",
     "version": "0.0.1",
     "publisher": "rock-robotics",
+    "license": "SEE LICENSE IN LICENSE.txt",
+    "icon": "images/icon.png",
+    "author": {
+        "name": "Rock Robotics"
+    },
+    "contributors": [
+        {
+            "name": "Gabriel Arjones",
+            "email": "arjones@arjones.com"
+        },
+        {
+            "name": "Sylvain Joyeux",
+            "email": "sylvain.joyeux@m4x.org"
+        }
+    ],
+    "galleryBanner": {
+        "color": "#458ccc",
+        "theme": "dark"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rock-core/vscode-rock.git"
+    },
     "engines": {
         "vscode": "^1.18.0"
     },
@@ -14,9 +37,15 @@
     "categories": [
         "Other"
     ],
+    "keywords": [
+        "rock",
+        "robotics",
+        "autoproj",
+        "syskit",
+        "roby"
+    ],
     "contributes": {
         "configuration": {
-            "type": "object",
             "title": "Rock integration with Visual Studio Code",
             "properties": {
                 "rock.packageSelectionMode": {
@@ -28,6 +57,57 @@
                     "default": "auto",
                     "description": "How current package is determined. Supported modes are 'auto' or 'manual'",
                     "scope": "window"
+                },
+                "rock.debug": {
+                    "type": "object",
+                    "description": "Debugging configuration",
+                    "scope": "resource",
+                    "properties": {
+                        "cwd": {
+                            "type": "string",
+                            "description": "The working directory of the target",
+                            "default": "${workspaceFolder}"
+                        },
+                        "args": {
+                            "type": "array",
+                            "description": "Command line arguments passed to the program",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": []
+                        },
+                        "orogen": {
+                            "type": "object",
+                            "description": "Debugging configuration specific to orogen packages",
+                            "properties": {
+                                "start": {
+                                    "type": "boolean",
+                                    "description": "Start (and configure) the task",
+                                    "default": false
+                                },
+                                "gui": {
+                                    "type": "boolean",
+                                    "description": "Start vizkit task inspector",
+                                    "default": true
+                                },
+                                "confDir": {
+                                    "type": "string",
+                                    "description": "Directory to load task configurations from",
+                                    "default": "${workspaceFolder}/scripts"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "cwd": "${workspaceFolder}",
+                        "args": [
+                        ],
+                        "orogen": {
+                            "start": false,
+                            "gui": true,
+                            "confDir": "${workspaceFolder}/scripts"
+                        }
+                    }
                 }
             }
         },
@@ -53,9 +133,24 @@
                 "command": "rock.selectPackage"
             },
             {
+                "title": "Select package type",
+                "category": "rock",
+                "command": "rock.selectPackageType"
+            },
+            {
+                "title": "Set debugging target",
+                "category": "rock",
+                "command": "rock.setDebuggingTarget"
+            },
+            {
                 "title": "Build package",
                 "category": "rock",
                 "command": "rock.buildPackage"
+            },
+            {
+                "title": "Debug package",
+                "category": "rock",
+                "command": "rock.debugPackage"
             }
         ],
         "languages": [
@@ -77,6 +172,10 @@
         "postinstall": "node ./node_modules/vscode/bin/install",
         "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
+    "extensionDependencies": [
+        "ms-vscode.cpptools",
+        "rebornix.Ruby"
+    ],
     "dependencies": {
         "js-yaml": "latest"
     },

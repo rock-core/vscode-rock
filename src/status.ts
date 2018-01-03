@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import * as context from './context';
 import * as tasks from './tasks';
+import { basename } from 'path';
+import * as debug from './debug';
+import * as autoproj from './autoproj';
+import * as packages from './packages';
 
 interface Hideable {
     show(): void;
@@ -17,15 +21,26 @@ function setVisible<T extends Hideable>(i: T, v: boolean) {
 
 export class StatusBar implements vscode.Disposable {
     private readonly _context: context.Context;
-    private readonly _taskProvider: tasks.Provider;
     private readonly _selectPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 4.5);
 
     private readonly _buildPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 3.5);
 
-    private readonly _buttons = { selectPackage: this._selectPackageButton,
-                                  buildPackage: this._buildPackageButton };
+    private readonly _debugButton =
+        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 2.5);
+
+    private readonly _debuggingTargetButton =
+        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1.5);
+
+    private readonly _packageTypeButton =
+        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0.5);
+
+    private readonly _buttons = { selectPackage:   this._selectPackageButton,
+                                  buildPackage:    this._buildPackageButton,
+                                  packageType:     this._packageTypeButton,
+                                  debuggingTarget: this._debuggingTargetButton,
+                                  debug:           this._debugButton };
      
     public dispose() {
         Object.keys(this._buttons).forEach(key => {
@@ -33,11 +48,10 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    constructor(context: context.Context, taskProvider: tasks.Provider) {
+    constructor(context: context.Context) {
         this._selectPackageButton.text = null;
         this._buildPackageButton.text = null;
         this._context = context;
-        this._taskProvider = taskProvider;
         this.reloadVisibility();
 
         let events: { (listener: (e: any) => any): vscode.Disposable; } [] = [
@@ -68,47 +82,93 @@ export class StatusBar implements vscode.Disposable {
         });
     }
 
-    public update() {
-        this.updateSelectedPackage();
-        this.updateBuildButton();
+    public async update() {
+        const selectedPackage = await this._context.getSelectedPackage();
+        this.updateSelectedPackage(selectedPackage);
+        this.updateBuildButton(selectedPackage);
+        this.updateDebugButton(selectedPackage);
+        this.updateDebuggingTarget(selectedPackage);
+        this.updatePackageType(selectedPackage);
         this.reloadVisibility();
     }
 
-    public updateSelectedPackage() {
-        const selectedPackage = this._context.selectedPackage;
+    private updateSelectedPackage(selectedPackage: packages.Package) {
         let text: string = "$(file-submodule)  ";
         let tooltip: string;
         let command: string;
 
-        if (!selectedPackage) {
-            text += '(invalid package)';
-            tooltip = 'Invalid package';
-        } else {
-            text += selectedPackage.name;
-            tooltip = selectedPackage.root;
-        }
+        text += selectedPackage.name;
+        tooltip = selectedPackage.path;
         command = this._context.packageSelectionMode == "auto" ? null : 'rock.selectPackage';
         this.updateButton(this._selectPackageButton, text, tooltip, command);
     }
 
-    public updateBuildButton()
+    private updateBuildButton(selectedPackage: packages.Package)
     {
-        const selectedPackage = this._context.selectedPackage;
         let text: string = "$(gear)  ";
         let tooltip: string;
         let command: string;
 
-        if (!selectedPackage || !this._taskProvider.buildTask(selectedPackage.root)) {
+        if (!selectedPackage.buildTask) {
             text = null;
         } else {
             text += 'Build';
-            tooltip = 'Build selected package'
+            tooltip = 'Build package'
         }
         command = 'rock.buildPackage';
         this.updateButton(this._buildPackageButton, text, tooltip, command);
     }
 
-    public updateButton(item: vscode.StatusBarItem, text: string,
+    private updateDebugButton(selectedPackage: packages.Package) {
+        let text: string = "$(bug) ";
+        let tooltip: string;
+        let command: string;
+
+        if (!selectedPackage.debugable || !selectedPackage.target) {
+            text = null;
+        } else {
+            text += "Debug";
+        }
+
+        tooltip = "Debug package";
+        command = 'rock.debugPackage';
+        this.updateButton(this._debugButton, text, tooltip, command);
+    }
+
+    private updatePackageType(selectedPackage: packages.Package) {
+        let text: string = "$(file-code)  ";
+        let tooltip: string;
+        let command: string;
+
+        if (!selectedPackage.type.label)
+            text = null;
+        else
+            text += selectedPackage.type.label;
+
+        tooltip = "Change package type";
+        command = 'rock.selectPackageType';
+        this.updateButton(this._packageTypeButton, text, tooltip, command);
+    }
+
+    private updateDebuggingTarget(selectedPackage: packages.Package) {
+        let text: string;
+        let tooltip: string;
+        let command: string;
+
+        if (!selectedPackage.debugable)
+            text = null;
+        else if (!selectedPackage.target) {
+            text = '(No debugging target)'
+        } else {
+            text = selectedPackage.target.name;
+        }
+
+        tooltip = "Change debugging target";
+        command = 'rock.setDebuggingTarget';
+        this.updateButton(this._debuggingTargetButton, text, tooltip, command);
+    }
+
+    private updateButton(item: vscode.StatusBarItem, text: string,
                         tooltip: string, command: string)
     {
         item.text = text;

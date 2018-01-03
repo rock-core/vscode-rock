@@ -5,155 +5,495 @@ import * as TypeMoq from 'typemoq';
 import * as wrappers from '../wrappers';
 import * as context from '../context';
 import * as autoproj from '../autoproj';
+import * as helpers from './helpers';
+import * as packages from '../packages';
+import * as async from '../async';
+import { basename, join } from 'path';
+import * as fs from 'fs'
+import * as debug from '../debug'
+
+class TestContext
+{
+    root: string;
+    mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
+    mockContext: TypeMoq.IMock<vscode.ExtensionContext>;
+    mockEventEmitter: TypeMoq.IMock<vscode.EventEmitter<void>>;
+    mockPackageFactory: TypeMoq.IMock<packages.PackageFactory>;
+    mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
+    workspaces: autoproj.Workspaces;
+
+    mockWorkspaceConf: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
+    mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;
+    workspaceFolders: vscode.WorkspaceFolder[];
+    mockTextEditor: TypeMoq.IMock<vscode.TextEditor>;
+    mockDocument: TypeMoq.IMock<vscode.TextDocument>;
+
+    subject: context.Context;
+    private _activeEditor;
+    constructor()
+    {
+        this.root = helpers.init();
+        this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
+        this.mockEventEmitter = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
+        this.mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
+        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        this.workspaces = new autoproj.Workspaces;
+
+        this.subject = new context.Context(this.mockContext.object,
+            this.mockWrapper.object, this.workspaces,
+            this.mockPackageFactory.object, this.mockEventEmitter.object,
+            this.mockBridge.object);
+
+        this.mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
+        this.mockWorkspaceState = TypeMoq.Mock.ofType<vscode.Memento>();
+        this.workspaceFolders = new Array<vscode.WorkspaceFolder>();
+        this.mockTextEditor = TypeMoq.Mock.ofType<vscode.TextEditor>();
+        this.mockDocument = TypeMoq.Mock.ofType<vscode.TextDocument>();
+
+        this.mockContext.setup(x => x.workspaceState).
+            returns(() => this.mockWorkspaceState.object);
+
+        this.mockWrapper.setup(x => x.workspaceFolders).
+            returns(() => this.workspaceFolders);
+
+        this.mockWrapper.setup(x => x.activeTextEditor).
+            returns(() => this.editor());
+
+        this.mockTextEditor.setup(x => x.document).
+            returns(() => this.mockDocument.object);
+    }
+
+    clear(): void
+    {
+        try
+        {
+            fs.unlinkSync(join(this.root, '.vscode', '.rock.json'));
+            fs.rmdirSync(join(this.root, '.vscode'));
+        }
+        catch {}
+        helpers.clear();
+    }
+
+    private editor(): vscode.TextEditor
+    {
+        return this._activeEditor;
+    }
+
+    addWorkspaceConfiguration(section: string, path?: string): void
+    {
+        if (path)
+        {
+            let resource = vscode.Uri.file(path);
+            this.mockWrapper.setup(x => x.getConfiguration(section, resource))
+                .returns(() => this.mockWorkspaceConf.object);
+        } else
+        {
+            this.mockWrapper.setup(x => x.getConfiguration(section))
+                .returns(() => this.mockWorkspaceConf.object);
+        }
+    }
+
+    addConfigurationValue<T>(section: string, value: T): void
+    {
+        this.mockWorkspaceConf.setup(x => x.get(section))
+            .returns(() => value);
+    }
+
+    addPackageFactory(path: string): packages.Package
+    {
+        let mockPackage = TypeMoq.Mock.ofType<packages.Package>();
+        mockPackage.setup((x: any) => x.then).returns(() => undefined);
+
+        this.mockPackageFactory.setup(x => x.createPackage(path, TypeMoq.It.isAny())).
+            returns(() => Promise.resolve(mockPackage.object));
+
+        return mockPackage.object;
+    }
+
+    addCodeWorkspaceFolder(path: string): void
+    {
+        let folder: vscode.WorkspaceFolder = {
+            uri: vscode.Uri.file(path),
+            name: basename(path),
+            index: this.workspaceFolders.length
+        };
+
+        this.workspaceFolders.push(folder);
+    }
+
+    addWorkspaceState<T>(key: string, value: T): void
+    {
+        this.mockWorkspaceState.setup(x =>
+            x.get(key)).returns(() => value);
+    }
+
+    setEditingResource(uri: string): vscode.Uri
+    {
+        let resource = vscode.Uri.parse(uri);
+        this.mockDocument.setup(x => x.uri).returns(() => resource);
+        return resource;
+    }
+
+    associateResourceWithFolder(resource: vscode.Uri,
+        folder: vscode.WorkspaceFolder): void
+    {
+        this.mockWrapper.setup(x => x.getWorkspaceFolder(resource)).
+            returns(() => folder);
+    }
+
+    openEditor(): void
+    {
+        this._activeEditor = this.mockTextEditor.object;
+    }
+
+    closeEditor(): void
+    {
+        this._activeEditor = undefined;
+    }
+}
 
 describe("Context tests", function () {
-    let subject: context.Context;
-    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
-    let mockContext: TypeMoq.IMock<vscode.ExtensionContext>;
-    let workspaces: autoproj.Workspaces;
-
+    let testContext: TestContext;
     beforeEach(function () {
-        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
-        workspaces = new autoproj.Workspaces;
-
-        subject = new context.Context(mockContext.object,
-            mockWrapper.object, workspaces);
+        testContext = new TestContext;
     })
+    afterEach(function () {
+        testContext.clear();
+    })
+    function loadRockJson()
+    {
+        let path = join(testContext.root, '.vscode', '.rock.json');
+        let writtenData: context.PackageInternalData;
+        let jsonString = fs.readFileSync(path, 'utf8');
+        writtenData = JSON.parse(jsonString);
+        return writtenData;
+    }
+    describe("setPackageType", function () {
+        it("writes a json file with the type only", function () {
+            let type = packages.Type.fromName("ruby");
+            testContext.subject.setPackageType(testContext.root, type);
+            let writtenData = loadRockJson();
 
+            assert.equal(writtenData.type, "ruby");
+            assert.equal(writtenData.debuggingTarget.name, undefined);
+            assert.equal(writtenData.debuggingTarget.path, undefined);
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type keeping previous data", function () {
+            let type = packages.Type.fromName("cxx");
+            let previous = {
+                debuggingTarget: {
+                    name: 'target',
+                    path: '/path/to/target'
+                }
+            }
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            testContext.subject.setPackageType(testContext.root, type);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "cxx");
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type discarding previous data", function () {
+            let type = packages.Type.fromName("cxx");
+            let previous = "invalid json";
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), previous);
+            testContext.subject.setPackageType(testContext.root, type);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "cxx");
+            assert.equal(writtenData.debuggingTarget.name, undefined);
+            assert.equal(writtenData.debuggingTarget.path, undefined);
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+    })
+    describe("getPackageType", function () {
+        function writeJson(type: string)
+        {
+            let jsonData = JSON.stringify({ type: type });
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+        }
+        it("reads the package type from the json file", function () {
+            writeJson("orogen");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type.name, "orogen");
+        })
+        it("returns OTHER if the type is invalid", function () {
+            writeJson("invalid package type");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type.name, "other");
+        })
+        it("returns undefined if the file is missing", function () {
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+        it("returns undefined if the type is unset", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+                JSON.stringify({ data: "garbage" }));
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+        it("returns undefined if the file is invalid", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            let type = testContext.subject.getPackageType(testContext.root);
+            assert.equal(type, undefined);
+        })
+    })
+    describe("setDebuggingTarget", function () {
+        it("writes a json file with the target only", function () {
+            let target = new debug.Target("target", "/path/to/target");
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+            let writtenData = loadRockJson();
+
+            assert.equal(writtenData.type, undefined);
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the target keeping previous data", function () {
+            let previous = { type: "orogen" }
+            let target = new debug.Target("target", "/path/to/target");
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, "orogen");
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+        it("writes a json file with the type discarding previous data", function () {
+            let previous = { type: "orogen" }
+            let target = new debug.Target("target", "/path/to/target");
+            fs.mkdirSync(join(testContext.root, '.vscode'));
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "invalid data");
+            testContext.subject.setDebuggingTarget(testContext.root, target);
+
+            let writtenData = loadRockJson();
+            assert.equal(writtenData.type, undefined);
+            assert.equal(writtenData.debuggingTarget.name, "target");
+            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
+            testContext.mockEventEmitter.verify(x =>
+                x.fire(), TypeMoq.Times.once());
+        })
+    })
+    describe("getDebuggingTarget", function () {
+        function writeJson(name: string, path: string)
+        {
+            let jsonData = JSON.stringify({ debuggingTarget: { name: name, path: path }});
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+        }
+        it("reads the package type from the json file", function () {
+            writeJson("target", "/path/to/target");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target.name, "target");
+            assert.equal(target.path, "/path/to/target");
+        })
+        it("returns undefiend name is missing", function () {
+            writeJson(undefined, "/path/to/json");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefiend path is missing", function () {
+            writeJson("target", undefined);
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefined if the target is unset", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+                JSON.stringify({ data: "garbage" }));
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+        it("returns undefined if the file is invalid", function () {
+            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
+            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            let target = testContext.subject.getDebuggingTarget(testContext.root);
+            assert.equal(target, undefined);
+        })
+    })
     it("returns the given vscode wrapper", function () {
-        assert.strictEqual(mockWrapper.object, subject.vscode);
+        assert.strictEqual(testContext.mockWrapper.object, testContext.subject.vscode);
     });
 
     it("returns the given extension context", function () {
-        assert.strictEqual(mockContext.object, subject.extensionContext);
+        assert.strictEqual(testContext.mockContext.object, testContext.subject.extensionContext);
     });
 
     it("returns the given workspaces", function () {
-        assert.strictEqual(workspaces, subject.workspaces);
+        assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
+    });
+
+    it("returns the given environment bridge", function () {
+        assert.strictEqual(testContext.mockBridge.object, testContext.subject.bridge);
     });
 
     it("gets the package selection mode", function () {
-        let mockWorkspaceConf: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
+        testContext.addWorkspaceConfiguration('rock');
+        testContext.addConfigurationValue('packageSelectionMode', "auto");
 
-        mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
-        mockWrapper.setup(x => x.getConfiguration('rock')).returns(() => mockWorkspaceConf.object);
-        let selectionMode = subject.packageSelectionMode;
-        mockWorkspaceConf.verify(x => x.get('packageSelectionMode'), TypeMoq.Times.once());
+        let selectionMode = testContext.subject.packageSelectionMode;
+        assert.equal(selectionMode, "auto");
     });
+    it("gets the debugging configuration", function () {
+        let config: context.RockDebugConfig = {
+            cwd: '/a/path/to/something',
+            args: ["--test", "--argument"],
+            orogen: {
+                start: true,
+                gui: true,
+                confDir: '/some/path'
+            }
+        }
+        testContext.addWorkspaceConfiguration('rock', '/the/package');
+        testContext.addConfigurationValue('debug', config);
 
-    it("sets the selected package", function () {
-        let mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;
-        mockWorkspaceState = TypeMoq.Mock.ofType<vscode.Memento>();
+        let debugConfig = testContext.subject.debugConfig('/the/package');
+        assert.deepEqual(debugConfig, config);
+    });
+    it("sets the selected package and fires the event", function () {
+        let path = '/path/to/package';
+        testContext.subject.setSelectedPackage(path);
 
-        let aPackage = { name: 'package', root: '/path/to/package' };
-        mockContext.setup(x => x.workspaceState).returns(() => mockWorkspaceState.object);
-        subject.selectedPackage = aPackage;
-        mockWorkspaceState.verify(x => x.update('rockSelectedPackage', aPackage.root), TypeMoq.Times.once());
+        testContext.mockWorkspaceState.verify(x =>
+            x.update('rockSelectedPackage', path), TypeMoq.Times.once());
+
+        testContext.mockEventEmitter.verify(x =>
+            x.fire(), TypeMoq.Times.once());
     });
 
     describe("get selectedPackage", function() {
         describe("on an empty workspace", function() {
-            it("returns null if workspace is empty", function () {
-                mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
-                assert.equal(subject.selectedPackage, null);
+            it("creates an invalid package", async function () {
+                let mock = testContext.addPackageFactory(undefined);
+                let pkg = await testContext.subject.getSelectedPackage();
+
+                assert.equal(pkg, mock);
+                testContext.mockPackageFactory.verify(x =>
+                    x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
             });
         })
-
         describe("on a non-empty workspace", function() {
-            let mockWorkspaceFolder1: TypeMoq.IMock<vscode.WorkspaceFolder>;
-            let mockWorkspaceFolder2: TypeMoq.IMock<vscode.WorkspaceFolder>;
-            let mockWorkspaceConf: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
-            
             beforeEach(function () {
-                let workspaceFolders = new Array<vscode.WorkspaceFolder>();
-                let uri1 = vscode.Uri.file('/etc/');
-                let uri2 = vscode.Uri.file('/bin/');
-
-                mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();                
-                mockWorkspaceFolder1 = TypeMoq.Mock.ofType<vscode.WorkspaceFolder>();
-                mockWorkspaceFolder2 = TypeMoq.Mock.ofType<vscode.WorkspaceFolder>();
-                mockWorkspaceFolder1.setup(x => x.uri).returns(() => uri1);
-                mockWorkspaceFolder2.setup(x => x.uri).returns(() => uri2);
-
-                workspaceFolders.push(mockWorkspaceFolder1.object);
-                workspaceFolders.push(mockWorkspaceFolder2.object);
-                mockWrapper.setup(x => x.workspaceFolders).returns(() => workspaceFolders);                
+                testContext.addCodeWorkspaceFolder('/my/workspace/foo');
+                testContext.addCodeWorkspaceFolder('/my/workspace/bar');
             })
-
             describe("in manual package selection mode", function() {
-                let mockWorkspaceState: TypeMoq.IMock<vscode.Memento>;
                 beforeEach(function () {
-                    mockWorkspaceState = TypeMoq.Mock.ofType<vscode.Memento>();
-                    mockWorkspaceConf.setup(x => x.get('packageSelectionMode')).returns(() => 'manual');
-                    mockWrapper.setup(x => x.getConfiguration('rock')).returns(() => mockWorkspaceConf.object);
-                    mockContext.setup(x => x.workspaceState).returns(() => mockWorkspaceState.object);
+                    testContext.addWorkspaceConfiguration('rock');
+                    testContext.addConfigurationValue('packageSelectionMode', 'manual');
                 })
-
-                it("returns null if no package is selected", function () {
-                    mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => null);
-                    assert.equal(subject.selectedPackage, null);
+                it("creates an invalid package if no package is selected", async function () {
+                    let mock = testContext.addPackageFactory(undefined);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
                 });
+                it("creates an invalid package if the selected package no longer belongs to workspace", async function () {
+                    testContext.addWorkspaceState('rockSelectedPackage', '/a/foreign/package');
 
-                it("returns null if the selected package no longer belongs to workspace", function () {
-                    mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => '/usr/');
-                    assert.equal(subject.selectedPackage, null);
+                    let mock = testContext.addPackageFactory(undefined);
+                    let pkg = await testContext.subject.getSelectedPackage();
+
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
                 });
+                it("creates the package representation", async function () {
+                    testContext.addWorkspaceState('rockSelectedPackage', '/my/workspace/foo');
 
-                it("returns the path and the name of the package", function () {
-                    mockWorkspaceState.setup(x => x.get('rockSelectedPackage')).returns(() => '/etc/');
-                    let rockPackage = subject.selectedPackage;
-                    assert.equal(rockPackage.root, "/etc/");
-                    assert.equal(rockPackage.name, "etc");
+                    let mock = testContext.addPackageFactory('/my/workspace/foo');
+                    let pkg = await testContext.subject.getSelectedPackage();
+
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage('/my/workspace/foo', testContext.subject),
+                        TypeMoq.Times.once());
                 });
             })
-
             describe("in auto package selection mode", function() {
-                let mockTextEditor: TypeMoq.IMock<vscode.TextEditor>;
-                let mockDocument: TypeMoq.IMock<vscode.TextDocument>;
                 beforeEach(function () {
-                    mockTextEditor = TypeMoq.Mock.ofType<vscode.TextEditor>();
-                    mockDocument = TypeMoq.Mock.ofType<vscode.TextDocument>();
-
-                    mockWorkspaceConf.setup(x => x.get('packageSelectionMode')).returns(() => 'auto');
-                    mockWrapper.setup(x => x.getConfiguration('rock')).returns(() => mockWorkspaceConf.object);
+                    testContext.addWorkspaceConfiguration('rock');
+                    testContext.addConfigurationValue('packageSelectionMode', 'auto');
                 })
-
-                it("returns null if no file is being edited", function () {
-                    mockWrapper.setup(x => x.activeTextEditor).returns(() => undefined);                    
-                    assert.equal(subject.selectedPackage, null);
+                it("creates an invalid package if no file is being edited", async function () {
+                    let mock = testContext.addPackageFactory(undefined);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x => x.createPackage(
+                        undefined, testContext.subject), TypeMoq.Times.once());
                 });
-
-                it("returns null if the file's uri scheme is not 'file'", function () {
-                    let fileUri = vscode.Uri.parse('ftp://ftp.foo.com/bar/');
-
-                    mockWrapper.setup(x => x.activeTextEditor).returns(() => mockTextEditor.object);
-                    mockTextEditor.setup(x => x.document).returns(() => mockDocument.object);
-                    mockDocument.setup(x => x.uri).returns(() => fileUri);
-                    assert.equal(subject.selectedPackage, null);
+                it("creates an invalid package if the file's uri scheme is not 'file'", async function () {
+                    testContext.openEditor();
+                    testContext.setEditingResource('ftp://ftp.foo.com/bar/');
+                    let mock = testContext.addPackageFactory(undefined);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
                 });
-
-                it("returns null if the file does not belong to any package", function () {
-                    let fileUri = vscode.Uri.file('/usr/bin/whoami');
-
-                    mockWrapper.setup(x => x.activeTextEditor).returns(() => mockTextEditor.object);
-                    mockTextEditor.setup(x => x.document).returns(() => mockDocument.object);
-                    mockDocument.setup(x => x.uri).returns(() => fileUri);
-                    mockWrapper.setup(x => x.getWorkspaceFolder(fileUri)).returns(() => undefined);
-                    assert.equal(subject.selectedPackage, null);                    
+                it("creates an invalid package if the file does not belong to any package", async function () {
+                    testContext.openEditor();
+                    testContext.setEditingResource('file:///a/foreign/package');
+                    let mock = testContext.addPackageFactory(undefined);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage(undefined, testContext.subject), TypeMoq.Times.once());
                 });
+                it("auto selects the package in single root workspaces", async function () {
+                    testContext.workspaceFolders.pop();
+                    let pkgPath = testContext.workspaceFolders[0].uri.fsPath;
+                    let mock = testContext.addPackageFactory(pkgPath);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage(pkgPath, testContext.subject), TypeMoq.Times.once());
+                });
+                it("creates the package representation of the package that owns the file", async function () {
+                    testContext.openEditor();
+                    let resource = testContext.setEditingResource('file://my/workspace/foo/file.cpp');
+                    let mock = testContext.addPackageFactory('/my/workspace/foo');
+                    testContext.associateResourceWithFolder(resource, testContext.workspaceFolders[0]);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
+                    testContext.mockPackageFactory.verify(x =>
+                        x.createPackage('/my/workspace/foo', testContext.subject),
+                        TypeMoq.Times.once());
+                });
+                it("returns a cached package if current is invalid", async function () {
+                    testContext.addCodeWorkspaceFolder('/my/workspace/package');
+                    testContext.openEditor();
+                    let resource = testContext.setEditingResource('file://my/workspace/foo/file.cpp');
+                    let mock = testContext.addPackageFactory('/my/workspace/foo');
+                    testContext.associateResourceWithFolder(resource, testContext.workspaceFolders[0]);
+                    let pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
 
-                it("returns path and the name of the package that owns the file", function () {
-                    let fileUri = vscode.Uri.file('/etc/passwd');
-                    
-                    mockWrapper.setup(x => x.activeTextEditor).returns(() => mockTextEditor.object);
-                    mockTextEditor.setup(x => x.document).returns(() => mockDocument.object);
-                    mockDocument.setup(x => x.uri).returns(() => fileUri);
-                    mockWrapper.setup(x => x.getWorkspaceFolder(fileUri)).returns(() => mockWorkspaceFolder1.object);
+                    testContext.closeEditor();
+                    pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, mock);
 
-                    let rockPackage = subject.selectedPackage;
-                    assert.equal(rockPackage.root, "/etc/");
-                    assert.equal(rockPackage.name, "etc");
+                    testContext.workspaceFolders.shift();
+                    pkg = await testContext.subject.getSelectedPackage();
+                    assert.equal(pkg, undefined);
                 });
             })
         })
