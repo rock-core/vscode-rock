@@ -150,11 +150,19 @@
                 "fileLocation": [
                     "absolute"
                 ],
-                "pattern": {
-                    "regexp": "^\\(\\d+\\) .+\\(([^\\)]+)\\): (failed in .* phase)$",
-                    "file": 1,
-                    "message": 2
-                }
+                "pattern": [
+                    {
+                        "regexp": "^\\(\\d+\\) .+\\(([^\\)]+)\\): (failed in .* phase)$",
+                        "kind": "file",
+                        "file": 1,
+                        "message": 2
+                    },
+                    {
+                        "regexp": "^    (.*)",
+                        "message": 1,
+                        "loop": true
+                    }
+                ]
             },
             {
                 "name": "autoproj-cmake-configure-error",
@@ -168,6 +176,11 @@
                         "file": 1,
                         "line": 2,
                         "message": 0
+                    },
+                    {
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?!Call Stack)(.*)",
+                        "message": 1,
+                        "loop": true
                     }
                 ]
             },
@@ -183,6 +196,11 @@
                         "file": 1,
                         "line": 2,
                         "message": 0
+                    },
+                    {
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?!Call Stack)(.*)",
+                        "message": 1,
+                        "loop": true
                     }
                 ]
             },
