@@ -4,14 +4,154 @@
     "description": "Base support for Rock workspaces",
     "version": "0.0.1",
     "publisher": "rock-robotics",
+    "license": "SEE LICENSE IN LICENSE.txt",
+    "icon": "images/icon.png",
+    "author": {
+        "name": "Rock Robotics"
+    },
+    "contributors": [
+        {
+            "name": "Gabriel Arjones",
+            "email": "arjones@arjones.com"
+        },
+        {
+            "name": "Sylvain Joyeux",
+            "email": "sylvain.joyeux@m4x.org"
+        }
+    ],
+    "galleryBanner": {
+        "color": "#458ccc",
+        "theme": "dark"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rock-core/vscode-rock.git"
+    },
     "engines": {
         "vscode": "^1.18.0"
     },
+    "activationEvents": [
+        "*"
+    ],
+    "main": "./out/extension",
     "categories": [
         "Other"
     ],
+    "keywords": [
+        "rock",
+        "robotics",
+        "autoproj",
+        "syskit",
+        "roby"
+    ],
     "contributes": {
+        "configuration": {
+            "title": "Rock integration with Visual Studio Code",
+            "properties": {
+                "rock.packageSelectionMode": {
+                    "type": "string",
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ],
+                    "default": "auto",
+                    "description": "How current package is determined. Supported modes are 'auto' or 'manual'",
+                    "scope": "window"
+                },
+                "rock.debug": {
+                    "type": "object",
+                    "description": "Debugging configuration",
+                    "scope": "resource",
+                    "properties": {
+                        "cwd": {
+                            "type": "string",
+                            "description": "The working directory of the target",
+                            "default": "${workspaceFolder}"
+                        },
+                        "args": {
+                            "type": "array",
+                            "description": "Command line arguments passed to the program",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": []
+                        },
+                        "orogen": {
+                            "type": "object",
+                            "description": "Debugging configuration specific to orogen packages",
+                            "properties": {
+                                "start": {
+                                    "type": "boolean",
+                                    "description": "Start (and configure) the task",
+                                    "default": false
+                                },
+                                "gui": {
+                                    "type": "boolean",
+                                    "description": "Start vizkit task inspector",
+                                    "default": true
+                                },
+                                "confDir": {
+                                    "type": "string",
+                                    "description": "Directory to load task configurations from",
+                                    "default": "${workspaceFolder}/scripts"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "cwd": "${workspaceFolder}",
+                        "args": [
+                        ],
+                        "orogen": {
+                            "start": false,
+                            "gui": true,
+                            "confDir": "${workspaceFolder}/scripts"
+                        }
+                    }
+                }
+            }
+        },
+        "problemMatchers": [
+            {
+                "name": "autoproj-build",
+                "owner": "rock",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(.*):\\s+(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 3,
+                    "line": 4,
+                    "column": 5,
+                    "severity": 6,
+                    "message": 7
+                }
+            }
+        ],
         "commands": [
+            {
+                "title": "Select package",
+                "category": "rock",
+                "command": "rock.selectPackage"
+            },
+            {
+                "title": "Select package type",
+                "category": "rock",
+                "command": "rock.selectPackageType"
+            },
+            {
+                "title": "Set debugging target",
+                "category": "rock",
+                "command": "rock.setDebuggingTarget"
+            },
+            {
+                "title": "Build package",
+                "category": "rock",
+                "command": "rock.buildPackage"
+            },
+            {
+                "title": "Debug package",
+                "category": "rock",
+                "command": "rock.debugPackage"
+            }
         ],
         "languages": [
             {
@@ -32,10 +172,22 @@
         "postinstall": "node ./node_modules/vscode/bin/install",
         "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
+    "extensionDependencies": [
+        "ms-vscode.cpptools",
+        "rebornix.Ruby"
+    ],
+    "dependencies": {
+        "js-yaml": "latest"
+    },
     "devDependencies": {
         "typescript": "^2.6.1",
         "vscode": "^1.1.6",
+        "fs-temp": "latest",
+        "should": "latest",
+        "typemoq": "latest",
+        "@types/js-yaml": "latest",
         "@types/node": "^7.0.43",
-        "@types/mocha": "^2.2.42"
+        "@types/mocha": "^2.2.42",
+        "@types/should": "latest"
     }
 }

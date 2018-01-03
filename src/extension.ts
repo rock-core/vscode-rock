@@ -2,26 +2,84 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import * as tasks from './tasks';
+import * as status from './status';
+import * as wrappers from './wrappers';
+import * as context from './context';
+import * as autoproj from './autoproj';
+import * as commands from './commands';
+import * as packages from './packages';
+import * as async from './async';
+import * as debug from './debug';
+
+let workspaces: autoproj.Workspaces;
+let rockContext: context.Context;
+let statusBar: status.StatusBar;
+let taskProvider: tasks.Provider;
+let wrapper: wrappers.VSCode;
+let rockCommands: commands.Commands;
+let packageFactory: packages.PackageFactory;
+let onContextUpdate: vscode.EventEmitter<void>;
+let envBridge: async.EnvironmentBridge;
+let preLaunchTaskProvider: debug.PreLaunchTaskProvider;
+
+function initilizeWorkspace()
+{
+    if (vscode.workspace.workspaceFolders != undefined) {
+        vscode.workspace.workspaceFolders.forEach((folder) => {
+            workspaces.addFolder(folder.uri.fsPath);
+        });
+    }
+}
+
+function setupEvents()
+{
+    onContextUpdate.event(() => {
+        statusBar.update();
+    })
+    rockContext.extensionContext.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+            event.added.forEach((folder) => {
+                workspaces.addFolder(folder.uri.fsPath);
+            });
+            event.removed.forEach((folder) => {
+                workspaces.deleteFolder(folder.uri.fsPath);
+            });
+            taskProvider.reloadTasks();
+            statusBar.update();
+        })
+    );
+}
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export function activate(extensionContext: vscode.ExtensionContext) {
+    envBridge = new async.EnvironmentBridge;
+    onContextUpdate = new vscode.EventEmitter<void>();
+    workspaces = new autoproj.Workspaces;
+    taskProvider = new tasks.Provider(workspaces);
+    wrapper = new wrappers.VSCode;
+    packageFactory = new packages.PackageFactory(taskProvider); 
+    rockContext = new context.Context(extensionContext, wrapper,
+        workspaces, packageFactory, onContextUpdate, envBridge);
+    statusBar = new status.StatusBar(rockContext);
+    rockCommands = new commands.Commands(rockContext);
+    preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext);
 
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
-    console.log('Congratulations, your extension "rock" is now active!');
+    extensionContext.subscriptions.push(
+        vscode.workspace.registerTaskProvider('autoproj', taskProvider));
 
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with  registerCommand
-    // The commandId parameter must match the command field in package.json
-    let disposable = vscode.commands.registerCommand('extension.sayHello', () => {
-        // The code you place here will be executed every time your command is executed
+    extensionContext.subscriptions.push(
+        vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
 
-        // Display a message box to the user
-        vscode.window.showInformationMessage('Hello World!');
-    });
+    initilizeWorkspace();
+    taskProvider.reloadTasks();
+    setupEvents();
+    rockCommands.register();
 
-    context.subscriptions.push(disposable);
+    statusBar.update();
+    extensionContext.subscriptions.push(statusBar);
+    extensionContext.subscriptions.push(onContextUpdate);
 }
 
 // this method is called when your extension is deactivated
