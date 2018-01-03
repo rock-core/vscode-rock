@@ -47,6 +47,12 @@ export class Commands
             this._vscode.showErrorMessage(err.message);
         })
     }
+
+    async updatePackageInfo()
+    {
+        this.handlePromise(this._context.updateWorkspaceInfo());
+    }
+
     async buildPackage()
     {
         let pkg = await this._context.getSelectedPackage();
@@ -78,5 +84,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.selectPackageType', (...args) => { this.selectPackageType(...args) });
         this._vscode.registerAndSubscribeCommand('rock.setDebuggingTarget', (...args) => { this.setDebuggingTarget(...args) });
         this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
     }
 }

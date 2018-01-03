@@ -18,7 +18,7 @@ export class TypeList
     static CONFIG = { id: 5, name: 'config', label: 'internal', autobuild: new Array<string>() };
 
     static ALL_TYPES =
-        [TypeList.CXX, TypeList.RUBY, TypeList.OROGEN, TypeList.OTHER];
+        [TypeList.CXX, TypeList.RUBY, TypeList.OROGEN, TypeList.OTHER, TypeList.INVALID, TypeList.CONFIG];
 
     static findType(callback)
     {
@@ -132,24 +132,23 @@ export class PackageFactory
         if (!ws)
             return Promise.resolve(Type.fromType(TypeList.OTHER));
 
-        let promise = new Promise<Type>((resolve, reject) => {
-            ws.info().then((wsInfo) => {
-                let relativePath = relative(ws.root, path)
-                let defs = wsInfo.packages.get(relativePath);
-                if (!defs)
-                {
-                    resolve(Type.fromType(TypeList.OTHER));
-                }
-                else
-                {
-                    type = Type.fromAutobuild(defs.type)
-                    resolve(type)
-                }
-            }, (reason) => {
-                resolve(Type.fromType(TypeList.OTHER));
-            });
-        })
-        return promise;
+        let wsInfo;
+        try {
+            wsInfo = await ws.info();
+        }
+        catch(err) {
+            return Type.invalid();
+        }
+
+        const relativePath = relative(ws.root, path)
+        let defs = wsInfo.packages.get(relativePath);
+        if (!defs) {
+            let wsInfo = await ws.envsh();
+            return Type.fromType(TypeList.OTHER);
+        }
+        else {
+            return Type.fromAutobuild(defs.type)
+        }
     }
 }
 

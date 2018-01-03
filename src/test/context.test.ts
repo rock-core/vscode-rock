@@ -44,7 +44,6 @@ class TestContext
         this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         this.workspaces = new autoproj.Workspaces;
 
-
         this.subject = new context.Context(
             this.mockWrapper.object,
             this.workspaces,
@@ -129,6 +128,15 @@ class TestContext
         this._activeDocumentURI = undefined;
     }
 
+    createWorkspace(workspaceName: string) {
+        helpers.mkdir(workspaceName, '.autoproj');
+        helpers.mkfile('', workspaceName, ".autoproj", "installation-manifest");
+    }
+    registerPackage(workspaceName : string, ...packageName: string[]) {
+        let path = helpers.mkdir(workspaceName, join(...packageName));
+        let ws = this.workspaces.addFolder(path);
+        return { ws, path };
+    }
     associateResourceWithFolder(resource: vscode.Uri,
         folder: vscode.WorkspaceFolder): void
     {
@@ -358,6 +366,50 @@ describe("Context tests", function () {
 
         verifyContextUpdated(TypeMoq.Times.once());
     });
+
+    describe("getSelectedWorkspace", function() {
+        beforeEach(function() {
+            testContext.createWorkspace('test');
+        })
+
+        function setSelectedPackage(typeName, path) {
+            let contextMock = TypeMoq.Mock.ofInstance(testContext.subject);
+            contextMock.callBase = true;
+            let pkg = TypeMoq.Mock.ofType<packages.Package>();
+            pkg.setup(x => x.type).returns(() => packages.Type.fromName(typeName));
+            pkg.setup(x => x.path).returns(() => path);
+            pkg.setup((x: any) => x.then).returns(() => undefined);
+            contextMock.setup(x => x.getSelectedPackage()).returns(() => Promise.resolve(pkg.object));
+            return contextMock;
+        }
+
+        it ("returns the package's workspace if there is a selected package", async function() {
+            let { ws, path }  = testContext.registerPackage('test', 'package');
+            let contextMock = setSelectedPackage('cxx', path);
+            let selectedWs = await contextMock.object.getSelectedWorkspace();
+            assert.deepEqual(selectedWs, ws);
+        })
+
+        it ("returns a configuration workspace's", async function() {
+            let { ws, path }  = testContext.registerPackage('test', 'package');
+            let contextMock = setSelectedPackage('config', path);
+            let selectedWs = await contextMock.object.getSelectedWorkspace();
+            assert.deepEqual(selectedWs, ws);
+        })
+
+        it ("returns undefined if the selected package is invalid", async function() {
+            let { ws, path }  = testContext.registerPackage('test', 'package');
+            let contextMock = setSelectedPackage('invalid', path);
+            let selectedWs = await contextMock.object.getSelectedWorkspace();
+            assert.equal(selectedWs, undefined);
+        })
+
+        it ("returns undefined if the selected package is not part of a workspace", async function() {
+            let contextMock = setSelectedPackage('invalid', 'package');
+            let selectedWs = await contextMock.object.getSelectedWorkspace();
+            assert.equal(selectedWs, undefined);
+        })
+    })
 
     describe("get selectedPackage", function() {
         describe("on an empty workspace", function() {

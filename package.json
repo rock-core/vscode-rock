@@ -135,6 +135,11 @@
                 "title": "Debug package",
                 "category": "rock",
                 "command": "rock.debugPackage"
+            },
+            {
+                "title": "Update package info",
+                "category": "rock",
+                "command": "rock.updatePackageInfo"
             }
         ],
         "languages": [
