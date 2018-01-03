@@ -18,7 +18,6 @@ class TestContext
     root: string;
     mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     mockContext: TypeMoq.IMock<vscode.ExtensionContext>;
-    mockContextUpdatedEvent: TypeMoq.IMock<vscode.EventEmitter<void>>;
     mockPackageFactory: TypeMoq.IMock<packages.PackageFactory>;
     mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     workspaces: autoproj.Workspaces;
@@ -38,7 +37,6 @@ class TestContext
         this.mockWrapper.setup(x => x.activeDocumentURI)
             .returns(() => this._activeDocumentURI);
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
-        this.mockContextUpdatedEvent = TypeMoq.Mock.ofType<vscode.EventEmitter<void>>();
         let taskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         let packageFactory = new packages.PackageFactory(taskProvider.object);
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
@@ -51,7 +49,6 @@ class TestContext
             this.mockWrapper.object,
             this.workspaces,
             this.mockPackageFactory.object,
-            this.mockContextUpdatedEvent.object,
             this.mockBridge.object);
 
         this.mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
@@ -148,6 +145,14 @@ describe("Context tests", function () {
     afterEach(function () {
         testContext.clear();
     })
+
+    function verifyContextUpdated(times) {
+        const mock = TypeMoq.Mock.ofInstance(() => undefined);
+        mock.object();
+        testContext.subject.onUpdate(mock);
+        mock.verify(x => x(), times);
+    }
+
     function loadRockJson()
     {
         let path = join(testContext.root, '.vscode', '.rock.json');
@@ -165,8 +170,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "ruby");
             assert.equal(writtenData.debuggingTarget.name, undefined);
             assert.equal(writtenData.debuggingTarget.path, undefined);
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the type keeping previous data", function () {
             let type = packages.Type.fromName("cxx");
@@ -184,8 +188,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "cxx");
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the type discarding previous data", function () {
             let type = packages.Type.fromName("cxx");
@@ -198,8 +201,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "cxx");
             assert.equal(writtenData.debuggingTarget.name, undefined);
             assert.equal(writtenData.debuggingTarget.path, undefined);
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
     })
     describe("getPackageType", function () {
@@ -246,8 +248,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, undefined);
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the target keeping previous data", function () {
             let previous = { type: "orogen" }
@@ -260,8 +261,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, "orogen");
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the type discarding previous data", function () {
             let previous = { type: "orogen" }
@@ -274,8 +274,7 @@ describe("Context tests", function () {
             assert.equal(writtenData.type, undefined);
             assert.equal(writtenData.debuggingTarget.name, "target");
             assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            testContext.mockContextUpdatedEvent.verify(x =>
-                x.fire(), TypeMoq.Times.once());
+            verifyContextUpdated(TypeMoq.Times.once());
         })
     })
     describe("getDebuggingTarget", function () {
@@ -357,8 +356,7 @@ describe("Context tests", function () {
         testContext.mockWrapper.verify(x =>
             x.updateWorkspaceState('rockSelectedPackage', path), TypeMoq.Times.once());
 
-        testContext.mockContextUpdatedEvent.verify(x =>
-            x.fire(), TypeMoq.Times.once());
+        verifyContextUpdated(TypeMoq.Times.once());
     });
 
     describe("get selectedPackage", function() {

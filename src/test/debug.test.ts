@@ -40,7 +40,6 @@ class TestContext
         let ctxt = new context.Context(this.mockWrapper.object,
             workspaces,
             mockFactory.object,
-            new vscode.EventEmitter(),
             mockBridge.object);
         this.mockContext = TypeMoq.Mock.ofInstance(ctxt);
         this.mockContext.callBase = true;

@@ -60,16 +60,24 @@ export class Context
     private readonly _bridge: async.EnvironmentBridge;
     private _lastSelectedRoot: string | undefined;
 
-    public constructor(vscode: wrappers.VSCode, workspaces: autoproj.Workspaces,
+    public constructor(vscodeWrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
-                       contextUpdatedEvent: vscode.EventEmitter<void>,
                        bridge: async.EnvironmentBridge)
     {
-        this._vscode = vscode;
+        this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._packageFactory = packageFactory;
-        this._contextUpdatedEvent = contextUpdatedEvent;
+        this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._bridge = bridge;
+    }
+
+    public dispose() {
+        this._contextUpdatedEvent.dispose();
+    }
+
+    public onUpdate(callback)
+    {
+        return this._contextUpdatedEvent.event(callback);
     }
 
     public setPackageType(path: string, type: packages.Type): void
