@@ -119,6 +119,16 @@ export class Context
             data.debuggingTarget.path);
     }
 
+    public async getSelectedWorkspace() : Promise<autoproj.Workspace | undefined>
+    {
+        let pkg = await this.getSelectedPackage();
+        if (pkg.type.isInternal()) {
+            return;
+        }
+
+        return this.workspaces.folderToWorkspace.get(pkg.path);
+    }
+
     public async getSelectedPackage(): Promise<packages.Package>
     {
         let selectedRoot: string | undefined;
@@ -247,5 +257,13 @@ export class Context
     private set rockSelectedPackage(root: string | undefined)
     {
         this._vscode.updateWorkspaceState('rockSelectedPackage', root);
+    }
+
+    public async updateWorkspaceInfo() {
+        let ws = await this.getSelectedWorkspace();
+        if (ws) {
+            await ws.envsh();
+            this._contextUpdatedEvent.fire();
+        }
     }
 }

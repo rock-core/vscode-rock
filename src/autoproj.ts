@@ -1,5 +1,6 @@
 'use strict';
 
+import * as child_process from 'child_process';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
 import * as global from 'glob';
@@ -94,13 +95,13 @@ export class Workspace
         return loadWorkspaceInfo(this.root);
     }
 
-    reload()
+    async reload()
     {
         this._info = this.createInfoPromise()
         return this._info;
     }
 
-    info(): Promise<WorkspaceInfo>
+    async info(): Promise<WorkspaceInfo>
     {
         if (this._info)
         {
@@ -110,6 +111,25 @@ export class Workspace
         {
             return this.reload();
         }
+    }
+
+    async envsh(): Promise<WorkspaceInfo>
+    {
+        const process = child_process.spawn(
+            this.autoprojExePath(),
+            ['envsh', '--color'],
+            { cwd: this.root, stdio: ['ignore', 'pipe', 'pipe']}
+        );
+        return new Promise<WorkspaceInfo>((resolve, reject) => {
+            process.on('exit', (code, status) => {
+                if (code === 0) {
+                    resolve(this.reload());
+                }
+                else {
+                    resolve(this.info());
+                }
+            })
+        })
     }
 }
 

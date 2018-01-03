@@ -130,21 +130,22 @@ describe("Autoproj helpers tests", function () {
                     assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
                 })
             })
-            it("returns always the same promise", function() {
+            it("does not re-resolve the info on each call", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-                let promise = workspace.info();
-                assert.equal(promise, workspace.info());
+                let promise = await workspace.info();
+                let promise2 = await workspace.info();
+                assert.equal(promise, promise2);
             })
-            it("creates a new promise on reload()", function() {
+            it("reloads the information on reload()", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-                let initial = workspace.info()
-                let reloaded = workspace.reload();
+                let initial  = await workspace.info()
+                let reloaded = await workspace.reload();
                 assert.notEqual(reloaded, initial);
-                assert.equal(reloaded, workspace.info());
+                assert.equal(reloaded, await workspace.info());
             })
         })
     })
