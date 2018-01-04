@@ -29,6 +29,16 @@ async function assertThrowsAsync(fn, msg: RegExp)
     }
 }
 
+describe("Type", function() {
+    describe("typePickerChoices", function() {
+        it("does not contain any internal type", function() {
+            packages.Type.typePickerChoices().forEach((choice) => {
+                assert(!choice.type.isInternal());
+            })
+        })
+    })
+})
+
 describe("PackageFactory", function () {
     let subject: packages.PackageFactory;
     let mockContext: TypeMoq.IMock<context.Context>;
@@ -241,20 +251,7 @@ async function testTypePicker(subject: packages.Package,
     mockContext: TypeMoq.IMock<context.Context>)
 {
     let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-
-    let expectedChoices = new Array<{
-        label: string,
-        description: string,
-        type: packages.Type
-    }>();
-
-    packages.TypeList.ALL_TYPES.forEach((type) => {
-        expectedChoices.push({
-            label: type.label,
-            description: '',
-            type: packages.Type.fromType(type)
-        });
-    });
+    let expectedChoices = packages.Type.typePickerChoices();
     let packageType = {
         label: 'Ruby',
         description: '',

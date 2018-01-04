@@ -79,6 +79,27 @@ export class Type
     {
         return new Type(TypeList.CONFIG);
     }
+
+    static typePickerChoices() {
+        let choices = new Array<{
+            label: string,
+            description: string,
+            type: Type
+        }>();
+
+        TypeList.ALL_TYPES.forEach((_type) => {
+            let type = Type.fromType(_type);
+            if (!type.isInternal()) {
+                choices.push({
+                    label: type.label,
+                    description: '',
+                    type: type
+                });
+            }
+        });
+
+        return choices;
+    }
 }
 
 export class PackageFactory
@@ -189,22 +210,10 @@ abstract class GenericPackage implements Package
     }
 
     get name() { return basename(this.path); }
+
     async pickType(): Promise<void>
     {
-        let choices = new Array<{
-            label: string,
-            description: string,
-            type: Type
-        }>();
-
-        TypeList.ALL_TYPES.forEach((type) => {
-            choices.push({
-                label: type.label,
-                description: '',
-                type: Type.fromType(type)
-            });
-        });
-
+        let choices = Type.typePickerChoices();
         let options: vscode.QuickPickOptions = {
             placeHolder: 'Select the package type' }
 
