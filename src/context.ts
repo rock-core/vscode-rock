@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
 import * as wrappers from './wrappers';
-import { basename, relative } from 'path';
+import { basename, relative, dirname } from 'path';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
 import * as packages from './packages'
 import * as async from './async'
 import * as fs from 'fs'
-import { join } from 'path'
+import { join as joinPath } from 'path'
 
 export interface PackageInternalData
 {
-    type: string;
+    type: string | undefined;
     debuggingTarget: {
-        name: string,
-        path: string
+        name: string | undefined,
+        path: string | undefined
     }
 }
 
@@ -21,49 +21,63 @@ export interface RockOrogenDebugConfig
 {
     start: boolean,
     gui: boolean,
-    confDir: string
+    confDir: string | undefined
 }
 
 export interface RockDebugConfig
 {
-    cwd: string;
+    cwd: string | undefined;
     args: string[],
     orogen: RockOrogenDebugConfig
 }
 
-function exists(folders: vscode.WorkspaceFolder[], uri: string)
+const NullOrogenDebugConfig = {
+    start: false,
+    gui: false,
+    confDir: undefined
+};
+
+const NullRockDebugConfig = {
+    cwd: undefined,
+    args: [],
+    orogen: NullOrogenDebugConfig
+};
+
+/** Checks that a given filesystem path is registered in a list of workspace folders */
+function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
 {
     return folders.find((item) => {
-        return (item.uri.fsPath == uri);
+        return (item.uri.fsPath == fsPath);
     })
 }
 
 export class Context
 {
-    private readonly _context: vscode.ExtensionContext;
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
-    private readonly _folderToPackageType: Map<string, packages.Type>;
-    private readonly _folderToDebuggingTarget: Map<string, debug.Target>;
     private readonly _packageFactory: packages.PackageFactory;
-    private readonly _eventEmitter: vscode.EventEmitter<void>;
+    private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
     private readonly _bridge: async.EnvironmentBridge;
-    private _lastSelectedRoot: string;
+    private _lastSelectedRoot: string | undefined;
 
-    public constructor(context: vscode.ExtensionContext,
-                       wrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
+    public constructor(vscodeWrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
                        packageFactory: packages.PackageFactory,
-                       eventEmitter: vscode.EventEmitter<void>,
                        bridge: async.EnvironmentBridge)
     {
-        this._context = context;
-        this._vscode = wrapper;
+        this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._packageFactory = packageFactory;
-        this._folderToDebuggingTarget = new Map<string, debug.Target>();
-        this._folderToPackageType = new Map<string, packages.Type>();
-        this._eventEmitter = eventEmitter;
+        this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._bridge = bridge;
+    }
+
+    public dispose() {
+        this._contextUpdatedEvent.dispose();
+    }
+
+    public onUpdate(callback)
+    {
+        return this._contextUpdatedEvent.event(callback);
     }
 
     public setPackageType(path: string, type: packages.Type): void
@@ -71,12 +85,12 @@ export class Context
         let data = this.loadPersistedData(path);
         data.type = type.name;
         this.persistData(path, data);
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
-    public getPackageType(path: string): packages.Type
+    public getPackageType(path: string): packages.Type | undefined
     {
-        let pkgType: packages.Type;
+        let pkgType: packages.Type | undefined;
         let data = this.loadPersistedData(path);
 
         if (data.type)
@@ -91,10 +105,10 @@ export class Context
         data.debuggingTarget.name = target.name;
         data.debuggingTarget.path = target.path;
         this.persistData(path, data);
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
-    public getDebuggingTarget(path: string): debug.Target
+    public getDebuggingTarget(path: string): debug.Target | undefined
     {
         let data = this.loadPersistedData(path);
         if (!data || !data.debuggingTarget ||
@@ -105,61 +119,64 @@ export class Context
             data.debuggingTarget.path);
     }
 
+    public async getSelectedWorkspace() : Promise<autoproj.Workspace | undefined>
+    {
+        let pkg = await this.getSelectedPackage();
+        if (!pkg.type.isValid()) {
+            return;
+        }
+        return this.workspaces.getWorkspaceFromFolder(pkg.path);
+    }
+
     public async getSelectedPackage(): Promise<packages.Package>
     {
-        let selectedRoot: string;
+        let selectedRoot: string | undefined;
         let folders = this._vscode.workspaceFolders;
 
         if (folders && folders.length > 0)
         {
             const selectionMode = this.packageSelectionMode;
-            if (selectionMode == "manual")
-            {
+            if (selectionMode == "manual") {
                 let root = this.rockSelectedPackage;
                 if (root)
                 {
                     if (exists(folders, root))
                         selectedRoot = root;
                 }
-            } else
-            {
+            }
+            else {
                 if (folders.length == 1 && folders[0].uri.scheme == 'file')
                     selectedRoot = folders[0].uri.fsPath;
 
-                const editor = this._vscode.activeTextEditor;
-                if (editor)
-                {
-                    const resource = editor.document.uri;
-                    if (resource.scheme === 'file')
-                    {
-                        const folder = this._vscode.getWorkspaceFolder(resource);
-                        if (folder)
-                            selectedRoot = folder.uri.fsPath;
-                    }
+                const currentDocumentURI = this._vscode.activeDocumentURI;
+                if (currentDocumentURI && currentDocumentURI.scheme === 'file') {
+                    const folder = this._vscode.getWorkspaceFolder(currentDocumentURI);
+                    if (folder)
+                        selectedRoot = folder.uri.fsPath;
                 }
             }
-            if (!selectedRoot && exists(folders, this._lastSelectedRoot))
+            if (!selectedRoot && this._lastSelectedRoot && exists(folders, this._lastSelectedRoot))
                 selectedRoot = this._lastSelectedRoot;
         }
         this._lastSelectedRoot = selectedRoot;
-        return this._packageFactory.createPackage(selectedRoot, this);
+        if (selectedRoot) {
+            return this._packageFactory.createPackage(selectedRoot, this);
+        }
+        else {
+            return packages.PackageFactory.createInvalidPackage();
+        }
     }
 
     public setSelectedPackage(path: string): void
     {
         this.rockSelectedPackage = path;
-        this._eventEmitter.fire();
+        this._contextUpdatedEvent.fire();
     }
 
-    public get packageSelectionMode(): string
+    public get packageSelectionMode(): string | undefined
     {
         return this._vscode.getConfiguration('rock').
             get('packageSelectionMode');
-    }
-
-    public get extensionContext(): vscode.ExtensionContext
-    {
-        return this._context;
     }
 
     public get vscode(): wrappers.VSCode
@@ -180,13 +197,23 @@ export class Context
     public debugConfig(path: string): RockDebugConfig
     {
         let resource = vscode.Uri.file(path);
-        return this._vscode.getConfiguration('rock', resource).get('debug');
+        let conf = this._vscode.getConfiguration('rock', resource).get('debug');
+        if (conf) {
+            return conf as RockDebugConfig;
+        }
+        else {
+            return NullRockDebugConfig;
+        }
+    }
+
+    private persistedDataPath(rootPath: string)
+    {
+        return joinPath(rootPath, '.vscode', '.rock.json');
+
     }
 
     private loadPersistedData(path: string): PackageInternalData
     {
-        let dataPath = join(path, '.vscode', '.rock.json');
-        let jsonData: string;
         let data: PackageInternalData = {
             type: undefined,
             debuggingTarget: {
@@ -196,7 +223,8 @@ export class Context
         }
         try
         {
-            jsonData = fs.readFileSync(dataPath, "utf8");
+            let dataPath = this.persistedDataPath(path);
+            let jsonData = fs.readFileSync(dataPath, "utf8");
             Object.assign(data, JSON.parse(jsonData));
         }
         catch
@@ -207,24 +235,34 @@ export class Context
 
     private persistData(path: string, data: PackageInternalData): void
     {
+        let dataPath = this.persistedDataPath(path);
+        let dataDir  = dirname(dataPath);
         let jsonData = JSON.stringify(data);
         let options = {
             mode: 0o644,
             flag: 'w'
         };
-        if (!fs.existsSync(join(path, '.vscode')))
-            fs.mkdirSync(join(path, '.vscode'), 0o755);
+        if (!fs.existsSync(dataDir))
+            fs.mkdirSync(dataDir, 0o755);
 
-        fs.writeFileSync(join(path, '.vscode', '.rock.json'), jsonData, options);
+        fs.writeFileSync(dataPath, jsonData, options);
     }
 
-    private get rockSelectedPackage(): string
+    private get rockSelectedPackage(): string | undefined
     {
-        return this._context.workspaceState.get('rockSelectedPackage');
+        return this._vscode.getWorkspaceState('rockSelectedPackage');
     }
 
-    private set rockSelectedPackage(root: string)
+    private set rockSelectedPackage(root: string | undefined)
     {
-        this._context.workspaceState.update('rockSelectedPackage', root);
+        this._vscode.updateWorkspaceState('rockSelectedPackage', root);
+    }
+
+    public async updateWorkspaceInfo() {
+        let ws = await this.getSelectedWorkspace();
+        if (ws) {
+            await ws.envsh();
+            this._contextUpdatedEvent.fire();
+        }
     }
 }

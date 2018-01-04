@@ -7,7 +7,7 @@ import * as Path from 'path';
 import * as YAML from 'js-yaml';
 
 let root;
-let createdFS = []
+let createdFS : Array<Array<string>> = []
 
 export function init(): string {
     root = Temp.mkdirSync();

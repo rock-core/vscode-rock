@@ -14,16 +14,21 @@ export class TypeList
     static OTHER = { id: 3, name: 'other', label: 'Other', autobuild: new Array<string>() };
 
     // For internal use only
-    static INVALID = { id: 4, name: undefined, label: undefined, autobuild: new Array<string>() };
-    static CONFIG = { id: 5, name: undefined, label: undefined, autobuild: new Array<string>() };
+    static INVALID = { id: 4, name: 'invalid', label: 'internal', autobuild: new Array<string>() };
+    static CONFIG = { id: 5, name: 'config', label: 'internal', autobuild: new Array<string>() };
 
-    private constructor() { }
-    static get allTypes()
+    static ALL_TYPES =
+        [TypeList.CXX, TypeList.RUBY, TypeList.OROGEN, TypeList.OTHER, TypeList.INVALID, TypeList.CONFIG];
+
+    static findType(callback)
     {
-        return [this.CXX,
-                this.RUBY,
-                this.OROGEN,
-                this.OTHER];
+        let type = TypeList.ALL_TYPES.find(callback);
+        if (type) {
+            return type;
+        }
+        else {
+            return TypeList.OTHER;
+        }
     }
 }
 
@@ -40,37 +45,31 @@ export class Type
         this.label = type.label;
     }
 
+    isInternal() : boolean
+    {
+        return this.label === 'internal';
+    }
+
+    isValid() : boolean
+    {
+        return this.id != TypeList.INVALID.id;
+    }
+
     static fromName(name: string) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.name == name)
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.name == name);
+        return new Type(type);
     }
     static fromId(id: number) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.id == id)
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.id == id);
+        return new Type(type);
     }
     static fromAutobuild(autobuildType: string) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(type => {
-            if (type.autobuild.find((item) => { return (item == autobuildType) }))
-                match = new Type(type);
-        });
-        return match;
+        let type = TypeList.findType(type => type.autobuild.find((item) => { return (item == autobuildType) }));
+        return new Type(type);
     }
     static fromType(type: { id: number, name: string, label: string }) {
-        let match = new Type(TypeList.OTHER);
-        TypeList.allTypes.forEach(_type => {
-            if (type == _type)
-                match = new Type(type);
-        });
-        return match;
+        let matchedType = TypeList.findType(_type => type == _type);
+        return new Type(matchedType);
     }
     static invalid()
     {
@@ -92,11 +91,7 @@ export class PackageFactory
 
     async createPackage(path: string, context: context.Context): Promise<Package>
     {
-        if (!path)
-        {
-            return new InvalidPackage();
-        }
-        else if (context.workspaces.isConfig(path))
+        if (context.workspaces.isConfig(path))
         {
             return new ConfigPackage(path);
         }
@@ -122,45 +117,50 @@ export class PackageFactory
         return new ForeignPackage(path, context);
     }
 
+    static createInvalidPackage(): InvalidPackage
+    {
+        return new InvalidPackage();
+    }
+
     private async packageType(path: string, context: context.Context): Promise<Type>
     {
         let type = await context.getPackageType(path);
         if (type)
             return Promise.resolve(type);
 
-        let ws = context.workspaces.folderToWorkspace.get(path);
+        const ws = context.workspaces.folderToWorkspace.get(path);
         if (!ws)
             return Promise.resolve(Type.fromType(TypeList.OTHER));
 
-        let promise = new Promise<Type>((resolve, reject) => {
-            ws.info().then((wsInfo) => {
-                let relativePath = relative(ws.root, path)
-                let defs = wsInfo.packages.get(relativePath);
-                if (!defs)
-                {
-                    resolve(Type.fromType(TypeList.OTHER));
-                }
-                else
-                {
-                    type = Type.fromAutobuild(defs.type)
-                    resolve(type)
-                }
-            }, (reason) => {
-                resolve(Type.fromType(TypeList.OTHER));
-            });
-        })
-        return promise;
+        let wsInfo;
+        try {
+            wsInfo = await ws.info();
+        }
+        catch(err) {
+            return Type.invalid();
+        }
+
+        const relativePath = relative(ws.root, path)
+        let defs = wsInfo.packages.get(relativePath);
+        if (!defs) {
+            let wsInfo = await ws.envsh();
+            return Type.fromType(TypeList.OTHER);
+        }
+        else {
+            return Type.fromAutobuild(defs.type)
+        }
     }
 }
 
 export interface Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
     readonly name: string;
     readonly type: Type;
+
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     debug(): Promise<void>
     build(): Promise<void>
@@ -171,9 +171,9 @@ export interface Package
 abstract class GenericPackage implements Package
 {
     abstract readonly debugable: boolean;
-    abstract readonly buildTask: vscode.Task;
-    abstract readonly target: debug.Target;
     abstract readonly type: Type;
+    abstract readonly buildTask: vscode.Task | undefined;
+    abstract readonly debugTarget: debug.Target | undefined;
 
     abstract debug(): Promise<void>
     abstract build(): Promise<void>
@@ -197,11 +197,11 @@ abstract class GenericPackage implements Package
             type: Type
         }>();
 
-        TypeList.allTypes.forEach((type) => {
+        TypeList.ALL_TYPES.forEach((type) => {
             choices.push({
                 label: type.label,
                 description: '',
-                type: type
+                type: Type.fromType(type)
             });
         });
 
@@ -233,7 +233,7 @@ abstract class RockPackage extends GenericPackage
 
     async debug()
     {
-        if (!this.target)
+        if (!this.debugTarget)
             throw new Error("Select a debugging target before debugging")
 
         const options = await this.debugConfiguration();
@@ -256,7 +256,7 @@ abstract class RockPackage extends GenericPackage
             this.buildTask.source + ": " + this.buildTask.name);
     }
 
-    get target()
+    get debugTarget()
     {
         return this._context.getDebuggingTarget(this.path);
     }
@@ -286,9 +286,9 @@ abstract class RockPackageWithTargetPicker extends RockPackage
 export class InvalidPackage implements Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     get name () { return '(Invalid package)' }
     async debug(): Promise<void>
@@ -320,16 +320,14 @@ export class InvalidPackage implements Package
 export class ConfigPackage implements Package
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
     readonly path: string;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string)
     {
         this.debugable = false;
-        this.buildTask = undefined;
         this.path = path;
-        this.target = undefined;
     }
 
     get name() { return basename(this.path); }
@@ -362,15 +360,13 @@ export class ConfigPackage implements Package
 export class ForeignPackage extends GenericPackage
 {
     readonly debugable: boolean;
-    readonly buildTask: vscode.Task;
-    readonly target: debug.Target;
+    readonly buildTask: vscode.Task | undefined;
+    readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string, context: context.Context)
     {
         super(path, context);
         this.debugable = false;
-        this.buildTask = undefined;
-        this.target = undefined;
     }
 
     get type()
@@ -406,28 +402,21 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
-        let env = this._context.bridge.env(this.path);
-        let promise = new Promise<vscode.DebugConfiguration>((resolve, reject) => {
-            env.then(
-                result => {
+        const debugTarget = this.debugTarget as debug.Target;
+        return this._context.bridge.env(this.path).
+            then(result => {
                     let userConf = this._context.debugConfig(this.path);
                     const options: vscode.DebugConfiguration = {
                         type: "Ruby",
                         name: "rock debug",
                         request: "launch",
-                        program: this.target.path,
+                        program: debugTarget.path,
                         env: result,
                         cwd: userConf.cwd,
                         args: userConf.args
                     };
-                    resolve(options);
-                },
-                err => {
-                    reject(err);
-                }
-            )
-        });
-        return promise;
+                    return options;
+                });
     }
     get type() { return Type.fromType(TypeList.RUBY); }
 }
@@ -441,11 +430,12 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         let userConf = this._context.debugConfig(this.path);
+        let debugTarget = this.debugTarget as debug.Target;
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
             request: "launch",
-            program: this.target.path,
+            program: debugTarget.path,
             externalConsole: false,
             MIMode: "gdb",
             cwd: userConf.cwd,
@@ -480,6 +470,8 @@ export class RockOrogenPackage extends RockPackage
     async preLaunchTask(): Promise<void>
     {
         let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context);
+        if (!preLaunchTask)
+            return;
         let preTaskName = preLaunchTask.source + ": " + preLaunchTask.name
 
         this._context.vscode.executeCommand("workbench.action.tasks.runTask", preTaskName);
@@ -489,11 +481,12 @@ export class RockOrogenPackage extends RockPackage
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         let userConf = this._context.debugConfig(this.path);
+        let debugTarget = this.debugTarget as debug.Target;
         const options: vscode.DebugConfiguration = {
             type: "cppdbg",
             name: "rock debug",
             request: "launch",
-            program: this.target.path,
+            program: debugTarget.path,
             externalConsole: true,
             MIMode: "gdb",
             miDebuggerServerAddress: "localhost:30001",
@@ -559,14 +552,13 @@ export class RockOrogenPackage extends RockPackage
 export class RockOtherPackage extends GenericPackage
 {
     readonly debugable: boolean;
-    readonly target: debug.Target;
+    readonly debugTarget: debug.Target | undefined;
 
     private readonly _taskProvider: tasks.Provider;
     constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
     {
         super(path, context);
         this.debugable = false;
-        this.target = undefined;
         this._taskProvider = taskProvider;
     }
 

@@ -5,6 +5,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as autoproj from '../autoproj';
 import * as helpers from './helpers';
+import * as TypeMoq from 'typemoq'
+import * as events from 'events';
 
 describe("Autoproj helpers tests", function () {
     let root: string;
@@ -91,6 +93,15 @@ describe("Autoproj helpers tests", function () {
                 assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
             })
         })
+        it("parses an empty manifest", function() {
+            helpers.mkdir('.autoproj');
+            helpers.mkfile('', ".autoproj", "installation-manifest");
+            return autoproj.loadWorkspaceInfo(root).then(function (manifest) {
+                assert.equal(manifest.path, root);
+                assert.equal(0, manifest.packages.size);
+                assert.equal(0, manifest.packages.size);
+            })
+        })
     })
 
     describe("Workspace", function() {
@@ -107,7 +118,7 @@ describe("Autoproj helpers tests", function () {
             it("sets the workspace name using the folder's basename", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
-                let ws = autoproj.Workspace.fromDir(root);
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 assert.equal(path.basename(root), ws.name);
             })
         })
@@ -115,7 +126,8 @@ describe("Autoproj helpers tests", function () {
             it("returns a promise that gives access to the info", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                return autoproj.Workspace.fromDir(root).info().then(function (manifest) {
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
+                return ws.info().then(function (manifest) {
                     assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
                     assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
                 })
@@ -123,26 +135,74 @@ describe("Autoproj helpers tests", function () {
             it("creates and returns the promise if the constructor was not instructed to load it", function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                return autoproj.Workspace.fromDir(root, false).info().then(function (manifest) {
+                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                return ws.info().then(function (manifest) {
                     assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
                     assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
                 })
             })
-            it("returns always the same promise", function() {
+            it("does not re-resolve the info on each call", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let workspace = autoproj.Workspace.fromDir(root, false)
-                let promise = workspace.info()
-                assert.equal(promise, workspace.info());
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                let promise = await workspace.info();
+                let promise2 = await workspace.info();
+                assert.equal(promise, promise2);
             })
-            it("creates a new promise on reload()", function() {
+            it("reloads the information on reload()", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let workspace = autoproj.Workspace.fromDir(root, false)
-                let initial = workspace.info()
-                let reloaded = workspace.reload();
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                let initial  = await workspace.info()
+                let reloaded = await workspace.reload();
                 assert.notEqual(reloaded, initial);
-                assert.equal(reloaded, workspace.info());
+                assert.equal(reloaded, await workspace.info());
+            })
+        })
+
+        describe("envsh", function() {
+            let processMock   = new events.EventEmitter();
+            let originalSpawn = require('child_process').spawn;
+            let workspaceMock;
+            let originalInfo;
+
+            beforeEach(async function() {
+                let spawn = function (...args) { return processMock };
+                require('child_process').spawn = spawn;
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                originalInfo = await ws.info();
+                workspaceMock = TypeMoq.Mock.ofInstance(ws);
+                workspaceMock.callBase = true;
+            })
+            afterEach(function() {
+                require('child_process').spawn = originalSpawn;
+            })
+
+            it("reloads the information on success", async function() {
+                let p = workspaceMock.object.envsh();
+                processMock.emit('exit', 0, null);
+                let resolvedInfo = await p;
+                workspaceMock.verify(x => x.reload(), TypeMoq.Times.once());
+                assert.notEqual(resolvedInfo, originalInfo);
+            })
+
+            it("returns the known information on failure", async function() {
+                let p = workspaceMock.object.envsh();
+                processMock.emit('exit', 1, null);
+                let resolvedInfo = await p;
+                workspaceMock.verify(x => x.info(), TypeMoq.Times.once());
+                assert.equal(resolvedInfo, originalInfo);
+            })
+
+            it("returns the known information on signal", async function() {
+                let p = workspaceMock.object.envsh();
+                processMock.emit('exit', null, 5);
+                let resolvedInfo = await p;
+                workspaceMock.verify(x => x.info(), TypeMoq.Times.once());
+                assert.equal(resolvedInfo, originalInfo);
             })
         })
     })
@@ -157,7 +217,7 @@ describe("Autoproj helpers tests", function () {
             it ("leaves the workspace name alone if no devFolder has been given", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
-                let ws = autoproj.Workspace.fromDir(root);
+                let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 ws.name = 'test';
                 this.workspaces.add(ws);
                 assert.equal('test', ws.name);
@@ -166,7 +226,7 @@ describe("Autoproj helpers tests", function () {
                 this.workspaces.devFolder = root
                 let dir = helpers.mkdir('a');
                 helpers.createInstallationManifest([], 'a')
-                let ws = autoproj.Workspace.fromDir(dir);
+                let ws = autoproj.Workspace.fromDir(dir) as autoproj.Workspace;
                 ws.name = 'test';
                 this.workspaces.add(ws);
                 assert.equal('a', ws.name);

@@ -1,11 +1,12 @@
 'use strict';
 
+import * as child_process from 'child_process';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
 import * as global from 'glob';
 import * as fs from 'fs';
 
-export function findWorkspaceRoot(rootPath: string): string
+export function findWorkspaceRoot(rootPath: string): string | null
 {
     let lastPath = ''
     while (rootPath !== lastPath) {
@@ -15,7 +16,7 @@ export function findWorkspaceRoot(rootPath: string): string
         lastPath = rootPath
         rootPath = path.dirname(rootPath);
     }
-    return null
+    return null;
 }
 
 export function autoprojExePath(workspacePath: string): string
@@ -94,13 +95,13 @@ export class Workspace
         return loadWorkspaceInfo(this.root);
     }
 
-    reload()
+    async reload()
     {
         this._info = this.createInfoPromise()
         return this._info;
     }
 
-    info(): Promise<WorkspaceInfo>
+    async info(): Promise<WorkspaceInfo>
     {
         if (this._info)
         {
@@ -110,6 +111,25 @@ export class Workspace
         {
             return this.reload();
         }
+    }
+
+    async envsh(): Promise<WorkspaceInfo>
+    {
+        const process = child_process.spawn(
+            this.autoprojExePath(),
+            ['envsh', '--color'],
+            { cwd: this.root, stdio: 'ignore' }
+        );
+        return new Promise<WorkspaceInfo>((resolve, reject) => {
+            process.on('exit', (code, status) => {
+                if (code === 0) {
+                    resolve(this.reload());
+                }
+                else {
+                    resolve(this.info());
+                }
+            })
+        })
     }
 }
 
@@ -129,7 +149,10 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
         })
     }).then((data) =>
     {
-        const manifest = yaml.safeLoad(data.toString());
+        let manifest = yaml.safeLoad(data.toString());
+        if (manifest === undefined) {
+            manifest = [];
+        }
         let packageSets = new Map()
         let packages = new Map()
         manifest.forEach((entry) => {
@@ -143,7 +166,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
             }
         })
         return { path: workspacePath, packageSets: packageSets, packages: packages };
-    })
+    });
 }
 
 /** Dynamic management of a set of workspaces
@@ -284,5 +307,12 @@ export class Workspaces
             }
         })
         return isConfig;
+    }
+
+    /** Returns the workspace that matches a package folder
+     */
+    getWorkspaceFromFolder(folder : string) : Workspace | undefined
+    {
+        return this.folderToWorkspace.get(folder);
     }
 }

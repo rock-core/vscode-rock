@@ -13,7 +13,7 @@ import * as debug from '../debug'
 import * as async from '../async'
 import { dirname, basename } from 'path'
 
-async function assertThrowsAsync(fn, msg?: RegExp)
+async function assertThrowsAsync(fn, msg: RegExp)
 {
     let f = () => {};
     try {
@@ -58,11 +58,6 @@ describe("PackageFactory", function () {
         mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false)
         mockWrapper.setup(x => x.getWorkspaceFolder(vscode.Uri.file(path))).
             returns(() => undefined);
-        let aPackage = await subject.createPackage(path, mockContext.object);
-        assert.equal(aPackage.name, '(Invalid package)');
-    })
-    it("creates an InvalidPackage if path is null or undefined", async function () {
-        let path;
         let aPackage = await subject.createPackage(path, mockContext.object);
         assert.equal(aPackage.name, '(Invalid package)');
     })
@@ -235,8 +230,11 @@ async function testTargetPicker(subject: packages.Package,
     await subject.pickTarget();
     mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
         TypeMoq.Times.once());
-    assert.equal(subject.target.name, 'file');
-    assert.equal(subject.target.path, '/a/picked/file');
+
+    assert(subject.debugTarget);
+    const debugTarget = subject.debugTarget as debug.Target;
+    assert.equal(debugTarget.name, 'file');
+    assert.equal(debugTarget.path, '/a/picked/file');
 }
 
 async function testTypePicker(subject: packages.Package,
@@ -250,17 +248,17 @@ async function testTypePicker(subject: packages.Package,
         type: packages.Type
     }>();
 
-    packages.TypeList.allTypes.forEach((type) => {
+    packages.TypeList.ALL_TYPES.forEach((type) => {
         expectedChoices.push({
             label: type.label,
             description: '',
-            type: type
+            type: packages.Type.fromType(type)
         });
     });
     let packageType = {
         label: 'Ruby',
         description: '',
-        type: packages.TypeList.RUBY
+        type: packages.Type.fromType(packages.TypeList.RUBY)
     }
     mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
     mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
@@ -268,7 +266,7 @@ async function testTypePicker(subject: packages.Package,
 
     await subject.pickType();
     mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()), TypeMoq.Times.once());
-    mockContext.verify(x => x.setPackageType(subject.path, packages.TypeList.RUBY),
+    mockContext.verify(x => x.setPackageType(subject.path, packages.Type.fromType(packages.TypeList.RUBY)),
         TypeMoq.Times.once());
 }
 
@@ -660,8 +658,10 @@ describe("RockOrogenPackage", function () {
                 returns(() => target)
             mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
                 TypeMoq.Times.once());
-            assert.equal(subject.target.name, 'task1');
-            assert.equal(subject.target.path, '/some/bin/deployment/binfile');
+            assert(subject.debugTarget);
+            let debugTarget = subject.debugTarget as debug.Target;
+            assert.equal(debugTarget.name, 'task1');
+            assert.equal(debugTarget.path, '/some/bin/deployment/binfile');
             return new Promise<void>((resolve, reject) => {
                 choices.then(result => {
                     assert.deepEqual(result, expectedChoices);

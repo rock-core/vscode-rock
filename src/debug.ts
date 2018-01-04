@@ -38,39 +38,52 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
         this._context = context;
     }
 
-    static task(pkg: packages.Package, context: context.Context): vscode.Task
+    static task(pkg: packages.Package, context: context.Context): vscode.Task | undefined
     {
-        let task: vscode.Task;
         let ws = context.workspaces.folderToWorkspace.get(pkg.path)
-        if (ws && pkg.type.id == packages.Type.fromType(packages.TypeList.OROGEN).id)
-        {
-            let target = context.getDebuggingTarget(pkg.path);
-            if (target)
-            {
-                let args = ['exec', 'rock-run'];
-                let folder = context.vscode.getWorkspaceFolder(vscode.Uri.file(pkg.path));
-                let taskName = "Run " + relative(ws.root, pkg.path);
-                taskName = taskName + " (gdbserver)";
-
-                let userConf = context.debugConfig(pkg.path);
-                if (userConf.orogen.start) args.push('--start');
-                if (userConf.orogen.gui) args.push('--gui');
-                args.push('--gdbserver');
-                args.push('--conf-dir');
-                args.push(userConf.orogen.confDir);
-                args.push(target.name);
-
-                task = this.createTask(taskName, folder, ws, userConf.cwd, args);
-            }
+        if (!ws) {
+            throw new Error("package not in a workspace");
         }
-        return task;
+
+        if (pkg.type.id === packages.TypeList.OROGEN.id)
+        {
+            return this.orogenTask(ws, pkg, context);
+        }
+        else {
+            return;
+        }
+    }
+    static orogenTask(ws: autoproj.Workspace, pkg: packages.Package, context: context.Context): vscode.Task | undefined
+    {
+        let target = context.getDebuggingTarget(pkg.path);
+        if (!target) {
+            return;
+        }
+
+        let args = ['exec', 'rock-run'];
+        let folder = context.vscode.getWorkspaceFolder(vscode.Uri.file(pkg.path)) as vscode.WorkspaceFolder;
+        let taskName = "Run " + relative(ws.root, pkg.path);
+        taskName = taskName + " (gdbserver)";
+
+        let userConf = context.debugConfig(pkg.path);
+        if (userConf.orogen.start) args.push('--start');
+        if (userConf.orogen.gui) args.push('--gui');
+        args.push('--gdbserver');
+        if (userConf.orogen.confDir)
+        {
+            args.push('--conf-dir');
+            args.push(userConf.orogen.confDir);
+        }
+        args.push(target.name);
+
+        return this.createTask(taskName, folder, ws, userConf.cwd, args);
     }
 
-    private static runAutoproj(ws: autoproj.Workspace, cwd: string, ...args) {
+    private static runAutoproj(ws: autoproj.Workspace, cwd: string | undefined, ...args) {
         return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: cwd })
     }
 
-    private static createTask(name: string, target: vscode.WorkspaceFolder, ws: autoproj.Workspace, cwd: string, args = []) {
+    private static createTask(name: string, target: vscode.WorkspaceFolder, ws: autoproj.Workspace, cwd: string | undefined, args : string[] = []) {
         let definition = { type: 'rock', workspace: ws.root }
         let exec = this.runAutoproj(ws, cwd, ...args);
         let folder = context
@@ -81,13 +94,17 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
     async provideTasks(token?: vscode.CancellationToken): Promise<vscode.Task[]>
     {
         let pkg = await this._context.getSelectedPackage();
-        let tasks = new Array<vscode.Task>();
+        if (!pkg.type.isValid()) {
+            return [];
+        }
+
         let task = PreLaunchTaskProvider.task(pkg, this._context)
-
-        if (task)
-            tasks.push(task);
-
-        return tasks;
+        if (task) {
+            return [task];
+        }
+        else {
+            return [];
+        }
     }
 
     resolveTask(task: vscode.Task, token?: vscode.CancellationToken): vscode.ProviderResult<vscode.Task>

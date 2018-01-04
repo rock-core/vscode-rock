@@ -1,21 +1,34 @@
 import * as vscode from 'vscode'
 
+/** Shim that provides us an API to the VSCode state we need within the extension
+ * 
+ * This helps during testing to mock VSCode itself, something VSCode's test
+ * harness is fairly bad at
+ */
 export class VSCode {
-    public constructor()
+    private _extensionContext : vscode.ExtensionContext;
+
+    public constructor(extensionContext : vscode.ExtensionContext)
     {
+        this._extensionContext = extensionContext;
     }
 
-    public get activeTextEditor(): vscode.TextEditor
+    public get activeDocumentURI() : vscode.Uri | undefined
     {
-        return vscode.window.activeTextEditor;
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            return;
+        }
+
+        return editor.document.uri;
     }
 
-    public get workspaceFolders(): vscode.WorkspaceFolder[]
+    public get workspaceFolders(): vscode.WorkspaceFolder[] | undefined
     {
         return vscode.workspace.workspaceFolders;
     }
 
-    public getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder
+    public getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined
     {
         return vscode.workspace.getWorkspaceFolder(uri);
     }
@@ -27,9 +40,15 @@ export class VSCode {
     }
 
     public showQuickPick<T extends vscode.QuickPickItem>(items: T[] | Thenable<T[]>,
-        options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): Thenable<T>
+        options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): Thenable<T | undefined>
     {
         return vscode.window.showQuickPick<T>(items, options, token);
+    }
+
+    public registerAndSubscribeCommand(name : string, fn) : void
+    {
+        let cmd = vscode.commands.registerCommand(name, fn);
+        this._extensionContext.subscriptions.push(cmd);
     }
 
     public executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>
@@ -50,5 +69,15 @@ export class VSCode {
     public showErrorMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
     {
         return vscode.window.showErrorMessage(message, ...items);
+    }
+
+    public getWorkspaceState(key : string) : string | undefined
+    {
+        return this._extensionContext.workspaceState.get(key);
+    }
+
+    public updateWorkspaceState(key : string, value : string | undefined)
+    {
+        this._extensionContext.workspaceState.update(key, value);
     }
 }
