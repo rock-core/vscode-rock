@@ -259,7 +259,6 @@
         "remap-istanbul": "^0.6.4",
         "@types/js-yaml": "latest",
         "@types/node": "^7.0.43",
-        "@types/mocha": "^2.2.42",
         "@types/should": "latest"
     }
 }
