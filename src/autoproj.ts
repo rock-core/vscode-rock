@@ -129,7 +129,10 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
         })
     }).then((data) =>
     {
-        const manifest = yaml.safeLoad(data.toString());
+        let manifest = yaml.safeLoad(data.toString());
+        if (manifest === undefined) {
+            manifest = [];
+        }
         let packageSets = new Map()
         let packages = new Map()
         manifest.forEach((entry) => {
@@ -143,7 +146,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
             }
         })
         return { path: workspacePath, packageSets: packageSets, packages: packages };
-    })
+    });
 }
 
 /** Dynamic management of a set of workspaces

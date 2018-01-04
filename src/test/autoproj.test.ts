@@ -91,6 +91,15 @@ describe("Autoproj helpers tests", function () {
                 assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
             })
         })
+        it("parses an empty manifest", function() {
+            helpers.mkdir('.autoproj');
+            helpers.mkfile('', ".autoproj", "installation-manifest");
+            return autoproj.loadWorkspaceInfo(root).then(function (manifest) {
+                assert.equal(manifest.path, root);
+                assert.equal(0, manifest.packages.size);
+                assert.equal(0, manifest.packages.size);
+            })
+        })
     })
 
     describe("Workspace", function() {
