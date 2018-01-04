@@ -246,12 +246,12 @@
         "rebornix.Ruby"
     ],
     "dependencies": {
-        "js-yaml": "latest"
+        "js-yaml": "latest",
+        "fs-temp": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",
         "vscode": "^1.1.6",
-        "fs-temp": "latest",
         "should": "latest",
         "typemoq": "latest",
         "@types/js-yaml": "latest",
