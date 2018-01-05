@@ -223,6 +223,7 @@ export interface Package
     readonly buildTask: vscode.Task | undefined;
     readonly debugTarget: debug.Target | undefined;
 
+    resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
     debug(): Promise<void>
     build(): Promise<void>
     pickTarget(): Promise<void>
@@ -248,6 +249,11 @@ abstract class GenericPackage implements Package
     }
 
     get name() { return basename(this.path); }
+
+    async resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
+    {
+        return config;
+    }
 
     async pickType(): Promise<void>
     {
@@ -324,6 +330,11 @@ export class InvalidPackage implements Package
     readonly debugTarget: debug.Target | undefined;
 
     get name () { return '(Invalid package)' }
+    async resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
+    {
+        return config;
+    }
+
     async debug(): Promise<void>
     {
         throw new Error("Select a valid package before starting a debugging session");
@@ -364,6 +375,10 @@ export class ConfigPackage implements Package
     }
 
     get name() { return basename(this.path); }
+    async resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
+    {
+        return config;
+    }
     async debug(): Promise<void>
     {
         throw new Error("Debugging a configuration package is not possible");
@@ -466,6 +481,39 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 
 export class RockCXXPackage extends RockPackageWithTargetPicker
 {
+    async resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
+    {
+        let debuggerPath = config.miDebuggerPath || config.MIMode;
+        let stubScript = joinpath(__dirname, '..', 'stubs', config.MIMode);
+
+        config.miDebuggerPath = stubScript;
+        if (!config.environment) {
+            config.environment = [];
+        }
+        config.environment = config.environment.concat([
+            { name: "VSCODE_ROCK_AUTOPROJ_PATH", value: this.ws.autoprojExePath() },
+            { name: "VSCODE_ROCK_AUTOPROJ_DEBUGGER", value: debuggerPath },
+            { name: 'AUTOPROJ_CURRENT_ROOT', value: this.ws.root }
+        ])
+
+        if (!fs.existsSync(config.program)) {
+            let search = [this.info.builddir, this.info.prefix,
+                joinpath(this.info.builddir, 'test'),
+                joinpath(this.info.builddir, 'src'),
+                joinpath(this.info.prefix, 'bin')]
+            let foundPath = search.find((dir) => {
+                return fs.existsSync(joinpath(dir, config.program));
+            })
+            if (foundPath) {
+                config.program = joinpath(foundPath, config.program);
+            }
+        }
+        if (!config.cwd) {
+            config.cwd = dirname(config.program);
+        }
+        return config;
+    }
+
     async preLaunchTask(): Promise<void>
     {
     }

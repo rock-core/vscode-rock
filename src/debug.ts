@@ -114,3 +114,30 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
         return null;
     }
 }
+
+export class DebugConfigurationProvider implements vscode.DebugConfigurationProvider
+{
+    private _context : context.Context;
+
+    constructor(context : context.Context) {
+        this._context = context;
+    }
+
+    provideDebugConfigurations(folder : vscode.WorkspaceFolder | undefined, token : vscode.CancellationToken | undefined) : vscode.ProviderResult<vscode.DebugConfiguration[]> {
+        return [];
+    }
+
+    async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, debugConfig : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
+    {
+        if (!folder) {
+            return debugConfig;
+        }
+
+        let pkg = await this._context.getPackageByPath(folder.uri.fsPath);
+        if (!pkg) {
+            return debugConfig;
+        }
+
+        return pkg.resolveDebugConfiguration(debugConfig);
+    }
+}

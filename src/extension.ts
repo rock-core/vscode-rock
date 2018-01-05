@@ -80,6 +80,9 @@ export function activate(extensionContext: vscode.ExtensionContext) {
         statusBar, taskProvider, configManager);
     rockCommands.register();
 
+    let debugProvider = new debug.DebugConfigurationProvider(rockContext);
+    extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', debugProvider));
+
     statusBar.update();
     extensionContext.subscriptions.push(statusBar);
     extensionContext.subscriptions.push(rockContext);
