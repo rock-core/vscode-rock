@@ -63,10 +63,10 @@ class TestContext
         mockPkg.setup(x => x.type).returns(() => type);
         return mockPkg;
     }
-    associateResourceWithFolder(resource: vscode.Uri,
+    associateResourceWithFolder(path: string,
         folder: vscode.WorkspaceFolder): void
     {
-        this.mockWrapper.setup(x => x.getWorkspaceFolder(resource)).
+        this.mockContext.setup(x => x.getWorkspaceFolder(path)).
             returns(() => folder);
     }
     setDebuggingConfigurationForPkg(path: string, config: context.RockDebugConfig)
@@ -122,9 +122,8 @@ describe("Pre Launch Task Provider", function () {
                 index: 0
             };
 
-            let resource = vscode.Uri.file(a);
             test.setSelectedPackage(a, packages.Type.fromType(packages.TypeList.OROGEN));
-            test.associateResourceWithFolder(resource, folder);
+            test.associateResourceWithFolder(a, folder);
             test.setDebuggingConfigurationForPkg(a, userConf);
             let target = test.setDebuggingTargetForPackage(a);
             let tasks = await test.subject.provideTasks();

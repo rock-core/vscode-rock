@@ -116,7 +116,7 @@ export class PackageFactory
         {
             return new ConfigPackage(path);
         }
-        else if (!context.vscode.getWorkspaceFolder(vscode.Uri.file(path)))
+        else if (!context.getWorkspaceFolder(path))
         {
             return new InvalidPackage();
         }
@@ -213,15 +213,7 @@ abstract class GenericPackage implements Package
 
     async pickType(): Promise<void>
     {
-        let choices = Type.typePickerChoices();
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select the package type' }
-
-        const chosen = await this._context.vscode.showQuickPick(choices, options);
-        if (chosen)
-        {
-            this._context.setPackageType(this.path, chosen.type);
-        }
+        this._context.pickPackageType(this.path);
     }
 }
 
@@ -246,12 +238,8 @@ abstract class RockPackage extends GenericPackage
             throw new Error("Select a debugging target before debugging")
 
         const options = await this.debugConfiguration();
-
         await this.preLaunchTask();
-
-        const uri = vscode.Uri.file(this.path);
-        const folder = this._context.vscode.getWorkspaceFolder(uri);
-        this._context.vscode.startDebugging(folder, options);
+        this._context.startDebugging(this.path, options);
     }
 
     get buildTask()
@@ -261,8 +249,7 @@ abstract class RockPackage extends GenericPackage
 
     async build(): Promise<void>
     {
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask",
-            this.buildTask.source + ": " + this.buildTask.name);
+        this._context.runTask(this.buildTask);
     }
 
     get debugTarget()
@@ -275,20 +262,7 @@ abstract class RockPackageWithTargetPicker extends RockPackage
 {
     async pickTarget(): Promise<void>
     {
-        const options: vscode.OpenDialogOptions = {
-            canSelectMany: false,
-            canSelectFiles: true,
-            canSelectFolders: false,
-            defaultUri: vscode.Uri.file(this.path)
-        };
-
-        const targetUri = await this._context.vscode.showOpenDialog(options);
-        let target: debug.Target;
-        if (targetUri)
-        {
-            target = new debug.Target(basename(targetUri[0].fsPath), targetUri[0].fsPath);
-            this._context.setDebuggingTarget(this.path, target);
-        }
+        this._context.pickDebuggingFile(this.path);
     }
 }
 
@@ -467,13 +441,6 @@ async function sleep(ms: number): Promise<void>
     return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-export interface IOrogenTaskPickerModel
-{
-    label: string,
-    description: string,
-    task: async.IOrogenTask
-}
-
 export class RockOrogenPackage extends RockPackage
 {
     async preLaunchTask(): Promise<void>
@@ -481,9 +448,7 @@ export class RockOrogenPackage extends RockPackage
         let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context);
         if (!preLaunchTask)
             return;
-        let preTaskName = preLaunchTask.source + ": " + preLaunchTask.name
-
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask", preTaskName);
+        this._context.runTask(preLaunchTask);
         await sleep(3000); // give some time for rock-run to finish loading
     }
 
@@ -516,44 +481,36 @@ export class RockOrogenPackage extends RockPackage
     {
         let description = this._context.bridge.describeOrogenProject(this.path, this.name);
         let tokenSource = new vscode.CancellationTokenSource();
-        let promise = new Promise<IOrogenTaskPickerModel[]>((resolve, reject) => {
-            description.then(
-                async result => {
-                    let choices = new Array<IOrogenTaskPickerModel>();
-                    result.forEach((task) => {
-                        choices.push({
-                            label: task.model_name,
-                            description: '',
-                            task: task
-                        });
+
+        let err;
+        description.catch((_err) => {
+            err = _err;
+            tokenSource.cancel();
+        })
+        let promise = description.then(
+            (result) => {
+                let choices : context.DebuggingTargetChoice[] = [];
+                result.forEach((task) => {
+                    choices.push({
+                        label: task.model_name,
+                        description: '',
+                        targetName: task.model_name,
+                        targetFile: task.file
                     });
-                    resolve(choices);
-                },
-                err => {
-                    tokenSource.cancel();
-                    reject(err);
-                }
-            )
-        });
+                });
+                return choices;
+            })
+
         let options: vscode.QuickPickOptions = {
             placeHolder: 'Select a task to debug' }
 
-        let contents;
-        const targetTasks = await this._context.vscode.showQuickPick(promise, options, tokenSource.token);
-        if (targetTasks)
-        {
-            let target = new debug.Target(targetTasks.task.model_name, targetTasks.task.file);
-            this._context.setDebuggingTarget(this.path, target);
+        await this._context.pickDebuggingTarget(this.path, promise, options, tokenSource.token);
+        tokenSource.dispose();
+        // Note: we know the promise is resolved at this point thanks to the
+        // await on the target picker
+        if (err) {
+            throw err;
         }
-
-        return new Promise<void>((resolve, reject) => {
-            promise.then(sucess => {
-                resolve();
-            },
-            err => {
-                reject(err);
-            })
-        });
     }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }
@@ -578,8 +535,7 @@ export class RockOtherPackage extends GenericPackage
 
     async build(): Promise<void>
     {
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask",
-            this.buildTask.source + ": " + this.buildTask.name);
+        this._context.runTask(this.buildTask);
     }
 
     async debug()

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import * as Path from 'path'
 
 /** Shim that provides us an API to the VSCode state we need within the extension
  * 

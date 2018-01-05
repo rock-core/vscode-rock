@@ -61,7 +61,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
         }
 
         let args = ['exec', 'rock-run'];
-        let folder = context.vscode.getWorkspaceFolder(vscode.Uri.file(pkg.path)) as vscode.WorkspaceFolder;
+        let folder = context.getWorkspaceFolder(pkg.path) as vscode.WorkspaceFolder;
         let taskName = "Run " + relative(ws.root, pkg.path);
         taskName = taskName + " (gdbserver)";
 

@@ -43,13 +43,13 @@ function setupEvents(rockContext, extensionContext, workspaces, statusBar, taskP
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
-    let envBridge = new async.EnvironmentBridge;
+    let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let workspaces = new autoproj.Workspaces;
     let taskProvider = new tasks.Provider(workspaces);
-    let vscodeWrapper = new wrappers.VSCode(extensionContext);
-    let packageFactory = new packages.PackageFactory(taskProvider); 
-    let rockContext = new context.Context(vscodeWrapper,
-            workspaces, packageFactory, envBridge);
+
+    let rockContext = new context.Context(vscodeWrapper, workspaces,
+        new packages.PackageFactory(taskProvider));
+
     let statusBar = new status.StatusBar(extensionContext, rockContext);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper);
     let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext);
