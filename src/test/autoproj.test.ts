@@ -50,10 +50,10 @@ describe("Autoproj helpers tests", function () {
     type: git
     url: https://github.com/rock-core/tools-rest_api.git
     repository_id: github:/rock-core/tools-rest_api.git
-  srcdir: "/home/doudou/dev/heads/tools/rest_api"
+  srcdir: "/path/to/tools/rest_api"
   builddir: 
-  logdir: "/home/doudou/dev/build_area/heads/install/tools/rest_api/log"
-  prefix: "/home/doudou/dev/heads/tools/rest_api"
+  logdir: "/path/to/install/tools/rest_api/log"
+  prefix: "/path/to/install/tools/rest_api"
   dependencies:
   - utilrb
   - tools/orocos.rb
@@ -77,10 +77,10 @@ describe("Autoproj helpers tests", function () {
             url: 'https://github.com/rock-core/tools-rest_api.git',
             repository_id: 'github:/rock-core/tools-rest_api.git'
         },
-        srcdir: "/home/doudou/dev/heads/tools/rest_api",
+        srcdir: "/path/to/tools/rest_api",
         builddir: null,
-        logdir: "/home/doudou/dev/build_area/heads/install/tools/rest_api/log",
-        prefix: "/home/doudou/dev/heads/tools/rest_api",
+        logdir: "/path/to/install/tools/rest_api/log",
+        prefix: "/path/to/install/tools/rest_api",
         dependencies: ['utilrb', 'tools/orocos.rb']
     }
 
@@ -89,8 +89,8 @@ describe("Autoproj helpers tests", function () {
             helpers.mkdir('.autoproj');
             helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
             return autoproj.loadWorkspaceInfo(root).then(function (manifest) {
-                assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
-                assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
+                assert.deepStrictEqual(manifest.packageSets.get('user/pkg/set/dir'), PKG_SET_OROCOS_TOOLCHAIN);
+                assert.deepStrictEqual(manifest.packages.get('/path/to/tools/rest_api'), PKG_TOOLS_REST_API);
             })
         })
         it("parses an empty manifest", function() {
@@ -128,8 +128,8 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 return ws.info().then(function (manifest) {
-                    assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
-                    assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
+                    assert.deepStrictEqual(manifest.packageSets.get('user/pkg/set/dir'), PKG_SET_OROCOS_TOOLCHAIN);
+                    assert.deepStrictEqual(manifest.packages.get('/path/to/tools/rest_api'), PKG_TOOLS_REST_API);
                 })
             })
             it("creates and returns the promise if the constructor was not instructed to load it", function() {
@@ -137,8 +137,8 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
                 return ws.info().then(function (manifest) {
-                    assert.deepStrictEqual(manifest.packageSets.get('orocos.toolchain'), PKG_SET_OROCOS_TOOLCHAIN);
-                    assert.deepStrictEqual(manifest.packages.get('tools/rest_api'), PKG_TOOLS_REST_API);
+                    assert.deepStrictEqual(manifest.packageSets.get('user/pkg/set/dir'), PKG_SET_OROCOS_TOOLCHAIN);
+                    assert.deepStrictEqual(manifest.packages.get('/path/to/tools/rest_api'), PKG_TOOLS_REST_API);
                 })
             })
             it("does not re-resolve the info on each call", async function() {

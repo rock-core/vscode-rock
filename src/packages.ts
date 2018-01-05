@@ -161,8 +161,7 @@ export class PackageFactory
             return Type.invalid();
         }
 
-        const relativePath = relative(ws.root, path)
-        let defs = wsInfo.packages.get(relativePath);
+        let defs = wsInfo.packages.get(path);
         if (!defs) {
             let wsInfo = await ws.envsh();
             return Type.fromType(TypeList.OTHER);
