@@ -110,6 +110,16 @@ export class Context
         this._contextUpdatedEvent.fire();
     }
 
+    public getWorkspaceByPath(path : string) : autoproj.Workspace | undefined
+    {
+        return this.workspaces.folderToWorkspace.get(path);
+    }
+
+    public async getPackageByPath(path : string) : Promise<packages.Package | undefined>
+    {
+        return this._packageFactory.createPackage(path, this);
+    }
+
     public getPackageType(path: string): packages.Type | undefined
     {
         let pkgType: packages.Type | undefined;

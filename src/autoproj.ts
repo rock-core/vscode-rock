@@ -55,11 +55,17 @@ export interface PackageSet
     user_local_dir: string;
 }
 
-class WorkspaceInfo
+export class WorkspaceInfo
 {
     path: string;
     packages: Map<string, Package>;
     packageSets: Map<string, PackageSet>;
+
+    constructor(path: string) {
+        this.path = path;
+        this.packages = new Map<string, Package>();
+        this.packageSets = new Map<string, PackageSet>();
+    }
 }
 
 export class Workspace

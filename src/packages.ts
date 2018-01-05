@@ -1,9 +1,8 @@
 import * as vscode from 'vscode'
 import * as context from './context'
-import * as status from './status'
 import * as debug from './debug'
 import * as tasks from './tasks'
-import * as async from './async'
+import * as autoproj from './autoproj'
 import { relative, basename, dirname } from 'path'
 
 export class TypeList
@@ -120,17 +119,18 @@ export class PackageFactory
         {
             return new InvalidPackage();
         }
-        else if (context.workspaces.folderToWorkspace.has(path))
+        else if (context.getWorkspaceByPath(path))
         {
-            let type: Type = await this.packageType(path, context);
+            let info = await this.packageInfo(path, context);
+            let type = await this.packageType(path, context, info);
             switch (type.id)
             {
                 case TypeList.CXX.id:
-                    return new RockCXXPackage(path, context, this._taskProvider);
+                    return new RockCXXPackage(info, context, this._taskProvider);
                 case TypeList.RUBY.id:
-                    return new RockRubyPackage(path, context, this._taskProvider);
+                    return new RockRubyPackage(info, context, this._taskProvider);
                 case TypeList.OROGEN.id:
-                    return new RockOrogenPackage(path, context, this._taskProvider);
+                    return new RockOrogenPackage(info, context, this._taskProvider);
                 default:
                     return new RockOtherPackage(path, context, this._taskProvider);
             }
@@ -143,31 +143,61 @@ export class PackageFactory
         return new InvalidPackage();
     }
 
-    private async packageType(path: string, context: context.Context): Promise<Type>
-    {
-        let type = await context.getPackageType(path);
-        if (type)
-            return Promise.resolve(type);
+    private nullPackageInfo(path : string) : autoproj.Package {
+        let result : autoproj.Package = {
+            name: path,
+            type: 'Unknown',
+            vcs: { type: 'unknown', url: 'unknown', repository_id: 'unknown' },
+            srcdir: path,
+            builddir: path,
+            logdir: path,
+            prefix: path,
+            dependencies: []
+        };
+        return result;
+    }
 
-        const ws = context.workspaces.folderToWorkspace.get(path);
+    private async packageInfo(path: string, context: context.Context): Promise<autoproj.Package>
+    {
+        const ws = context.getWorkspaceByPath(path);
         if (!ws)
-            return Promise.resolve(Type.fromType(TypeList.OTHER));
+            return this.nullPackageInfo(path);
 
         let wsInfo;
         try {
             wsInfo = await ws.info();
         }
         catch(err) {
-            return Type.invalid();
+            return this.nullPackageInfo(path);
         }
 
         let defs = wsInfo.packages.get(path);
         if (!defs) {
             let wsInfo = await ws.envsh();
-            return Type.fromType(TypeList.OTHER);
+            let defs = wsInfo.packages.get(path);
+            if (defs) {
+                return defs;
+            }
+            else {
+                return this.nullPackageInfo(path);
+            }
         }
         else {
-            return Type.fromAutobuild(defs.type)
+            return defs;
+        }
+    }
+
+    private async packageType(path: string, context : context.Context, packageInfo : autoproj.Package | undefined): Promise<Type>
+    {
+        let type = await context.getPackageType(path);
+        if (type)
+            return type;
+
+        if (packageInfo) {
+            return Type.fromAutobuild(packageInfo.type)
+        }
+        else {
+            return Type.fromType(TypeList.OTHER);
         }
     }
 }
@@ -190,6 +220,7 @@ export interface Package
 
 abstract class GenericPackage implements Package
 {
+    abstract readonly path: string;
     abstract readonly debugable: boolean;
     abstract readonly type: Type;
     abstract readonly buildTask: vscode.Task | undefined;
@@ -199,12 +230,9 @@ abstract class GenericPackage implements Package
     abstract build(): Promise<void>
     abstract pickTarget(): Promise<void>
 
-    readonly path: string;
-
     protected readonly _context: context.Context;
-    constructor(path: string, context: context.Context)
+    constructor(context: context.Context)
     {
-        this.path = path;
         this._context = context;
     }
 
@@ -218,12 +246,19 @@ abstract class GenericPackage implements Package
 
 abstract class RockPackage extends GenericPackage
 {
-    readonly debugable: boolean;
+    readonly info: autoproj.Package;
+    get path() : string
+    {
+        return this.info.srcdir;
+    }
+
+    readonly debugable : boolean;
     private readonly _taskProvider: tasks.Provider;
 
-    constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
+    constructor(info: autoproj.Package, context: context.Context, taskProvider: tasks.Provider)
     {
-        super(path, context);
+        super(context);
+        this.info = info;
         this.debugable = true;
         this._taskProvider = taskProvider;
     }
@@ -341,13 +376,15 @@ export class ConfigPackage implements Package
 
 export class ForeignPackage extends GenericPackage
 {
+    readonly path: string;
     readonly debugable: boolean;
     readonly buildTask: vscode.Task | undefined;
     readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string, context: context.Context)
     {
-        super(path, context);
+        super(context);
+        this.path = path;
         this.debugable = false;
     }
 
@@ -516,13 +553,15 @@ export class RockOrogenPackage extends RockPackage
 
 export class RockOtherPackage extends GenericPackage
 {
+    readonly path: string;
     readonly debugable: boolean;
     readonly debugTarget: debug.Target | undefined;
 
     private readonly _taskProvider: tasks.Provider;
     constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
     {
-        super(path, context);
+        super(context);
+        this.path = path;
         this.debugable = false;
         this._taskProvider = taskProvider;
     }
