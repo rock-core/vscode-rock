@@ -5,6 +5,7 @@ import * as TypeMoq from 'typemoq';
 import * as autoproj from '../autoproj';
 import * as assert from 'assert';
 import { join, basename, dirname } from 'path';
+import { assertThrowsAsync } from './helpers';
 
 describe("ConfigManager", function () {
     describe("setupPackage", function () {
@@ -75,39 +76,102 @@ describe("ConfigManager", function () {
                 }
                 return pkgModel;
             }
-            it("does nothing if the package is not a cmake package", async function () {
-                wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::Ruby"));
-                mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                folderToWorkspaces.set(pkgPath, mockWs.object);
-                assert.equal(await subject.setupPackage(pkgPath), false);
-                assert.equal(fs.existsSync(propertiesPath), false);
-            })
-            it("does nothing if config file already exists", async function () {
-                wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::CMake"));
-                mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                folderToWorkspaces.set(pkgPath, mockWs.object);
-                fs.mkdirSync(join(pkgPath, ".vscode"));
-                fs.writeFileSync(propertiesPath, "dummyfile");
-                assert.equal(await subject.setupPackage(pkgPath), false);
-                assert.equal(fs.readFileSync(propertiesPath, "utf8"), "dummyfile");
-            })
-            async function testType(type: string)
+            function setMockPackageType(type: string)
             {
                 wsInfo.packages.set(basename(pkgPath), createPackageModel(type));
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
+            }
+            it("does nothing if the package is not a cmake/orogen package", async function () {
+                setMockPackageType("Autobuild::Ruby");
+                assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.existsSync(propertiesPath), false);
+            })
+            it("throws if existing file is invalid", async function () {
+                setMockPackageType("Autobuild::CMake");
+                fs.mkdirSync(join(pkgPath, ".vscode"));
+                fs.writeFileSync(propertiesPath, "dummyfile");
+                await assertThrowsAsync(async _ => {
+                    await subject.setupPackage(pkgPath);
+                }, /Could not load/);
+                assert.equal(fs.readFileSync(propertiesPath, "utf8"), "dummyfile");
+            })
+            async function testType(type: string)
+            {
+                setMockPackageType(type);
                 assert.equal(await subject.setupPackage(pkgPath), true);
-
                 let dbPath = join(pkgPath, "build", "compile_commands.json");
-                let expectedData = config.C_CPP_PROPERTIES_JSON.replace(/@DBPATH@/g, dbPath);
+                let data = {
+                    configurations: [
+                        {name: "Mac", compileCommands: dbPath},
+                        {name: "Linux", compileCommands: dbPath},
+                        {name: "Win32", compileCommands: dbPath}
+                    ],
+                    version: 3
+                }
+                let expectedData = JSON.stringify(data, null, 4);
                 let actualData = fs.readFileSync(propertiesPath, "utf8");
                 assert.equal(actualData, expectedData);
             }
-            it("writes the config file if package type is cmake", async function () {
+            it("creates the config file if package type is cmake", async function () {
                 await testType("Autobuild::CMake");
             })
-            it("writes the config file if package type is orogen", async function () {
+            it("creates the config file if package type is orogen", async function () {
                 await testType("Autobuild::Orogen");
+            })
+            it("updates an existing configuration", async function () {
+                let currentConf = {
+                    configurations: [
+                        {
+                            name: "Linux",
+                            compileCommands: "/some/path/compile_commands.json",
+                            arbitraryEntry: "something"
+                        },
+                        {
+                            name: "Mac",
+                            compileCommands: "/cmpdb.json",
+                            arbitraryArray: [
+                                "entry"
+                            ]
+                        }
+                    ],
+                    version: 2
+                }
+                setMockPackageType("Autobuild::CMake");
+                fs.mkdirSync(join(pkgPath, ".vscode"));
+                fs.writeFileSync(propertiesPath, JSON.stringify(currentConf));
+                assert.equal(await subject.setupPackage(pkgPath), true);
+
+                let updated = JSON.parse(fs.readFileSync(propertiesPath, "utf8"));
+                let dbPath = join(pkgPath, "build", "compile_commands.json");
+                assert.equal(updated.configurations[0].name, "Linux");
+                assert.equal(updated.configurations[0].compileCommands, dbPath);
+                assert.equal(updated.configurations[1].name, "Mac");
+                assert.equal(updated.configurations[1].compileCommands, dbPath);
+                assert.equal(updated.configurations[2].name, "Win32");
+                assert.equal(updated.configurations[2].compileCommands, dbPath);
+                assert.equal(updated.version, currentConf.version);
+
+                let writtenArbitraryEntry = (currentConf as any).configurations[0].arbitraryEntry;
+                let readArbitraryEntry = updated.configurations[0].arbitraryEntry;
+                assert.equal(readArbitraryEntry, writtenArbitraryEntry);
+
+                let writtenArbitraryArray = (currentConf as any).configurations[1].arbitraryArray;
+                let readArbitraryArray = updated.configurations[1].arbitraryArray;
+                assert.deepEqual(readArbitraryArray, writtenArbitraryArray);
+            })
+            it("throws if 'configurations' property is not an array", async function () {
+                let currentConf = { configurations: "test" }
+                setMockPackageType("Autobuild::CMake");
+                fs.mkdirSync(join(pkgPath, ".vscode"));
+                fs.writeFileSync(propertiesPath, JSON.stringify(currentConf));
+                await assertThrowsAsync(async _ => {
+                    await subject.setupPackage(pkgPath);
+                }, /Invalid configuration/);
+
+                let expectedData = JSON.stringify(currentConf);
+                let actualData = fs.readFileSync(propertiesPath, "utf8");
+                assert.equal(actualData, expectedData);
             })
         })
     })

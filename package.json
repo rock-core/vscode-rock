@@ -247,7 +247,8 @@
     ],
     "dependencies": {
         "js-yaml": "latest",
-        "fs-temp": "latest"
+        "fs-temp": "latest",
+        "jsonc-parser": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",
