@@ -13,11 +13,16 @@ import * as async from './async';
 import * as debug from './debug';
 import * as config from './config';
 
-function initializeWorkspacesFromVSCodeFolders(workspaces: autoproj.Workspaces)
+function initializeWorkspacesFromVSCodeFolders(workspaces: autoproj.Workspaces,
+    configManager: config.ConfigManager)
 {
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
-            workspaces.addFolder(folder.uri.fsPath);
+            if (workspaces.addFolder(folder.uri.fsPath)) {
+                configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
+                    vscode.window.showErrorMessage(reason.message);
+                });
+            }
         });
     }
 }
@@ -32,10 +37,11 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
     extensionContext.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
-                workspaces.addFolder(folder.uri.fsPath);
-                configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
-                    vscode.window.showErrorMessage(reason.message);
-                });
+                if (workspaces.addFolder(folder.uri.fsPath)) {
+                    configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
+                        vscode.window.showErrorMessage(reason.message);
+                    });
+                }
             });
             event.removed.forEach((folder) => {
                 workspaces.deleteFolder(folder.uri.fsPath);
@@ -68,7 +74,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
 
-    initializeWorkspacesFromVSCodeFolders(workspaces);
+    initializeWorkspacesFromVSCodeFolders(workspaces, configManager);
     taskProvider.reloadTasks();
     setupEvents(rockContext, extensionContext, workspaces,
         statusBar, taskProvider, configManager);
