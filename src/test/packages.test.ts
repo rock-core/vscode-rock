@@ -12,22 +12,7 @@ import * as wrappers from '../wrappers'
 import * as debug from '../debug'
 import * as async from '../async'
 import { dirname, basename } from 'path'
-
-async function assertThrowsAsync(fn, msg: RegExp)
-{
-    let f = () => {};
-    try {
-        await fn();
-    }
-    catch (e)
-    {
-        f = () => {throw e};
-    }
-    finally
-    {
-        assert.throws(f, msg);
-    }
-}
+import { assertThrowsAsync } from './helpers';
 
 function autoprojMakePackage(name, type, path) {
     return {
