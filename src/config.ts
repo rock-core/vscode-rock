@@ -104,8 +104,7 @@ export class ConfigManager
     }
     private writeCppProperties(pkgPath: string, pkgModel: autoproj.Package): boolean
     {
-        const buildRelative = path.relative(pkgPath, pkgModel.builddir);
-        const dbPath = path.join("${workspaceRoot}", buildRelative, "compile_commands.json");
+        const dbPath = path.join(pkgModel.builddir, "compile_commands.json");
         const fileData = C_CPP_PROPERTIES_JSON.replace(/@DBPATH@/g, dbPath);
         const propertiesPath = path.join(pkgPath, ".vscode", "c_cpp_properties.json");
         const options = {

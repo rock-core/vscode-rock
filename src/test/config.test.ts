@@ -90,8 +90,8 @@ describe("ConfigManager", function () {
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), true);
 
-                let expectedData = config.C_CPP_PROPERTIES_JSON.replace(/@DBPATH@/g,
-                    "${workspaceRoot}/build/compile_commands.json");
+                let dbPath = join(pkgPath, "build", "compile_commands.json");
+                let expectedData = config.C_CPP_PROPERTIES_JSON.replace(/@DBPATH@/g, dbPath);
                 let actualData = fs.readFileSync(join(pkgPath, ".vscode", "c_cpp_properties.json"),
                     "utf8");
                 assert.equal(actualData, expectedData);
