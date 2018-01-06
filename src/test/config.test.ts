@@ -28,6 +28,7 @@ describe("ConfigManager", function () {
             let folderToWorkspaces: Map<string, autoproj.Workspace>;
             let mockWs: TypeMoq.IMock<autoproj.Workspace>;
             let wsInfo: autoproj.WorkspaceInfo;
+            let propertiesPath: string;
             beforeEach(function () {
                 folderToWorkspaces = new Map<string, autoproj.Workspace>();
                 mockWs = TypeMoq.Mock.ofType<autoproj.Workspace>();
@@ -35,26 +36,30 @@ describe("ConfigManager", function () {
                 mockWorkspaces.setup(x => x.folderToWorkspace).returns(() => folderToWorkspaces);
                 wsInfo = new autoproj.WorkspaceInfo(dirname(pkgPath));
                 wsInfo.packages = new Map<string, autoproj.Package>();
+                propertiesPath = join(pkgPath, ".vscode", "c_cpp_properties.json");
             })
             afterEach(function () {
                 try
                 {
-                    fs.unlinkSync(join(pkgPath, '.vscode', 'c_cpp_properties.json'));
+                    fs.unlinkSync(propertiesPath);
                 }
                 catch {}
             })
             it("does nothing if the package is not in an autoproj workspace", async function () {
                 assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.existsSync(propertiesPath), false);
             })
             it("does nothing if the installation manifest could not be loaded", async function () {
                 mockWs.setup(x => x.info()).returns(() => Promise.reject(new Error("test")));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.existsSync(propertiesPath), false);
             })
             it("does nothing if the package is not registered", async function () {
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.existsSync(propertiesPath), false);
             })
             function createPackageModel(pkgType: string)
             {
@@ -75,14 +80,16 @@ describe("ConfigManager", function () {
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.existsSync(propertiesPath), false);
             })
             it("does nothing if config file already exists", async function () {
                 wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::CMake"));
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 fs.mkdirSync(join(pkgPath, ".vscode"));
-                fs.writeFileSync(join(pkgPath, ".vscode", "c_cpp_properties.json"), "");
+                fs.writeFileSync(propertiesPath, "dummyfile");
                 assert.equal(await subject.setupPackage(pkgPath), false);
+                assert.equal(fs.readFileSync(propertiesPath, "utf8"), "dummyfile");
             })
             async function testType(type: string)
             {
@@ -93,8 +100,7 @@ describe("ConfigManager", function () {
 
                 let dbPath = join(pkgPath, "build", "compile_commands.json");
                 let expectedData = config.C_CPP_PROPERTIES_JSON.replace(/@DBPATH@/g, dbPath);
-                let actualData = fs.readFileSync(join(pkgPath, ".vscode", "c_cpp_properties.json"),
-                    "utf8");
+                let actualData = fs.readFileSync(propertiesPath, "utf8");
                 assert.equal(actualData, expectedData);
             }
             it("writes the config file if package type is cmake", async function () {
