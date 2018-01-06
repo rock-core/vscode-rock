@@ -71,7 +71,7 @@ describe("ConfigManager", function () {
                 return pkgModel;
             }
             it("does nothing if the package is not a cmake package", async function () {
-                wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::Orogen"));
+                wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::Ruby"));
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), false);
@@ -84,8 +84,9 @@ describe("ConfigManager", function () {
                 fs.writeFileSync(join(pkgPath, ".vscode", "c_cpp_properties.json"), "");
                 assert.equal(await subject.setupPackage(pkgPath), false);
             })
-            it("writes the config file", async function () {
-                wsInfo.packages.set(basename(pkgPath), createPackageModel("Autobuild::CMake"));
+            async function testType(type: string)
+            {
+                wsInfo.packages.set(basename(pkgPath), createPackageModel(type));
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
                 assert.equal(await subject.setupPackage(pkgPath), true);
@@ -95,6 +96,12 @@ describe("ConfigManager", function () {
                 let actualData = fs.readFileSync(join(pkgPath, ".vscode", "c_cpp_properties.json"),
                     "utf8");
                 assert.equal(actualData, expectedData);
+            }
+            it("writes the config file if package type is cmake", async function () {
+                await testType("Autobuild::CMake");
+            })
+            it("writes the config file if package type is orogen", async function () {
+                await testType("Autobuild::Orogen");
             })
         })
     })

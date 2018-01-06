@@ -97,7 +97,10 @@ export class ConfigManager
 
         const pkgName = path.relative(ws.root, pkgPath)
         let pkgModel = wsInfo.packages.get(pkgName);
-        if (!pkgModel || pkgModel.type != "Autobuild::CMake")
+        if (!pkgModel)
+            return false;
+
+        if (pkgModel.type != "Autobuild::CMake" && pkgModel.type != "Autobuild::Orogen")
             return false;
 
         return this.writeCppProperties(pkgPath, pkgModel);
