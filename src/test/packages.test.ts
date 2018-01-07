@@ -57,11 +57,14 @@ describe("PackageFactory", function () {
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockWorkspaces: TypeMoq.IMock<autoproj.Workspaces>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        subject = new packages.PackageFactory(mockTaskProvider.object);
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        subject = new packages.PackageFactory(mockWrapper.object, mockTaskProvider.object, mockBridge.object);
     })
     it("creates a ConfigPackage", async function () {
         let path = '/path/to/package';
@@ -76,7 +79,7 @@ describe("PackageFactory", function () {
         let path = '/path/to/package';
         mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
         mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false)
-        mockContext.setup(x => x.getWorkspaceFolder(path)).
+        mockWrapper.setup(x => x.getWorkspaceFolder(path)).
             returns(() => undefined);
         let aPackage = await subject.createPackage(path, mockContext.object);
         assert.equal(aPackage.name, '(Invalid package)');
@@ -91,7 +94,7 @@ describe("PackageFactory", function () {
         beforeEach(function () {
             mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
             mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false);
-            mockContext.setup(x => x.getWorkspaceFolder(path)).
+            mockWrapper.setup(x => x.getWorkspaceFolder(path)).
                 returns(() => folder);
         })
         it("creates a ForeignPackage if the package is not in an autoproj ws", async function () {
@@ -258,14 +261,17 @@ describe("RockRubyPackage", function () {
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
 
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockRubyPackage(
+            mockBridge.object,
             autoprojMakePackage('package', 'Autobuild::Ruby', "/path/to/package"),
-            mockContext.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -287,7 +293,7 @@ describe("RockRubyPackage", function () {
             returns(() => task);
 
         await subject.build();
-        mockContext.verify(x => x.runTask(task), TypeMoq.Times.once());
+        mockWrapper.verify(x => x.runTask(task), TypeMoq.Times.once());
     })
     it("shows the target picking ui and sets the debugging target", async function () {
         subject.pickTarget();
@@ -304,7 +310,6 @@ describe("RockRubyPackage", function () {
             let error = new Error("test");
             const target = new debug.Target('package', '/path/to/package/build/test');            
             mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 
@@ -340,12 +345,11 @@ describe("RockRubyPackage", function () {
 
             mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
             mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 
             await subject.debug();
-            mockContext.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
@@ -358,15 +362,17 @@ describe("RockRubyPackage", function () {
 })
 
 describe("RockCXXPackage", function () {
-    let subject: packages.RockRubyPackage;
+    let subject: packages.RockCXXPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(
             autoprojMakePackage('package', 'Autobuild::CMake', "/path/to/package"),
-            mockContext.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -388,7 +394,7 @@ describe("RockCXXPackage", function () {
             returns(() => task);
 
         await subject.build();
-        mockContext.verify(x => x.runTask(task),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     it("shows the target picking ui and sets the debugging target", async function () {
@@ -441,7 +447,7 @@ describe("RockCXXPackage", function () {
                 returns(() => target);
 
             await subject.debug();
-            mockContext.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
@@ -457,11 +463,13 @@ describe("RockOtherPackage", function () {
     let subject: packages.RockOtherPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOtherPackage("/path/to/package",
-            mockContext.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -484,7 +492,7 @@ describe("RockOtherPackage", function () {
             returns(() => task);
 
         await subject.build();
-        mockContext.verify(x => x.runTask(task),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     it("does not allow debugging target picking", async function () {
@@ -507,17 +515,20 @@ describe("RockOtherPackage", function () {
 })
 
 describe("RockOrogenPackage", function () {
-    let subject: packages.RockRubyPackage;
+    let subject: packages.RockOrogenPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;    
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();        
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOrogenPackage(
+            mockBridge.object,
             autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
-            mockContext.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -539,7 +550,7 @@ describe("RockOrogenPackage", function () {
             returns(() => task);
 
         await subject.build();
-        mockContext.verify(x => x.runTask(task),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     describe("pickTarget()", function () {
@@ -547,7 +558,6 @@ describe("RockOrogenPackage", function () {
             let error = new Error("test");
             mockBridge.setup(x => x.describeOrogenProject(subject.path,
                 subject.name)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             await assertThrowsAsync(async () => {
                 await subject.pickTarget();
             }, /test/);
@@ -569,7 +579,6 @@ describe("RockOrogenPackage", function () {
 
             mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
                 .returns(() => Promise.resolve([ task ]));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
         
             let choices;
             mockContext.setup(x => x.pickDebuggingTarget(subject.path, TypeMoq.It.isAny(), TypeMoq.It.isAny(), TypeMoq.It.isAny())).

@@ -31,14 +31,16 @@ export class Target
 
 export class PreLaunchTaskProvider implements vscode.TaskProvider
 {
+    private readonly _vscode: wrappers.VSCode;
     private readonly _context: context.Context;
 
-    constructor(context: context.Context)
+    constructor(context: context.Context, vscode: wrappers.VSCode)
     {
+        this._vscode  = vscode;
         this._context = context;
     }
 
-    static task(pkg: packages.Package, context: context.Context): vscode.Task | undefined
+    static task(pkg: packages.Package, context: context.Context, vscode: wrappers.VSCode): vscode.Task | undefined
     {
         let ws = context.workspaces.folderToWorkspace.get(pkg.path)
         if (!ws) {
@@ -47,13 +49,13 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
 
         if (pkg.type.id === packages.TypeList.OROGEN.id)
         {
-            return this.orogenTask(ws, pkg, context);
+            return this.orogenTask(ws, pkg, context, vscode);
         }
         else {
             return;
         }
     }
-    static orogenTask(ws: autoproj.Workspace, pkg: packages.Package, context: context.Context): vscode.Task | undefined
+    static orogenTask(ws: autoproj.Workspace, pkg: packages.Package, context: context.Context, vscode: wrappers.VSCode): vscode.Task | undefined
     {
         let target = context.getDebuggingTarget(pkg.path);
         if (!target) {
@@ -61,7 +63,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
         }
 
         let args = ['exec', 'rock-run'];
-        let folder = context.getWorkspaceFolder(pkg.path) as vscode.WorkspaceFolder;
+        let folder = vscode.getWorkspaceFolder(pkg.path) as vscode.WorkspaceFolder;
         let taskName = "Run " + relative(ws.root, pkg.path);
         taskName = taskName + " (gdbserver)";
 
@@ -98,7 +100,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
             return [];
         }
 
-        let task = PreLaunchTaskProvider.task(pkg, this._context)
+        let task = PreLaunchTaskProvider.task(pkg, this._context, this._vscode)
         if (task) {
             return [task];
         }

@@ -5,7 +5,6 @@ import * as autoproj from './autoproj';
 import * as debug from './debug';
 import * as tasks from './tasks';
 import * as packages from './packages'
-import * as async from './async'
 import * as fs from 'fs'
 import { join as joinPath } from 'path'
 
@@ -65,19 +64,16 @@ export class Context
     private readonly _workspaces: autoproj.Workspaces;
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
-    private readonly _bridge: async.EnvironmentBridge;
     private _lastSelectedRoot: string | undefined;
 
     public constructor(vscodeWrapper: wrappers.VSCode,
                        workspaces: autoproj.Workspaces,
-                       packageFactory : packages.PackageFactory,
-                       bridge: async.EnvironmentBridge)
+                       packageFactory : packages.PackageFactory)
     {
         this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._packageFactory = packageFactory;
-        this._bridge = bridge;
     }
 
     public dispose() {
@@ -208,11 +204,6 @@ export class Context
         return this._workspaces;
     }
 
-    public get bridge(): async.EnvironmentBridge
-    {
-        return this._bridge;
-    }
-
     public debugConfig(path: string): RockDebugConfig
     {
         let resource = vscode.Uri.file(path);
@@ -284,10 +275,6 @@ export class Context
         }
     }
 
-    public getWorkspaceFolder(path: string) {
-        return this._vscode.getWorkspaceFolder(vscode.Uri.file(path));
-    }
-
     public async pickPackageType(path : string) {
         let choices = packages.Type.typePickerChoices();
         let options: vscode.QuickPickOptions = {
@@ -323,15 +310,5 @@ export class Context
             this.setDebuggingTarget(packagePath, target);
             return target;
         }
-    }
-
-    public startDebugging(path : string, options) {
-        let workspaceFolder = this.getWorkspaceFolder(path);
-        this._vscode.startDebugging(workspaceFolder, options);
-    }
-
-    public runTask(task : vscode.Task) {
-        this._vscode.executeCommand("workbench.action.tasks.runTask",
-            task.source + ": " + task.name);
     }
 }

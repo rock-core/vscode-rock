@@ -38,17 +38,16 @@ class TestContext
             .returns(() => this._activeDocumentURI);
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
         let taskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        let packageFactory = new packages.PackageFactory(taskProvider.object);
+        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        let packageFactory = new packages.PackageFactory(this.mockWrapper.object, taskProvider.object, this.mockBridge.object);
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
         this.mockPackageFactory.callBase = true;
-        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         this.workspaces = new autoproj.Workspaces;
 
         this.subject = new context.Context(
             this.mockWrapper.object,
             this.workspaces,
-            this.mockPackageFactory.object,
-            this.mockBridge.object);
+            this.mockPackageFactory.object);
 
         this.mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
     }
@@ -325,10 +324,6 @@ describe("Context tests", function () {
 
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
-    });
-
-    it("returns the given environment bridge", function () {
-        assert.strictEqual(testContext.mockBridge.object, testContext.subject.bridge);
     });
 
     it("gets the package selection mode", function () {

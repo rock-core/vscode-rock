@@ -39,12 +39,11 @@ class TestContext
 
         let ctxt = new context.Context(this.mockWrapper.object,
             workspaces,
-            mockFactory.object,
-            mockBridge.object);
+            mockFactory.object);
         this.mockContext = TypeMoq.Mock.ofInstance(ctxt);
         this.mockContext.callBase = true;
         this.subject = new debug.PreLaunchTaskProvider(
-            this.mockContext.object);
+            this.mockContext.object, this.mockWrapper.object);
     }
 
     setDebuggingTargetForPackage(path: string): debug.Target
@@ -66,7 +65,7 @@ class TestContext
     associateResourceWithFolder(path: string,
         folder: vscode.WorkspaceFolder): void
     {
-        this.mockContext.setup(x => x.getWorkspaceFolder(path)).
+        this.mockWrapper.setup(x => x.getWorkspaceFolder(path)).
             returns(() => folder);
     }
     setDebuggingConfigurationForPkg(path: string, config: context.RockDebugConfig)
