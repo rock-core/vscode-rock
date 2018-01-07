@@ -137,6 +137,28 @@ export class Workspace
             })
         })
     }
+
+    async which(cmd: string)
+    {
+        let options: child_process.SpawnOptions = {};
+        options.env = { AUTOPROJ_CURRENT_ROOT: this.root };
+        let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
+        let path = '';
+        subprocess.stdout.on('data', (buffer) => {
+            path = path.concat(buffer.toString());
+        })
+
+        return new Promise<string>((resolve, reject) => {
+            subprocess.on('close', (code, signal) => {
+                if (code !== 0) {
+                    reject(`cannot find ${cmd} in the workspace`)
+                }
+                else {
+                    resolve(path.trim());
+                }
+            })
+        })
+    }
 }
 
 export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>

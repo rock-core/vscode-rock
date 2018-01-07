@@ -6,7 +6,8 @@ import * as wrappers from './wrappers'
 import * as autoproj from './autoproj'
 import * as async from './async'
 import * as fs from 'fs'
-import { relative, basename, dirname } from 'path'
+import * as child_process from 'child_process'
+import { relative, basename, dirname, join as joinpath } from 'path'
 
 export class TypeList
 {
@@ -456,6 +457,18 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 
     async preLaunchTask(): Promise<void>
     {
+    }
+
+    async resolveDebugConfiguration(config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration>
+    {
+        config.useBundler = true;
+        config.pathToBundler = this.ws.autoprojExePath();
+        if (!config.env) {
+            config.env = {}
+        }
+        config.env.AUTOPROJ_CURRENT_ROOT = this.ws.root;
+        config.program = await this.ws.which(config.program);
+        return config;
     }
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration>

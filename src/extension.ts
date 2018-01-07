@@ -82,6 +82,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
 
     let debugProvider = new debug.DebugConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', debugProvider));
+    extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('Ruby', debugProvider));
 
     statusBar.update();
     extensionContext.subscriptions.push(statusBar);
