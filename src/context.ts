@@ -69,22 +69,14 @@ export class Context
     private _lastSelectedRoot: string | undefined;
 
     public constructor(vscodeWrapper: wrappers.VSCode,
-                       workspaces: autoproj.Workspaces = new autoproj.Workspaces,
-                       packageFactory : packages.PackageFactory | undefined = undefined,
-                       bridge: async.EnvironmentBridge | undefined = undefined)
+                       workspaces: autoproj.Workspaces,
+                       packageFactory : packages.PackageFactory,
+                       bridge: async.EnvironmentBridge)
     {
         this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
-        if (!packageFactory) {
-            let taskProvider = new tasks.Provider(workspaces);
-            packageFactory = new packages.PackageFactory(taskProvider);
-        }
         this._packageFactory = packageFactory;
-
-        if (!bridge) {
-            bridge = new async.EnvironmentBridge;
-        }
         this._bridge = bridge;
     }
 
