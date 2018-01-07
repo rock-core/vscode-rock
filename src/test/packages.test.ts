@@ -261,6 +261,7 @@ describe("RockRubyPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockRubyPackage(
             mockBridge.object,
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Ruby', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
@@ -362,6 +363,7 @@ describe("RockCXXPackage", function () {
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::CMake', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
@@ -518,6 +520,7 @@ describe("RockOrogenPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOrogenPackage(
             mockBridge.object,
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
