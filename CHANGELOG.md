@@ -3,9 +3,8 @@ All notable changes to the "rock" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## 0.0.3
-- Initial release
-
 ## 0.0.4
 - Fix appearance of internal types in the package type picker
 
+## 0.0.3
+- Initial release
