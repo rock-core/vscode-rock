@@ -1,8 +1,8 @@
 import * as context from './context'
 import * as wrappers from './wrappers'
 import * as vscode from 'vscode'
-import * as path from 'path'
-import { basename, dirname, relative } from 'path'
+import * as fs from 'fs'
+import { basename, dirname, relative, join as joinpath } from 'path'
 import * as async from './async'
 import * as packages from './packages'
 import * as autoproj from './autoproj'
@@ -115,7 +115,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
     }
 }
 
-export class DebugConfigurationProvider implements vscode.DebugConfigurationProvider
+class ConfigurationProvider implements vscode.DebugConfigurationProvider
 {
     private _context : context.Context;
 
@@ -123,21 +123,92 @@ export class DebugConfigurationProvider implements vscode.DebugConfigurationProv
         this._context = context;
     }
 
+    provideDebugConfigurations(folder : vscode.WorkspaceFolder | undefined, token : vscode.CancellationToken | undefined) : vscode.ProviderResult<vscode.DebugConfiguration[]>
+    {
+        return [];
+    }
+
+    async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
+    {
+        return config;
+    }
+
+    protected async resolvePackage(folder: vscode.WorkspaceFolder | undefined) : Promise<packages.RockPackage | undefined>
+    {
+        if (!folder) {
+            return;
+        }
+        let pkg = await this._context.getPackageByPath(folder.uri.fsPath);
+        if (pkg instanceof packages.RockPackage) {
+            return pkg;
+        }
+    }
+}
+
+export class CXXConfigurationProvider extends ConfigurationProvider
+{
     provideDebugConfigurations(folder : vscode.WorkspaceFolder | undefined, token : vscode.CancellationToken | undefined) : vscode.ProviderResult<vscode.DebugConfiguration[]> {
         return [];
     }
 
-    async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, debugConfig : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
+    async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
-        if (!folder) {
-            return debugConfig;
-        }
-
-        let pkg = await this._context.getPackageByPath(folder.uri.fsPath);
+        let pkg = await this.resolvePackage(folder);
         if (!pkg) {
-            return debugConfig;
+            return config;
         }
 
-        return pkg.resolveDebugConfiguration(debugConfig);
+        let ws = pkg.ws;
+
+        let debuggerPath = config.miDebuggerPath || config.MIMode;
+        let stubScript = joinpath(__dirname, '..', 'stubs', config.MIMode);
+
+        config.miDebuggerPath = stubScript;
+        if (!config.environment) {
+            config.environment = [];
+        }
+        config.environment = config.environment.concat([
+            { name: "VSCODE_ROCK_AUTOPROJ_PATH", value: ws.autoprojExePath() },
+            { name: "VSCODE_ROCK_AUTOPROJ_DEBUGGER", value: debuggerPath },
+            { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
+        ])
+
+        if (!fs.existsSync(config.program)) {
+            let search = [pkg.info.builddir, pkg.info.prefix,
+                joinpath(pkg.info.builddir, 'test'),
+                joinpath(pkg.info.builddir, 'src'),
+                joinpath(pkg.info.prefix, 'bin')]
+            let foundPath = search.find((dir) => {
+                return fs.existsSync(joinpath(dir, config.program));
+            })
+            if (foundPath) {
+                config.program = joinpath(foundPath, config.program);
+            }
+        }
+        if (!config.cwd) {
+            config.cwd = dirname(config.program);
+        }
+        return config;
+    }
+}
+
+export class RubyConfigurationProvider extends ConfigurationProvider
+{
+    async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
+    {
+        let pkg = await this.resolvePackage(folder);
+        if (!pkg) {
+            return config;
+        }
+        let ws = pkg.ws;
+
+        config.useBundler = true;
+        config.pathToBundler = ws.autoprojExePath();
+        if (!config.env) {
+            config.env = {}
+        }
+        config.env.AUTOPROJ_CURRENT_ROOT = ws.root;
+        config.program = await ws.which(config.program);
+        return config;
     }
 }
