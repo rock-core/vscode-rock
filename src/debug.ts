@@ -115,7 +115,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
     }
 }
 
-class ConfigurationProvider implements vscode.DebugConfigurationProvider
+export class ConfigurationProvider implements vscode.DebugConfigurationProvider
 {
     private _context : context.Context;
 
@@ -133,7 +133,8 @@ class ConfigurationProvider implements vscode.DebugConfigurationProvider
         return config;
     }
 
-    protected async resolvePackage(folder: vscode.WorkspaceFolder | undefined) : Promise<packages.RockPackage | undefined>
+
+    async resolvePackage(folder: vscode.WorkspaceFolder | undefined) : Promise<packages.RockPackage | undefined>
     {
         if (!folder) {
             return;
@@ -142,6 +143,22 @@ class ConfigurationProvider implements vscode.DebugConfigurationProvider
         if (pkg instanceof packages.RockPackage) {
             return pkg;
         }
+    }
+
+    expandAutoprojPaths(pkg: { srcdir: string, builddir: string, prefix: string }, value: string) {
+        return value.replace(/\${rock:[a-zA-Z]+}/, (match) => {
+            let mode = match.substring(11, match.length - 1)
+            if (mode === "buildDir") {
+                return pkg.builddir;
+            }
+            else if (mode === "srcDir") {
+                return pkg.srcdir;
+            }
+            else if (mode === "prefixDir") {
+                return pkg.prefix;
+            }
+            else return match;
+        })
     }
 }
 
@@ -173,20 +190,12 @@ export class CXXConfigurationProvider extends ConfigurationProvider
             { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
         ])
 
-        if (!fs.existsSync(config.program)) {
-            let search = [pkg.info.builddir, pkg.info.prefix,
-                joinpath(pkg.info.builddir, 'test'),
-                joinpath(pkg.info.builddir, 'src'),
-                joinpath(pkg.info.prefix, 'bin')]
-            let foundPath = search.find((dir) => {
-                return fs.existsSync(joinpath(dir, config.program));
-            })
-            if (foundPath) {
-                config.program = joinpath(foundPath, config.program);
-            }
-        }
+        config.program = this.expandAutoprojPaths(pkg.info, config.program)
         if (!config.cwd) {
             config.cwd = dirname(config.program);
+        }
+        else {
+            config.cwd = this.expandAutoprojPaths(pkg.info, config.cwd);
         }
         return config;
     }

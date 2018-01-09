@@ -93,6 +93,80 @@ describe("Pre Launch Task Provider", function () {
         assert.deepEqual(actual_args, args);
     }
 
+    describe("in an empty workspace", function () {
+        let test: TestContext;
+        beforeEach(function () {
+            test = new TestContext(workspaces);
+        });
+        it("provides an empty array of tasks", async function () {
+            let tasks = await test.subject.provideTasks();
+            assert.equal(tasks.length, 0);
+        })
+    });
+
+    describe("ConfigurationProvider", function() {
+        let root: string;
+        let s: helpers.TestSetup;
+        let subject: debug.ConfigurationProvider;
+        let mock;
+        let ws;
+        beforeEach(function() {
+            root = helpers.init();
+            s = new helpers.TestSetup();
+            subject = new debug.ConfigurationProvider(s.context);
+            let result = s.createAndRegisterWorkspace('test');
+            ws = result.ws;
+        })
+
+        describe("resolvePackage", function() {
+            it("returns undefined for an undefined workspace folder", async function() {
+                let pkg = await subject.resolvePackage(undefined)
+                assert.strictEqual(pkg, undefined);
+            })
+            it("returns the package if it is a RockPackage", async function() {
+                let pkg = await s.registerPackage(ws, ['test'], { type: 'Autobuild::CMake' })
+                let folder: vscode.WorkspaceFolder = {
+                    uri: vscode.Uri.file(pkg.path),
+                    name: "package",
+                    index: 0
+                };
+                let resolved = await subject.resolvePackage(folder);
+                assert.deepStrictEqual(resolved, pkg);
+            })
+            it("returns undefined if the package is not a RockPackage", async function() {
+                let pkg = await s.registerPackage(ws, ['test'], { type: '' })
+                let folder: vscode.WorkspaceFolder = {
+                    uri: vscode.Uri.file(pkg.path),
+                    name: "package",
+                    index: 0
+                };
+                let resolved = await subject.resolvePackage(folder);
+                assert.strictEqual(resolved, undefined);
+            })
+        })
+
+        describe("expandAutoprojPaths", function() {
+            let pkg = {
+                srcdir: "/path/to/src",
+                builddir: "/path/to/build",
+                prefix: "/path/to/prefix"
+            }
+            it("replaces the srcdir", function() {
+                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:srcDir}:after")
+                assert.equal("before:/path/to/src:after", expanded);
+            })
+            it("replaces the builddir", function() {
+                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:buildDir}:after")
+                assert.equal("before:/path/to/build:after", expanded);
+            })
+            it("replaces the prefix", function() {
+                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:prefixDir}:after")
+                assert.equal("before:/path/to/prefix:after", expanded);
+            })
+        })
+
+    })
+
     describe("in a non empty workspace", function () {
         let a: string;
         let test: TestContext;
@@ -139,15 +213,5 @@ describe("Pre Launch Task Provider", function () {
             assert.deepEqual(actual_args, args);
             assert.equal(tasks[0].scope, folder);
         });
-    });
-    describe("in an empty workspace", function () {
-        let test: TestContext;
-        beforeEach(function () {
-            test = new TestContext(workspaces);
-        });
-        it("provides an empty array of tasks", async function () {
-            let tasks = await test.subject.provideTasks();
-            assert.equal(tasks.length, 0);
-        })
     });
 });
