@@ -78,7 +78,7 @@ describe("ConfigManager", function () {
             }
             function setMockPackageType(type: string)
             {
-                wsInfo.packages.set(basename(pkgPath), createPackageModel(type));
+                wsInfo.packages.set(pkgPath, createPackageModel(type));
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
                 folderToWorkspaces.set(pkgPath, mockWs.object);
             }

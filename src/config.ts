@@ -25,8 +25,7 @@ export class ConfigManager
             return false;
         }
 
-        const pkgName = path.relative(ws.root, pkgPath)
-        let pkgModel = wsInfo.packages.get(pkgName);
+        let pkgModel = wsInfo.packages.get(pkgPath);
         if (!pkgModel)
             return false;
 
