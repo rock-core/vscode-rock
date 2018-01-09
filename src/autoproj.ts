@@ -215,6 +215,12 @@ export class Workspaces
         }
     }
 
+    /** Associate a folder to a workspace
+     */
+    associateFolderToWorkspace(path: string, workspace: Workspace) {
+        this.folderToWorkspace.set(path, workspace);
+    }
+
     /** Add a folder
      * 
      * This adds the folder's workspace to the set, if the folder is part of an
@@ -224,7 +230,7 @@ export class Workspaces
     addFolder(path: string) {
         let { added, workspace } = this.addCandidate(path);
         if (workspace) {
-            this.folderToWorkspace.set(path, workspace);
+            this.associateFolderToWorkspace(path, workspace);
         }
         return workspace;
     }
