@@ -105,6 +105,18 @@ describe("Autoproj helpers tests", function () {
     })
 
     describe("Workspace", function() {
+        describe("constructor", function() {
+            it("starts the info loading by default", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let ws = new autoproj.Workspace("path");
+                assert(ws.loadingInfo());
+            })
+            it("does not start the info loading if the loadInfo flag is false", function() {
+                let ws = new autoproj.Workspace("path", false);
+                assert(!ws.loadingInfo());
+            })
+        })
         describe("fromDir", function() {
             it("returns null when called outside a workspace", function() {
                 helpers.mkdir('.autoproj');

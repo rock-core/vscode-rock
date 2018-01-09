@@ -89,7 +89,9 @@ export class Workspace
     {
         this.root = root;
         this.name = path.basename(root);
-        this._info = this.createInfoPromise();
+        if (loadInfo) {
+            this._info = this.createInfoPromise();
+        }
     }
 
     autoprojExePath() {
@@ -99,6 +101,10 @@ export class Workspace
     private createInfoPromise()
     {
         return loadWorkspaceInfo(this.root);
+    }
+
+    loadingInfo() : boolean {
+        return this._info !== undefined;
     }
 
     async reload()
@@ -219,7 +225,7 @@ export class Workspaces
      * 
      * Returns the list of newly added workspaces
      */
-    addCandidate(path: string) {
+    addCandidate(path: string, loadInfo: boolean = true) {
         // Workspaces are often duplicates (multiple packages from the same ws).
         // Make sure we don't start the info resolution promise until we're sure
         // it is new
@@ -232,7 +238,9 @@ export class Workspaces
         }
         else {
             this.add(ws);
-            ws.info();
+            if (loadInfo) {
+                ws.info();
+            }
             return { added: true, workspace: ws };
         }
     }
