@@ -12,22 +12,7 @@ import { basename, relative } from 'path';
 import * as debug from '../debug';
 import * as commands from '../commands';
 import * as packages from '../packages'
-
-async function assertThrowsAsync(fn, msg: RegExp)
-{
-    let f = () => {};
-    try {
-        await fn();
-    }
-    catch (e)
-    {
-        f = () => {throw e};
-    }
-    finally
-    {
-        assert.throws(f, msg);
-    }
-}
+import { assertThrowsAsync } from './helpers';
 
 describe("Commands", function () {
     let root: string;

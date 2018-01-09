@@ -5,6 +5,23 @@ import * as FS from 'fs';
 import * as Temp from 'fs-temp';
 import * as Path from 'path';
 import * as YAML from 'js-yaml';
+import * as assert from 'assert'
+
+export async function assertThrowsAsync(fn, msg: RegExp)
+{
+    let f = () => {};
+    try {
+        await fn();
+    }
+    catch (e)
+    {
+        f = () => {throw e};
+    }
+    finally
+    {
+        assert.throws(f, msg);
+    }
+}
 
 let root;
 let createdFS : Array<Array<string>> = []

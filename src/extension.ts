@@ -11,17 +11,25 @@ import * as commands from './commands';
 import * as packages from './packages';
 import * as async from './async';
 import * as debug from './debug';
+import * as config from './config';
 
-function initializeWorkspacesFromVSCodeFolders(workspaces)
+function initializeWorkspacesFromVSCodeFolders(workspaces: autoproj.Workspaces,
+    configManager: config.ConfigManager)
 {
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
-            workspaces.addFolder(folder.uri.fsPath);
+            if (workspaces.addFolder(folder.uri.fsPath)) {
+                configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
+                    vscode.window.showErrorMessage(reason.message);
+                });
+            }
         });
     }
 }
 
-function setupEvents(rockContext, extensionContext, workspaces, statusBar, taskProvider)
+function setupEvents(rockContext: context.Context, extensionContext: vscode.ExtensionContext,
+    workspaces: autoproj.Workspaces, statusBar: status.StatusBar, taskProvider: tasks.Provider,
+    configManager: config.ConfigManager)
 {
     rockContext.onUpdate(() => {
         statusBar.update();
@@ -29,7 +37,11 @@ function setupEvents(rockContext, extensionContext, workspaces, statusBar, taskP
     extensionContext.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
-                workspaces.addFolder(folder.uri.fsPath);
+                if (workspaces.addFolder(folder.uri.fsPath)) {
+                    configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
+                        vscode.window.showErrorMessage(reason.message);
+                    });
+                }
             });
             event.removed.forEach((folder) => {
                 workspaces.deleteFolder(folder.uri.fsPath);
@@ -54,6 +66,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let statusBar = new status.StatusBar(extensionContext, rockContext);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper);
     let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext, vscodeWrapper);
+    let configManager = new config.ConfigManager(workspaces);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
@@ -61,9 +74,10 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
 
-    initializeWorkspacesFromVSCodeFolders(workspaces);
+    initializeWorkspacesFromVSCodeFolders(workspaces, configManager);
     taskProvider.reloadTasks();
-    setupEvents(rockContext, extensionContext, workspaces, statusBar, taskProvider);
+    setupEvents(rockContext, extensionContext, workspaces,
+        statusBar, taskProvider, configManager);
     rockCommands.register();
 
     statusBar.update();
