@@ -1,8 +1,9 @@
 import * as vscode from 'vscode'
 import * as context from './context'
-import * as status from './status'
 import * as debug from './debug'
 import * as tasks from './tasks'
+import * as wrappers from './wrappers'
+import * as autoproj from './autoproj'
 import * as async from './async'
 import { relative, basename, dirname } from 'path'
 
@@ -104,10 +105,14 @@ export class Type
 
 export class PackageFactory
 {
+    private readonly _vscode: wrappers.VSCode;
     private readonly _taskProvider: tasks.Provider;
-    constructor(taskProvider: tasks.Provider)
+    private readonly _bridge: async.EnvironmentBridge;
+    constructor(vscode: wrappers.VSCode, taskProvider: tasks.Provider, bridge: async.EnvironmentBridge)
     {
+        this._vscode = vscode;
         this._taskProvider = taskProvider;
+        this._bridge = bridge;
     }
 
     async createPackage(path: string, context: context.Context): Promise<Package>
@@ -116,23 +121,24 @@ export class PackageFactory
         {
             return new ConfigPackage(path);
         }
-        else if (!context.vscode.getWorkspaceFolder(vscode.Uri.file(path)))
+        else if (!this._vscode.getWorkspaceFolder(path))
         {
             return new InvalidPackage();
         }
-        else if (context.workspaces.folderToWorkspace.has(path))
+        else if (context.getWorkspaceByPath(path))
         {
-            let type: Type = await this.packageType(path, context);
+            let info = await this.packageInfo(path, context);
+            let type = await this.packageType(path, context, info);
             switch (type.id)
             {
                 case TypeList.CXX.id:
-                    return new RockCXXPackage(path, context, this._taskProvider);
+                    return new RockCXXPackage(info, context, this._vscode, this._taskProvider);
                 case TypeList.RUBY.id:
-                    return new RockRubyPackage(path, context, this._taskProvider);
+                    return new RockRubyPackage(this._bridge, info, context, this._vscode, this._taskProvider);
                 case TypeList.OROGEN.id:
-                    return new RockOrogenPackage(path, context, this._taskProvider);
+                    return new RockOrogenPackage(this._bridge, info, context, this._vscode, this._taskProvider);
                 default:
-                    return new RockOtherPackage(path, context, this._taskProvider);
+                    return new RockOtherPackage(path, context, this._vscode, this._taskProvider);
             }
         }
         return new ForeignPackage(path, context);
@@ -143,32 +149,61 @@ export class PackageFactory
         return new InvalidPackage();
     }
 
-    private async packageType(path: string, context: context.Context): Promise<Type>
-    {
-        let type = await context.getPackageType(path);
-        if (type)
-            return Promise.resolve(type);
+    private nullPackageInfo(path : string) : autoproj.Package {
+        let result : autoproj.Package = {
+            name: path,
+            type: 'Unknown',
+            vcs: { type: 'unknown', url: 'unknown', repository_id: 'unknown' },
+            srcdir: path,
+            builddir: path,
+            logdir: path,
+            prefix: path,
+            dependencies: []
+        };
+        return result;
+    }
 
-        const ws = context.workspaces.folderToWorkspace.get(path);
+    private async packageInfo(path: string, context: context.Context): Promise<autoproj.Package>
+    {
+        const ws = context.getWorkspaceByPath(path);
         if (!ws)
-            return Promise.resolve(Type.fromType(TypeList.OTHER));
+            return this.nullPackageInfo(path);
 
         let wsInfo;
         try {
             wsInfo = await ws.info();
         }
         catch(err) {
-            return Type.invalid();
+            return this.nullPackageInfo(path);
         }
 
-        const relativePath = relative(ws.root, path)
-        let defs = wsInfo.packages.get(relativePath);
+        let defs = wsInfo.packages.get(path);
         if (!defs) {
             let wsInfo = await ws.envsh();
-            return Type.fromType(TypeList.OTHER);
+            let defs = wsInfo.packages.get(path);
+            if (defs) {
+                return defs;
+            }
+            else {
+                return this.nullPackageInfo(path);
+            }
         }
         else {
-            return Type.fromAutobuild(defs.type)
+            return defs;
+        }
+    }
+
+    private async packageType(path: string, context : context.Context, packageInfo : autoproj.Package | undefined): Promise<Type>
+    {
+        let type = await context.getPackageType(path);
+        if (type)
+            return type;
+
+        if (packageInfo) {
+            return Type.fromAutobuild(packageInfo.type)
+        }
+        else {
+            return Type.fromType(TypeList.OTHER);
         }
     }
 }
@@ -191,6 +226,7 @@ export interface Package
 
 abstract class GenericPackage implements Package
 {
+    abstract readonly path: string;
     abstract readonly debugable: boolean;
     abstract readonly type: Type;
     abstract readonly buildTask: vscode.Task | undefined;
@@ -200,12 +236,9 @@ abstract class GenericPackage implements Package
     abstract build(): Promise<void>
     abstract pickTarget(): Promise<void>
 
-    readonly path: string;
-
     protected readonly _context: context.Context;
-    constructor(path: string, context: context.Context)
+    constructor(context: context.Context)
     {
-        this.path = path;
         this._context = context;
     }
 
@@ -213,26 +246,28 @@ abstract class GenericPackage implements Package
 
     async pickType(): Promise<void>
     {
-        let choices = Type.typePickerChoices();
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select the package type' }
-
-        const chosen = await this._context.vscode.showQuickPick(choices, options);
-        if (chosen)
-        {
-            this._context.setPackageType(this.path, chosen.type);
-        }
+        this._context.pickPackageType(this.path);
     }
 }
 
 abstract class RockPackage extends GenericPackage
 {
-    readonly debugable: boolean;
+    protected readonly _vscode: wrappers.VSCode;
+    readonly info: autoproj.Package;
+
+    get path() : string
+    {
+        return this.info.srcdir;
+    }
+
+    readonly debugable : boolean;
     private readonly _taskProvider: tasks.Provider;
 
-    constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
+    constructor(info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
     {
-        super(path, context);
+        super(context);
+        this._vscode = vscode;
+        this.info = info;
         this.debugable = true;
         this._taskProvider = taskProvider;
     }
@@ -246,12 +281,8 @@ abstract class RockPackage extends GenericPackage
             throw new Error("Select a debugging target before debugging")
 
         const options = await this.debugConfiguration();
-
         await this.preLaunchTask();
-
-        const uri = vscode.Uri.file(this.path);
-        const folder = this._context.vscode.getWorkspaceFolder(uri);
-        this._context.vscode.startDebugging(folder, options);
+        this._vscode.startDebugging(this.path, options);
     }
 
     get buildTask()
@@ -261,8 +292,7 @@ abstract class RockPackage extends GenericPackage
 
     async build(): Promise<void>
     {
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask",
-            this.buildTask.source + ": " + this.buildTask.name);
+        this._vscode.runTask(this.buildTask);
     }
 
     get debugTarget()
@@ -275,20 +305,7 @@ abstract class RockPackageWithTargetPicker extends RockPackage
 {
     async pickTarget(): Promise<void>
     {
-        const options: vscode.OpenDialogOptions = {
-            canSelectMany: false,
-            canSelectFiles: true,
-            canSelectFolders: false,
-            defaultUri: vscode.Uri.file(this.path)
-        };
-
-        const targetUri = await this._context.vscode.showOpenDialog(options);
-        let target: debug.Target;
-        if (targetUri)
-        {
-            target = new debug.Target(basename(targetUri[0].fsPath), targetUri[0].fsPath);
-            this._context.setDebuggingTarget(this.path, target);
-        }
+        this._context.pickDebuggingFile(this.path);
     }
 }
 
@@ -368,13 +385,15 @@ export class ConfigPackage implements Package
 
 export class ForeignPackage extends GenericPackage
 {
+    readonly path: string;
     readonly debugable: boolean;
     readonly buildTask: vscode.Task | undefined;
     readonly debugTarget: debug.Target | undefined;
 
     constructor(path: string, context: context.Context)
     {
-        super(path, context);
+        super(context);
+        this.path = path;
         this.debugable = false;
     }
 
@@ -405,6 +424,14 @@ export class ForeignPackage extends GenericPackage
 
 export class RockRubyPackage extends RockPackageWithTargetPicker
 {
+    private _bridge: async.EnvironmentBridge;
+
+    constructor(bridge: async.EnvironmentBridge, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    {
+        super(info, context, vscode, taskProvider);
+        this._bridge = bridge;
+    }
+
     async preLaunchTask(): Promise<void>
     {
     }
@@ -412,7 +439,7 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         const debugTarget = this.debugTarget as debug.Target;
-        return this._context.bridge.env(this.path).
+        return this._bridge.env(this.path).
             then(result => {
                     let userConf = this._context.debugConfig(this.path);
                     const options: vscode.DebugConfiguration = {
@@ -467,23 +494,22 @@ async function sleep(ms: number): Promise<void>
     return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-export interface IOrogenTaskPickerModel
-{
-    label: string,
-    description: string,
-    task: async.IOrogenTask
-}
-
 export class RockOrogenPackage extends RockPackage
 {
+    private _bridge: async.EnvironmentBridge;
+
+    constructor(bridge: async.EnvironmentBridge, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    {
+        super(info, context, vscode, taskProvider);
+        this._bridge = bridge;
+    }
+
     async preLaunchTask(): Promise<void>
     {
-        let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context);
+        let preLaunchTask = await debug.PreLaunchTaskProvider.task(this, this._context, this._vscode);
         if (!preLaunchTask)
             return;
-        let preTaskName = preLaunchTask.source + ": " + preLaunchTask.name
-
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask", preTaskName);
+        this._vscode.runTask(preLaunchTask);
         await sleep(3000); // give some time for rock-run to finish loading
     }
 
@@ -514,60 +540,56 @@ export class RockOrogenPackage extends RockPackage
 
     async pickTarget(): Promise<void>
     {
-        let description = this._context.bridge.describeOrogenProject(this.path, this.name);
+        let description = this._bridge.describeOrogenProject(this.path, this.name);
         let tokenSource = new vscode.CancellationTokenSource();
-        let promise = new Promise<IOrogenTaskPickerModel[]>((resolve, reject) => {
-            description.then(
-                async result => {
-                    let choices = new Array<IOrogenTaskPickerModel>();
-                    result.forEach((task) => {
-                        choices.push({
-                            label: task.model_name,
-                            description: '',
-                            task: task
-                        });
+
+        let err;
+        description.catch((_err) => {
+            err = _err;
+            tokenSource.cancel();
+        })
+        let promise = description.then(
+            (result) => {
+                let choices : context.DebuggingTargetChoice[] = [];
+                result.forEach((task) => {
+                    choices.push({
+                        label: task.model_name,
+                        description: '',
+                        targetName: task.model_name,
+                        targetFile: task.file
                     });
-                    resolve(choices);
-                },
-                err => {
-                    tokenSource.cancel();
-                    reject(err);
-                }
-            )
-        });
+                });
+                return choices;
+            })
+
         let options: vscode.QuickPickOptions = {
             placeHolder: 'Select a task to debug' }
 
-        let contents;
-        const targetTasks = await this._context.vscode.showQuickPick(promise, options, tokenSource.token);
-        if (targetTasks)
-        {
-            let target = new debug.Target(targetTasks.task.model_name, targetTasks.task.file);
-            this._context.setDebuggingTarget(this.path, target);
+        await this._context.pickDebuggingTarget(this.path, promise, options, tokenSource.token);
+        tokenSource.dispose();
+        // Note: we know the promise is resolved at this point thanks to the
+        // await on the target picker
+        if (err) {
+            throw err;
         }
-
-        return new Promise<void>((resolve, reject) => {
-            promise.then(sucess => {
-                resolve();
-            },
-            err => {
-                reject(err);
-            })
-        });
     }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }
 
 export class RockOtherPackage extends GenericPackage
 {
+    protected readonly _vscode : wrappers.VSCode;
+    readonly path: string;
     readonly debugable: boolean;
     readonly debugTarget: debug.Target | undefined;
 
     private readonly _taskProvider: tasks.Provider;
-    constructor(path: string, context: context.Context, taskProvider: tasks.Provider)
+    constructor(path: string, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
     {
-        super(path, context);
+        super(context);
+        this.path = path;
         this.debugable = false;
+        this._vscode = vscode;
         this._taskProvider = taskProvider;
     }
 
@@ -578,8 +600,7 @@ export class RockOtherPackage extends GenericPackage
 
     async build(): Promise<void>
     {
-        this._context.vscode.executeCommand("workbench.action.tasks.runTask",
-            this.buildTask.source + ": " + this.buildTask.name);
+        this._vscode.runTask(this.buildTask);
     }
 
     async debug()

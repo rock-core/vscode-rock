@@ -32,6 +32,14 @@ export function mkfile(data: string, ...path): string {
     createdFS.push([joinedPath, 'file']);
     return joinedPath;
 }
+export function registerDir(...path) {
+    let joinedPath = Path.join(root, ...path);
+    createdFS.push([joinedPath, 'dir']);
+}
+export function registerFile(...path) {
+    let joinedPath = Path.join(root, ...path);
+    createdFS.push([joinedPath, 'file']);
+}
 export function createInstallationManifest(data: any, ...workspacePath): string {
     let joinedPath = Path.join(root, ...workspacePath);
     joinedPath = Autoproj.installationManifestPath(joinedPath);

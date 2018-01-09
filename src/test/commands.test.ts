@@ -69,7 +69,6 @@ describe("Commands", function () {
         workspaces.addFolder(a);
         workspaces.addFolder(b);
         workspaces.addFolder(c);
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
 
         let index = 0;
         workspaces.forEachFolder((ws, folder) => {

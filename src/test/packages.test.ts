@@ -29,6 +29,19 @@ async function assertThrowsAsync(fn, msg: RegExp)
     }
 }
 
+function autoprojMakePackage(name, type, path) {
+    return {
+        name: name,
+        type: type,
+        srcdir: path,
+        builddir: '',
+        prefix: '',
+        vcs: { type: 'git', url: '', repository_id: '' },
+        logdir: '',
+        dependencies: []
+    }
+}
+
 describe("Type", function() {
     describe("typePickerChoices", function() {
         it("does not contain any internal type", function() {
@@ -50,8 +63,8 @@ describe("PackageFactory", function () {
         mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-        subject = new packages.PackageFactory(mockTaskProvider.object);
+        let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        subject = new packages.PackageFactory(mockWrapper.object, mockTaskProvider.object, mockBridge.object);
     })
     it("creates a ConfigPackage", async function () {
         let path = '/path/to/package';
@@ -66,13 +79,12 @@ describe("PackageFactory", function () {
         let path = '/path/to/package';
         mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
         mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false)
-        mockWrapper.setup(x => x.getWorkspaceFolder(vscode.Uri.file(path))).
+        mockWrapper.setup(x => x.getWorkspaceFolder(path)).
             returns(() => undefined);
         let aPackage = await subject.createPackage(path, mockContext.object);
         assert.equal(aPackage.name, '(Invalid package)');
     })
     describe("the package is neither invalid nor a configuration", function () {
-        let aPackage: packages.Package;
         let path = '/path/to/package';
         let folder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(path),
@@ -82,69 +94,62 @@ describe("PackageFactory", function () {
         beforeEach(function () {
             mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
             mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false);
-            mockWrapper.setup(x => x.getWorkspaceFolder(vscode.Uri.file(path))).
+            mockWrapper.setup(x => x.getWorkspaceFolder(path)).
                 returns(() => folder);
         })
         it("creates a ForeignPackage if the package is not in an autoproj ws", async function () {
-            mockWorkspaces.setup(x => x.folderToWorkspace).
-                returns(() => new Map<string, autoproj.Workspace>());
+            mockContext.setup(x => x.getWorkspaceByPath(TypeMoq.It.isAny())).
+                returns(() => undefined);
 
-            aPackage = await subject.createPackage(path, mockContext.object);
+            let aPackage = await subject.createPackage(path, mockContext.object);
             await assertThrowsAsync(async () => {
                 await aPackage.build();
             }, /not part of an autoproj workspace/);
         })
         describe("the package is in an autoproj workspace", function () {
-            let folderToWorkspace = new Map<string, autoproj.Workspace>();
             let mockWs: TypeMoq.IMock<autoproj.Workspace>;
             beforeEach(function () {
                 mockWs = TypeMoq.Mock.ofType<autoproj.Workspace>();
-                folderToWorkspace.set(path, mockWs.object);
-                mockWorkspaces.setup(x => x.folderToWorkspace).
-                    returns(() => folderToWorkspace);
+                mockContext.setup(x => x.getWorkspaceByPath(path)).
+                    returns(() => mockWs.object)
             })
             it("returns the type set by the user", async function () {
+                mockContext.setup(x => x.getWorkspaceByPath(path)).
+                    returns(() => undefined);
                 mockContext.setup(x => x.getPackageType(path)).
                     returns(() => packages.Type.fromType(packages.TypeList.RUBY));
-                aPackage = await subject.createPackage(path, mockContext.object);
+                let aPackage = await subject.createPackage(path, mockContext.object);
                 assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.RUBY));
             })
             it("returns an OTHER package if the manifest could not be loaded", async function () {
                 mockContext.setup(x => x.getPackageType(path)).
                     returns(() => undefined);
                 mockWs.setup(x => x.info()).returns(() => Promise.reject(""));
-                aPackage = await subject.createPackage(path, mockContext.object);
+                let aPackage = await subject.createPackage(path, mockContext.object);
                 assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.OTHER));
             })
             it("returns the package type defined in the manifest", async function () {
-                let thePackages = new Map<string, autoproj.Package>();
+                let wsInfo = new autoproj.WorkspaceInfo('/path/to');
                 let mockPackage = TypeMoq.Mock.ofType<autoproj.Package>();
-                let wsInfo = {
-                    path: '/path/to',
-                    packages: thePackages,
-                    packageSets: new Map<string, autoproj.PackageSet>()
-                }
-                thePackages.set("package", mockPackage.object);
                 mockPackage.setup(x => x.type).returns(() => "Autobuild::CMake");
+                mockPackage.setup((x: any) => x.then).returns(() => undefined);
+                wsInfo.packages.set('/path/to/package', mockPackage.object);
+
                 mockContext.setup(x => x.getPackageType(path)).
                     returns(() => undefined);
                 mockWs.setup(x => x.root).returns(() => '/path/to');
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                aPackage = await subject.createPackage(path, mockContext.object);
+                let aPackage = await subject.createPackage(path, mockContext.object);
                 assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.CXX));
             })
             it("returns OTHER if the package is not in the manifest", async function () {
-                let thePackages = new Map<string, autoproj.Package>();
-                let wsInfo = {
-                    path: '/path/to',
-                    packages: thePackages,
-                    packageSets: new Map<string, autoproj.PackageSet>()
-                }
+                let wsInfo = new autoproj.WorkspaceInfo('/path/to');
                 mockContext.setup(x => x.getPackageType(path)).
                     returns(() => undefined);
                 mockWs.setup(x => x.root).returns(() => '/path/to');
                 mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                aPackage = await subject.createPackage(path, mockContext.object);
+                mockWs.setup(x => x.envsh()).returns(() => Promise.resolve(wsInfo));
+                let aPackage = await subject.createPackage(path, mockContext.object);
                 assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.OTHER));
             })
         })
@@ -219,54 +224,6 @@ describe("ConfigPackage", function () {
     })
 })
 
-async function testTargetPicker(subject: packages.Package,
-    mockContext: TypeMoq.IMock<context.Context>)
-{
-    let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-    let target = new debug.Target('file', '/a/picked/file');
-    const options: vscode.OpenDialogOptions = {
-        canSelectMany: false,
-        canSelectFiles: true,
-        canSelectFolders: false,
-        defaultUri: vscode.Uri.file(subject.path)
-    };
-
-    const uri = Promise.resolve([ vscode.Uri.file('/a/picked/file') ]);
-
-    mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-    mockWrapper.setup(x => x.showOpenDialog(options)).returns(() => uri);
-    mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-        returns(() => target)
-    await subject.pickTarget();
-    mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
-        TypeMoq.Times.once());
-
-    assert(subject.debugTarget);
-    const debugTarget = subject.debugTarget as debug.Target;
-    assert.equal(debugTarget.name, 'file');
-    assert.equal(debugTarget.path, '/a/picked/file');
-}
-
-async function testTypePicker(subject: packages.Package,
-    mockContext: TypeMoq.IMock<context.Context>)
-{
-    let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-    let expectedChoices = packages.Type.typePickerChoices();
-    let packageType = {
-        label: 'Ruby',
-        description: '',
-        type: packages.Type.fromType(packages.TypeList.RUBY)
-    }
-    mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-    mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
-        returns(() => Promise.resolve(packageType));
-
-    await subject.pickType();
-    mockWrapper.verify(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny()), TypeMoq.Times.once());
-    mockContext.verify(x => x.setPackageType(subject.path, packages.Type.fromType(packages.TypeList.RUBY)),
-        TypeMoq.Times.once());
-}
-
 describe("ForeignPackage", function () {
     let subject;
     let mockContext: TypeMoq.IMock<context.Context>;
@@ -294,7 +251,8 @@ describe("ForeignPackage", function () {
         }, /not part of an autoproj workspace/);
     })
     it("shows the type picking ui and sets the package type", async function () {
-        await testTypePicker(subject, mockContext);
+        subject.pickType();
+        mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
     })
 })
 
@@ -303,12 +261,17 @@ describe("RockRubyPackage", function () {
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
+
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        subject = new packages.RockRubyPackage("/path/to/package",
-            mockContext.object, mockTaskProvider.object);
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        subject = new packages.RockRubyPackage(
+            mockBridge.object,
+            autoprojMakePackage('package', 'Autobuild::Ruby', "/path/to/package"),
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -326,21 +289,17 @@ describe("RockRubyPackage", function () {
     it("starts an autoproj build task", async function () {
         let defs: vscode.TaskDefinition = { type: "test" };
         let task = new vscode.Task(defs, "test", "test");
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
         mockTaskProvider.setup(x => x.buildTask(subject.path)).
             returns(() => task);
 
-        let taskName = task.source + ": " + task.name;
-
         await subject.build();
-        mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName),
-            TypeMoq.Times.once());
+        mockWrapper.verify(x => x.runTask(task), TypeMoq.Times.once());
     })
     it("shows the target picking ui and sets the debugging target", async function () {
-        await testTargetPicker(subject, mockContext);
+        subject.pickTarget();
+        mockContext.verify(x => x.pickDebuggingFile(subject.path), TypeMoq.Times.once());
     })
+
     describe("debug()", function () {
         it("throws if the debugging target is unset", async function () {
             await assertThrowsAsync(async () => {
@@ -351,7 +310,6 @@ describe("RockRubyPackage", function () {
             let error = new Error("test");
             const target = new debug.Target('package', '/path/to/package/build/test');            
             mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 
@@ -360,8 +318,6 @@ describe("RockRubyPackage", function () {
             }, /test/);
         })
         it("starts a ruby debugging session", async function () {
-            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-
             const target = new debug.Target('package', '/path/to/package/build/test');
             let userConf: context.RockDebugConfig = {
                 cwd: subject.path,
@@ -386,27 +342,19 @@ describe("RockRubyPackage", function () {
                 args: userConf.args,
                 env: env
             };
-            const uri = vscode.Uri.file(subject.path);
-            let folder = {
-                uri: vscode.Uri.file(subject.path),
-                name: basename(subject.path),
-                index: 0
-            }
 
             mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
             mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 
-            mockWrapper.setup(x => x.getWorkspaceFolder(uri)).returns(() => folder);
-            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
             await subject.debug();
-            mockWrapper.verify(x => x.startDebugging(folder, options), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
-        await testTypePicker(subject, mockContext);
+        subject.pickType();
+        mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
     })
     it("returns the RUBY package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.RUBY));
@@ -414,14 +362,17 @@ describe("RockRubyPackage", function () {
 })
 
 describe("RockCXXPackage", function () {
-    let subject: packages.RockRubyPackage;
+    let subject: packages.RockCXXPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        subject = new packages.RockCXXPackage("/path/to/package",
-            mockContext.object, mockTaskProvider.object);
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        subject = new packages.RockCXXPackage(
+            autoprojMakePackage('package', 'Autobuild::CMake', "/path/to/package"),
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -439,20 +390,16 @@ describe("RockCXXPackage", function () {
     it("starts an autoproj build task", async function () {
         let defs: vscode.TaskDefinition = { type: "test" };
         let task = new vscode.Task(defs, "test", "test");
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
         mockTaskProvider.setup(x => x.buildTask(subject.path)).
             returns(() => task);
 
-        let taskName = task.source + ": " + task.name;
-
         await subject.build();
-        mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     it("shows the target picking ui and sets the debugging target", async function () {
-        await testTargetPicker(subject, mockContext);
+        subject.pickTarget();
+        mockContext.verify(x => x.pickDebuggingFile(subject.path), TypeMoq.Times.once());
     })
     describe("debug()", function () {
         it("throws if the debugging target is unset", async function () {
@@ -461,7 +408,6 @@ describe("RockCXXPackage", function () {
             }, /Select a debugging target/);
         })
         it("starts a cxx debugging session", async function () {
-            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
             const target = new debug.Target('package', '/path/to/package/build/test');
             const type = packages.TypeList.CXX;
             let userConf: context.RockDebugConfig = {
@@ -500,14 +446,13 @@ describe("RockCXXPackage", function () {
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
 
-            mockWrapper.setup(x => x.getWorkspaceFolder(uri)).returns(() => folder);
-            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
             await subject.debug();
-            mockWrapper.verify(x => x.startDebugging(folder, options), TypeMoq.Times.once());
+            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
-        await testTypePicker(subject, mockContext);
+        subject.pickType();
+        mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
     })
     it("returns the CXX package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.CXX));
@@ -518,11 +463,13 @@ describe("RockOtherPackage", function () {
     let subject: packages.RockOtherPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOtherPackage("/path/to/package",
-            mockContext.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -540,16 +487,12 @@ describe("RockOtherPackage", function () {
     it("starts an autoproj build task", async function () {
         let defs: vscode.TaskDefinition = { type: "test" };
         let task = new vscode.Task(defs, "test", "test");
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
 
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
         mockTaskProvider.setup(x => x.buildTask(subject.path)).
             returns(() => task);
 
-        let taskName = task.source + ": " + task.name;
-
         await subject.build();
-        mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     it("does not allow debugging target picking", async function () {
@@ -563,7 +506,8 @@ describe("RockOtherPackage", function () {
         }, /Set the package type/);
     })
     it("shows the type picking ui and sets the package type", async function () {
-        await testTypePicker(subject, mockContext);
+        subject.pickType();
+        mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
     })
     it("returns the OTHER package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OTHER));
@@ -571,16 +515,20 @@ describe("RockOtherPackage", function () {
 })
 
 describe("RockOrogenPackage", function () {
-    let subject: packages.RockRubyPackage;
+    let subject: packages.RockOrogenPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;    
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();        
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        subject = new packages.RockOrogenPackage("/path/to/package",
-            mockContext.object, mockTaskProvider.object);
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        subject = new packages.RockOrogenPackage(
+            mockBridge.object,
+            autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
+            mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
@@ -598,34 +546,24 @@ describe("RockOrogenPackage", function () {
     it("starts an autoproj build task", async function () {
         let defs: vscode.TaskDefinition = { type: "test" };
         let task = new vscode.Task(defs, "test", "test");
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-
-        mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
         mockTaskProvider.setup(x => x.buildTask(subject.path)).
             returns(() => task);
 
-        let taskName = task.source + ": " + task.name;
-
         await subject.build();
-        mockWrapper.verify(x => x.executeCommand("workbench.action.tasks.runTask", taskName),
+        mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
     describe("pickTarget()", function () {
         it("throws if orogen project loading fails", async function () {
             let error = new Error("test");
-            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
-            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
             mockBridge.setup(x => x.describeOrogenProject(subject.path,
                 subject.name)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
             await assertThrowsAsync(async () => {
                 await subject.pickTarget();
             }, /test/);
         })
         it("shows the target picking ui and sets the debugging target", async function () {
-            let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-            let expectedChoices = new Array<packages.IOrogenTaskPickerModel>();
+            let expectedChoices = new Array<context.DebuggingTargetChoice>();
             let task: async.IOrogenTask = {
                 model_name: 'task1',
                 deployment_name: "orogen_task1",
@@ -635,40 +573,25 @@ describe("RockOrogenPackage", function () {
             expectedChoices.push({
                 label: 'task1',
                 description: '',
-                task: task
+                targetName: task.model_name,
+                targetFile: task.file
             });
 
-            let choices;
             mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
                 .returns(() => Promise.resolve([ task ]));
-            mockContext.setup(x => x.bridge).returns(() => mockBridge.object);
-            mockContext.setup(x => x.vscode).returns(() => mockWrapper.object);
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.is((x: packages.IOrogenTaskPickerModel[]) => {
-                choices = x;
-                return true;
-            }), TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(expectedChoices[0]));
         
+            let choices;
+            mockContext.setup(x => x.pickDebuggingTarget(subject.path, TypeMoq.It.isAny(), TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                callback((path, choicesArg, ...ignored) => { choices = choicesArg });
+
             await subject.pickTarget();
-            let target = new debug.Target(task.model_name, task.file);
-            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-                returns(() => target)
-            mockContext.verify(x => x.setDebuggingTarget(subject.path, target),
-                TypeMoq.Times.once());
-            assert(subject.debugTarget);
-            let debugTarget = subject.debugTarget as debug.Target;
-            assert.equal(debugTarget.name, 'task1');
-            assert.equal(debugTarget.path, '/some/bin/deployment/binfile');
-            return new Promise<void>((resolve, reject) => {
-                choices.then(result => {
-                    assert.deepEqual(result, expectedChoices);
-                    resolve();
-                });
-            })
+            let givenChoices = await choices;
+            assert.deepEqual(givenChoices, expectedChoices);
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
-        await testTypePicker(subject, mockContext);
+        subject.pickType();
+        mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
     })
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));

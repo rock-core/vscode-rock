@@ -55,11 +55,17 @@ export interface PackageSet
     user_local_dir: string;
 }
 
-class WorkspaceInfo
+export class WorkspaceInfo
 {
     path: string;
     packages: Map<string, Package>;
     packageSets: Map<string, PackageSet>;
+
+    constructor(path: string) {
+        this.path = path;
+        this.packages = new Map<string, Package>();
+        this.packageSets = new Map<string, PackageSet>();
+    }
 }
 
 export class Workspace
@@ -157,12 +163,12 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
         let packages = new Map()
         manifest.forEach((entry) => {
             if (entry.name) {
-                packages.set(entry.name, entry)
+                packages.set(entry.srcdir, entry)
             }
             else {
                 entry.name = entry.package_set;
                 delete entry.package_set;
-                packageSets.set(entry.name, entry)
+                packageSets.set(entry.user_local_dir, entry)
             }
         })
         return { path: workspacePath, packageSets: packageSets, packages: packages };

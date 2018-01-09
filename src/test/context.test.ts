@@ -38,17 +38,16 @@ class TestContext
             .returns(() => this._activeDocumentURI);
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
         let taskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        let packageFactory = new packages.PackageFactory(taskProvider.object);
+        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        let packageFactory = new packages.PackageFactory(this.mockWrapper.object, taskProvider.object, this.mockBridge.object);
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
         this.mockPackageFactory.callBase = true;
-        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         this.workspaces = new autoproj.Workspaces;
 
         this.subject = new context.Context(
             this.mockWrapper.object,
             this.workspaces,
-            this.mockPackageFactory.object,
-            this.mockBridge.object);
+            this.mockPackageFactory.object);
 
         this.mockWorkspaceConf = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
     }
@@ -57,7 +56,7 @@ class TestContext
     {
         try
         {
-            fs.unlinkSync(join(this.root, '.vscode', '.rock.json'));
+            fs.unlinkSync(join(this.root, '.vscode', 'rock.json'));
             fs.rmdirSync(join(this.root, '.vscode'));
         }
         catch {}
@@ -163,7 +162,7 @@ describe("Context tests", function () {
 
     function loadRockJson()
     {
-        let path = join(testContext.root, '.vscode', '.rock.json');
+        let path = join(testContext.root, '.vscode', 'rock.json');
         let writtenData: context.PackageInternalData;
         let jsonString = fs.readFileSync(path, 'utf8');
         writtenData = JSON.parse(jsonString);
@@ -189,7 +188,7 @@ describe("Context tests", function () {
                 }
             }
             fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), JSON.stringify(previous));
             testContext.subject.setPackageType(testContext.root, type);
 
             let writtenData = loadRockJson();
@@ -202,7 +201,7 @@ describe("Context tests", function () {
             let type = packages.Type.fromName("cxx");
             let previous = "invalid json";
             fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), previous);
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), previous);
             testContext.subject.setPackageType(testContext.root, type);
 
             let writtenData = loadRockJson();
@@ -217,7 +216,7 @@ describe("Context tests", function () {
         {
             let jsonData = JSON.stringify({ type: type });
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), jsonData);
         }
         it("reads the package type from the json file", function () {
             writeJson("orogen");
@@ -235,14 +234,14 @@ describe("Context tests", function () {
         })
         it("returns undefined if the type is unset", function () {
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'),
                 JSON.stringify({ data: "garbage" }));
             let type = testContext.subject.getPackageType(testContext.root);
             assert.equal(type, undefined);
         })
         it("returns undefined if the file is invalid", function () {
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "corrupted data");
             let type = testContext.subject.getPackageType(testContext.root);
             assert.equal(type, undefined);
         })
@@ -262,7 +261,7 @@ describe("Context tests", function () {
             let previous = { type: "orogen" }
             let target = new debug.Target("target", "/path/to/target");
             fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), JSON.stringify(previous));
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), JSON.stringify(previous));
             testContext.subject.setDebuggingTarget(testContext.root, target);
 
             let writtenData = loadRockJson();
@@ -275,7 +274,7 @@ describe("Context tests", function () {
             let previous = { type: "orogen" }
             let target = new debug.Target("target", "/path/to/target");
             fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "invalid data");
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "invalid data");
             testContext.subject.setDebuggingTarget(testContext.root, target);
 
             let writtenData = loadRockJson();
@@ -290,7 +289,7 @@ describe("Context tests", function () {
         {
             let jsonData = JSON.stringify({ debuggingTarget: { name: name, path: path }});
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), jsonData);
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), jsonData);
         }
         it("reads the package type from the json file", function () {
             writeJson("target", "/path/to/target");
@@ -310,28 +309,21 @@ describe("Context tests", function () {
         })
         it("returns undefined if the target is unset", function () {
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'),
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'),
                 JSON.stringify({ data: "garbage" }));
             let target = testContext.subject.getDebuggingTarget(testContext.root);
             assert.equal(target, undefined);
         })
         it("returns undefined if the file is invalid", function () {
             fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', '.rock.json'), "corrupted data");
+            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "corrupted data");
             let target = testContext.subject.getDebuggingTarget(testContext.root);
             assert.equal(target, undefined);
         })
     })
-    it("returns the given vscode wrapper", function () {
-        assert.strictEqual(testContext.mockWrapper.object, testContext.subject.vscode);
-    });
 
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
-    });
-
-    it("returns the given environment bridge", function () {
-        assert.strictEqual(testContext.mockBridge.object, testContext.subject.bridge);
     });
 
     it("gets the package selection mode", function () {
@@ -505,6 +497,127 @@ describe("Context tests", function () {
                     assert(!pkg.type.isValid());
                 });
             })
+        })
+    })
+
+    describe("pickPackageType", function() {
+        let packagePath : string;
+
+        beforeEach(function() {
+            packagePath = helpers.mkdir('package');
+            helpers.registerDir('package', '.vscode');
+            helpers.registerFile('package', '.vscode', 'rock.json');
+        })
+
+        it("selects the package type from the user-selected type", async function() {
+            let expectedChoices = packages.Type.typePickerChoices();
+            let packageType = {
+                label: 'Ruby',
+                description: '',
+                type: packages.Type.fromType(packages.TypeList.RUBY)
+            }
+            testContext.mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(packageType));
+
+            await testContext.subject.pickPackageType(packagePath);
+            const selectedPackageType = testContext.subject.getPackageType(packagePath);
+            assert(selectedPackageType);
+            if (selectedPackageType) {
+                assert.equal(selectedPackageType.id, packages.TypeList.RUBY.id);
+            }
+        })
+
+        it("does not modify the selection if the picker is cancelled", async function() {
+            testContext.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+
+            testContext.subject.setPackageType(packagePath, packages.Type.fromName('cxx'));
+            await testContext.subject.pickPackageType(packagePath);
+            const selectedPackageType = testContext.subject.getPackageType(packagePath);
+            assert.deepEqual(selectedPackageType, packages.Type.fromName('cxx'));
+        })
+    })
+
+    describe("pickDebuggingTarget", function() {
+        let packagePath : string;
+
+        beforeEach(function() {
+            packagePath = helpers.mkdir('package');
+            helpers.registerDir('package', '.vscode');
+            helpers.registerFile('package', '.vscode', 'rock.json');
+        })
+
+        it("selects the package target from the provided list", async function() {
+            let choices : context.DebuggingTargetChoice[] = [
+                {
+                    'label': 'label1',
+                    'description': 'descriptiont1',
+                    'targetName': 'name1',
+                    'targetFile': 'path1'
+                },
+                {
+                    'label': 'label2',
+                    'description': 'descriptiont2',
+                    'targetName': 'name2',
+                    'targetFile': 'path2'
+                }
+            ];
+
+            testContext.mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(choices[0]));
+
+            await testContext.subject.pickDebuggingTarget(packagePath, choices, {}, undefined);
+            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
+            assert(selectedTarget);
+            if (selectedTarget) {
+                assert.equal(selectedTarget.name, 'name1');
+                assert.equal(selectedTarget.path, 'path1');
+            }
+        })
+
+        it("does not modify the selection if the picker is cancelled", async function() {
+            testContext.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+
+            let expected = new debug.Target('name', 'path')
+            testContext.subject.setDebuggingTarget(packagePath, expected);
+            await testContext.subject.pickDebuggingTarget(packagePath, [], {}, undefined);
+            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
+            assert.deepEqual(expected, selectedTarget);
+        })
+    })
+
+    describe("pickDebuggingFile", function() {
+        let packagePath : string;
+
+        beforeEach(function() {
+            packagePath = helpers.mkdir('package');
+            helpers.registerDir('package', '.vscode');
+            helpers.registerFile('package', '.vscode', 'rock.json');
+        })
+
+        it("selects the package target from the file system", async function() {
+            testContext.mockWrapper.setup(x => x.showOpenDialog(TypeMoq.It.isAny())).
+                returns(() => Promise.resolve([vscode.Uri.file('/picked/file')]));
+
+            await testContext.subject.pickDebuggingFile(packagePath);
+            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
+            assert(selectedTarget);
+            if (selectedTarget) {
+                assert.equal(selectedTarget.name, 'file');
+                assert.equal(selectedTarget.path, '/picked/file');
+            }
+        })
+
+        it("does not modify the selection if the picker is cancelled", async function() {
+            testContext.mockWrapper.setup(x => x.showOpenDialog(TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+
+            let expected = new debug.Target('name', 'path')
+            testContext.subject.setDebuggingTarget(packagePath, expected);
+            await testContext.subject.pickDebuggingFile(packagePath);
+            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
+            assert.deepEqual(expected, selectedTarget);
         })
     })
 });

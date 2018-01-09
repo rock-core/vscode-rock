@@ -3,9 +3,9 @@ import * as context from './context';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
 
-function assert_workspace_not_empty(context: context.Context)
+function assert_workspace_not_empty(vscode)
 {
-    if (!context.vscode.workspaceFolders || context.vscode.workspaceFolders.length == 0)
+    if (!vscode.workspaceFolders || vscode.workspaceFolders.length == 0)
         throw new Error("Current workspace is empty");
 }
 
@@ -22,7 +22,7 @@ export class Commands
 
     async selectPackage()
     {
-        assert_workspace_not_empty(this._context);
+        assert_workspace_not_empty(this._vscode);
         let choices = new Array<{ label: string,
                                   description: string,
                                   path: string }>();

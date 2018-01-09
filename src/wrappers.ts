@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import * as Path from 'path'
 
 /** Shim that provides us an API to the VSCode state we need within the extension
  * 
@@ -28,8 +29,11 @@ export class VSCode {
         return vscode.workspace.workspaceFolders;
     }
 
-    public getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined
+    public getWorkspaceFolder(uri: vscode.Uri | string): vscode.WorkspaceFolder | undefined
     {
+        if (typeof uri == 'string') {
+            uri = vscode.Uri.file(uri);
+        }
         return vscode.workspace.getWorkspaceFolder(uri);
     }
 
@@ -61,8 +65,11 @@ export class VSCode {
         return vscode.window.showOpenDialog(options);
     }
 
-    public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Thenable<boolean>
+    public startDebugging(folder: vscode.WorkspaceFolder | string | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Thenable<boolean>
     {
+        if (typeof folder == 'string') {
+            folder = this.getWorkspaceFolder(folder);
+        }
         return vscode.debug.startDebugging(folder, nameOrConfiguration);
     }
 
@@ -79,5 +86,11 @@ export class VSCode {
     public updateWorkspaceState(key : string, value : string | undefined)
     {
         this._extensionContext.workspaceState.update(key, value);
+    }
+
+    public runTask(task : vscode.Task)
+    {
+        vscode.commands.executeCommand("workbench.action.tasks.runTask",
+            task.source + ": " + task.name);
     }
 }

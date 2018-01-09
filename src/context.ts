@@ -3,8 +3,8 @@ import * as wrappers from './wrappers';
 import { basename, relative, dirname } from 'path';
 import * as autoproj from './autoproj';
 import * as debug from './debug';
+import * as tasks from './tasks';
 import * as packages from './packages'
-import * as async from './async'
 import * as fs from 'fs'
 import { join as joinPath } from 'path'
 
@@ -51,24 +51,29 @@ function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
     })
 }
 
+export class DebuggingTargetChoice implements vscode.QuickPickItem {
+    label : string;
+    description : string;
+    targetName : string;
+    targetFile : string;
+};
+
 export class Context
 {
     private readonly _vscode: wrappers.VSCode;
     private readonly _workspaces: autoproj.Workspaces;
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
-    private readonly _bridge: async.EnvironmentBridge;
     private _lastSelectedRoot: string | undefined;
 
-    public constructor(vscodeWrapper: wrappers.VSCode, workspaces: autoproj.Workspaces,
-                       packageFactory: packages.PackageFactory,
-                       bridge: async.EnvironmentBridge)
+    public constructor(vscodeWrapper: wrappers.VSCode,
+                       workspaces: autoproj.Workspaces,
+                       packageFactory : packages.PackageFactory)
     {
         this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
-        this._packageFactory = packageFactory;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
-        this._bridge = bridge;
+        this._packageFactory = packageFactory;
     }
 
     public dispose() {
@@ -80,12 +85,27 @@ export class Context
         return this._contextUpdatedEvent.event(callback);
     }
 
+    public isWorkspaceEmpty() : boolean {
+        let folders = this._vscode.workspaceFolders;
+        return (!folders || folders.length == 0);
+    }
+
     public setPackageType(path: string, type: packages.Type): void
     {
         let data = this.loadPersistedData(path);
         data.type = type.name;
         this.persistData(path, data);
         this._contextUpdatedEvent.fire();
+    }
+
+    public getWorkspaceByPath(path : string) : autoproj.Workspace | undefined
+    {
+        return this.workspaces.folderToWorkspace.get(path);
+    }
+
+    public async getPackageByPath(path : string) : Promise<packages.Package | undefined>
+    {
+        return this._packageFactory.createPackage(path, this);
     }
 
     public getPackageType(path: string): packages.Type | undefined
@@ -179,19 +199,9 @@ export class Context
             get('packageSelectionMode');
     }
 
-    public get vscode(): wrappers.VSCode
-    {
-        return this._vscode;
-    }
-
     public get workspaces(): autoproj.Workspaces
     {
         return this._workspaces;
-    }
-
-    public get bridge(): async.EnvironmentBridge
-    {
-        return this._bridge;
     }
 
     public debugConfig(path: string): RockDebugConfig
@@ -208,8 +218,7 @@ export class Context
 
     private persistedDataPath(rootPath: string)
     {
-        return joinPath(rootPath, '.vscode', '.rock.json');
-
+        return joinPath(rootPath, '.vscode', 'rock.json');
     }
 
     private loadPersistedData(path: string): PackageInternalData
@@ -263,6 +272,43 @@ export class Context
         if (ws) {
             await ws.envsh();
             this._contextUpdatedEvent.fire();
+        }
+    }
+
+    public async pickPackageType(path : string) {
+        let choices = packages.Type.typePickerChoices();
+        let options: vscode.QuickPickOptions = {
+            placeHolder: 'Select the package type'
+        }
+
+        const chosen = await this._vscode.showQuickPick(choices, options);
+        if (chosen) {
+            this.setPackageType(path, chosen.type);
+        }
+        return chosen;
+    }
+
+    public async pickDebuggingFile(path : string) {
+        const options: vscode.OpenDialogOptions = {
+            canSelectMany: false,
+            canSelectFiles: true,
+            canSelectFolders: false,
+            defaultUri: vscode.Uri.file(path)
+        };
+
+        const targetUri = await this._vscode.showOpenDialog(options);
+        if (targetUri) {
+            let target = new debug.Target(basename(targetUri[0].fsPath), targetUri[0].fsPath);
+            this.setDebuggingTarget(path, target);
+        }
+    }
+
+    public async pickDebuggingTarget(packagePath : string, choices : DebuggingTargetChoice[] | Thenable<DebuggingTargetChoice[]>, options, token) {
+        const selected = await this._vscode.showQuickPick(choices, options, token);
+        if (selected) {
+            let target = new debug.Target(selected.targetName, selected.targetFile);
+            this.setDebuggingTarget(packagePath, target);
+            return target;
         }
     }
 }
