@@ -89,7 +89,9 @@ export class Workspace
     {
         this.root = root;
         this.name = path.basename(root);
-        this._info = this.createInfoPromise();
+        if (loadInfo) {
+            this._info = this.createInfoPromise();
+        }
     }
 
     autoprojExePath() {
@@ -99,6 +101,10 @@ export class Workspace
     private createInfoPromise()
     {
         return loadWorkspaceInfo(this.root);
+    }
+
+    loadingInfo() : boolean {
+        return this._info !== undefined;
     }
 
     async reload()
@@ -133,6 +139,28 @@ export class Workspace
                 }
                 else {
                     resolve(this.info());
+                }
+            })
+        })
+    }
+
+    async which(cmd: string)
+    {
+        let options: child_process.SpawnOptions = {};
+        options.env = { AUTOPROJ_CURRENT_ROOT: this.root };
+        let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
+        let path = '';
+        subprocess.stdout.on('data', (buffer) => {
+            path = path.concat(buffer.toString());
+        })
+
+        return new Promise<string>((resolve, reject) => {
+            subprocess.on('exit', (code, signal) => {
+                if (code !== 0) {
+                    reject(new Error(`cannot find ${cmd} in the workspace`))
+                }
+                else {
+                    resolve(path.trim());
                 }
             })
         })
@@ -197,7 +225,7 @@ export class Workspaces
      * 
      * Returns the list of newly added workspaces
      */
-    addCandidate(path: string) {
+    addCandidate(path: string, loadInfo: boolean = true) {
         // Workspaces are often duplicates (multiple packages from the same ws).
         // Make sure we don't start the info resolution promise until we're sure
         // it is new
@@ -210,9 +238,17 @@ export class Workspaces
         }
         else {
             this.add(ws);
-            ws.info();
+            if (loadInfo) {
+                ws.info();
+            }
             return { added: true, workspace: ws };
         }
+    }
+
+    /** Associate a folder to a workspace
+     */
+    associateFolderToWorkspace(path: string, workspace: Workspace) {
+        this.folderToWorkspace.set(path, workspace);
     }
 
     /** Add a folder
@@ -224,7 +260,7 @@ export class Workspaces
     addFolder(path: string) {
         let { added, workspace } = this.addCandidate(path);
         if (workspace) {
-            this.folderToWorkspace.set(path, workspace);
+            this.associateFolderToWorkspace(path, workspace);
         }
         return workspace;
     }

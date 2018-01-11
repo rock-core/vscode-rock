@@ -105,6 +105,18 @@ describe("Autoproj helpers tests", function () {
     })
 
     describe("Workspace", function() {
+        describe("constructor", function() {
+            it("starts the info loading by default", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let ws = new autoproj.Workspace("path");
+                assert(ws.loadingInfo());
+            })
+            it("does not start the info loading if the loadInfo flag is false", function() {
+                let ws = new autoproj.Workspace("path", false);
+                assert(!ws.loadingInfo());
+            })
+        })
         describe("fromDir", function() {
             it("returns null when called outside a workspace", function() {
                 helpers.mkdir('.autoproj');
@@ -163,7 +175,8 @@ describe("Autoproj helpers tests", function () {
         describe("envsh", function() {
             let processMock   = new events.EventEmitter();
             let originalSpawn = require('child_process').spawn;
-            let workspaceMock;
+            let subjectMock;
+            let subject;
             let originalInfo;
 
             beforeEach(async function() {
@@ -174,35 +187,81 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
                 originalInfo = await ws.info();
-                workspaceMock = TypeMoq.Mock.ofInstance(ws);
-                workspaceMock.callBase = true;
+                subjectMock = TypeMoq.Mock.ofInstance(ws);
+                subjectMock.callBase = true;
+                subject = subjectMock.object;
             })
             afterEach(function() {
                 require('child_process').spawn = originalSpawn;
             })
 
             it("reloads the information on success", async function() {
-                let p = workspaceMock.object.envsh();
+                let p = subject.envsh();
                 processMock.emit('exit', 0, null);
                 let resolvedInfo = await p;
-                workspaceMock.verify(x => x.reload(), TypeMoq.Times.once());
+                subjectMock.verify(x => x.reload(), TypeMoq.Times.once());
                 assert.notEqual(resolvedInfo, originalInfo);
             })
 
             it("returns the known information on failure", async function() {
-                let p = workspaceMock.object.envsh();
+                let p = subject.envsh();
                 processMock.emit('exit', 1, null);
                 let resolvedInfo = await p;
-                workspaceMock.verify(x => x.info(), TypeMoq.Times.once());
+                subjectMock.verify(x => x.info(), TypeMoq.Times.once());
                 assert.equal(resolvedInfo, originalInfo);
             })
 
             it("returns the known information on signal", async function() {
-                let p = workspaceMock.object.envsh();
+                let p = subject.envsh();
                 processMock.emit('exit', null, 5);
                 let resolvedInfo = await p;
-                workspaceMock.verify(x => x.info(), TypeMoq.Times.once());
+                subjectMock.verify(x => x.info(), TypeMoq.Times.once());
                 assert.equal(resolvedInfo, originalInfo);
+            })
+        })
+
+        describe("which", function() {
+            let stdoutMock   = new events.EventEmitter();
+            let processMock: { [key: string]: any } = new events.EventEmitter();
+            let originalSpawn = require('child_process').spawn;
+            let subjectMock;
+            let subject;
+            let originalInfo;
+
+            beforeEach(async function() {
+                processMock.stdout = stdoutMock;
+                let spawn = function (...args) { return processMock };
+                require('child_process').spawn = spawn;
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                subjectMock = TypeMoq.Mock.ofInstance(ws);
+                subjectMock.callBase = true;
+                subject = subjectMock.object;
+            })
+            afterEach(function() {
+                require('child_process').spawn = originalSpawn;
+            })
+
+            it("returns the path displayed by autoproj on success", async function() {
+                let p = subject.which('cmd');
+                stdoutMock.emit('data', '/test/cmd\n');
+                processMock.emit('exit', 0, null);
+                assert.equal("/test/cmd", await p);
+            })
+
+            it("concatenates the data if received in chunks", async function() {
+                let p = subject.which('cmd');
+                stdoutMock.emit('data', '/te');
+                stdoutMock.emit('data', 'st/cmd\n');
+                processMock.emit('exit', 0, null);
+                assert.equal("/test/cmd", await p);
+            })
+
+            it("rejects the promise on failure", async function() {
+                helpers.assertThrowsAsync(async () => subject.which('cmd'),
+                    /cannot find cmd in the workspace/)
             })
         })
     })

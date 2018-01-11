@@ -1,0 +1,3 @@
+#! /bin/sh
+
+exec "$VSCODE_ROCK_AUTOPROJ_PATH" exec "$VSCODE_ROCK_AUTOPROJ_DEBUGGER" "$@"

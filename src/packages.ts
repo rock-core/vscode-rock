@@ -5,7 +5,9 @@ import * as tasks from './tasks'
 import * as wrappers from './wrappers'
 import * as autoproj from './autoproj'
 import * as async from './async'
-import { relative, basename, dirname } from 'path'
+import * as fs from 'fs'
+import * as child_process from 'child_process'
+import { relative, basename, dirname, join as joinpath } from 'path'
 
 export class TypeList
 {
@@ -127,16 +129,20 @@ export class PackageFactory
         }
         else if (context.getWorkspaceByPath(path))
         {
-            let info = await this.packageInfo(path, context);
+            let { ws, info } = await this.packageInfo(path, context);
+            if (!ws) {
+                return new ForeignPackage(path, context);
+            }
+
             let type = await this.packageType(path, context, info);
             switch (type.id)
             {
                 case TypeList.CXX.id:
-                    return new RockCXXPackage(info, context, this._vscode, this._taskProvider);
+                    return new RockCXXPackage(ws, info, context, this._vscode, this._taskProvider);
                 case TypeList.RUBY.id:
-                    return new RockRubyPackage(this._bridge, info, context, this._vscode, this._taskProvider);
+                    return new RockRubyPackage(this._bridge, ws, info, context, this._vscode, this._taskProvider);
                 case TypeList.OROGEN.id:
-                    return new RockOrogenPackage(this._bridge, info, context, this._vscode, this._taskProvider);
+                    return new RockOrogenPackage(this._bridge, ws, info, context, this._vscode, this._taskProvider);
                 default:
                     return new RockOtherPackage(path, context, this._vscode, this._taskProvider);
             }
@@ -163,18 +169,18 @@ export class PackageFactory
         return result;
     }
 
-    private async packageInfo(path: string, context: context.Context): Promise<autoproj.Package>
+    private async packageInfo(path: string, context: context.Context): Promise<{ ws: autoproj.Workspace | null, info: autoproj.Package}>
     {
         const ws = context.getWorkspaceByPath(path);
         if (!ws)
-            return this.nullPackageInfo(path);
+            return { ws: null, info: this.nullPackageInfo(path) };
 
         let wsInfo;
         try {
             wsInfo = await ws.info();
         }
         catch(err) {
-            return this.nullPackageInfo(path);
+            return { ws, info: this.nullPackageInfo(path) };
         }
 
         let defs = wsInfo.packages.get(path);
@@ -182,14 +188,14 @@ export class PackageFactory
             let wsInfo = await ws.envsh();
             let defs = wsInfo.packages.get(path);
             if (defs) {
-                return defs;
+                return { ws, info: defs };
             }
             else {
-                return this.nullPackageInfo(path);
+                return { ws, info: this.nullPackageInfo(path) };
             }
         }
         else {
-            return defs;
+            return { ws, info: defs };
         }
     }
 
@@ -250,9 +256,10 @@ abstract class GenericPackage implements Package
     }
 }
 
-abstract class RockPackage extends GenericPackage
+export abstract class RockPackage extends GenericPackage
 {
     protected readonly _vscode: wrappers.VSCode;
+    readonly ws: autoproj.Workspace;
     readonly info: autoproj.Package;
 
     get path() : string
@@ -263,10 +270,11 @@ abstract class RockPackage extends GenericPackage
     readonly debugable : boolean;
     private readonly _taskProvider: tasks.Provider;
 
-    constructor(info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
     {
         super(context);
         this._vscode = vscode;
+        this.ws = ws;
         this.info = info;
         this.debugable = true;
         this._taskProvider = taskProvider;
@@ -317,6 +325,7 @@ export class InvalidPackage implements Package
     readonly debugTarget: debug.Target | undefined;
 
     get name () { return '(Invalid package)' }
+
     async debug(): Promise<void>
     {
         throw new Error("Select a valid package before starting a debugging session");
@@ -426,9 +435,9 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 {
     private _bridge: async.EnvironmentBridge;
 
-    constructor(bridge: async.EnvironmentBridge, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(bridge: async.EnvironmentBridge, ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
     {
-        super(info, context, vscode, taskProvider);
+        super(ws, info, context, vscode, taskProvider);
         this._bridge = bridge;
     }
 
@@ -498,9 +507,9 @@ export class RockOrogenPackage extends RockPackage
 {
     private _bridge: async.EnvironmentBridge;
 
-    constructor(bridge: async.EnvironmentBridge, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(bridge: async.EnvironmentBridge, ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
     {
-        super(info, context, vscode, taskProvider);
+        super(ws, info, context, vscode, taskProvider);
         this._bridge = bridge;
     }
 

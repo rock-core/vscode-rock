@@ -38,104 +38,110 @@ describe("Type", function() {
 })
 
 describe("PackageFactory", function () {
+    let root: string;
+    let s: helpers.TestSetup;
     let subject: packages.PackageFactory;
-    let mockContext: TypeMoq.IMock<context.Context>;
-    let mockWorkspaces: TypeMoq.IMock<autoproj.Workspaces>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
-    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
-        mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
-        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
-        subject = new packages.PackageFactory(mockWrapper.object, mockTaskProvider.object, mockBridge.object);
+        root = helpers.init();
+        s = new helpers.TestSetup();
+        subject = s.packageFactory;
     })
-    it("creates a ConfigPackage", async function () {
+    it("creates a ConfigPackage for a package set", async function () {
         let path = '/path/to/package';
-        mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
-        mockWorkspaces.setup(x => x.isConfig(path)).returns(() => true)
-        let aPackage = await subject.createPackage(path, mockContext.object);
-        await assertThrowsAsync(async () => {
-            await aPackage.build();
-        }, /configuration package/);
+        s.mockWorkspaces.setup(x => x.isConfig(path)).returns(() => true)
+        let aPackage = await subject.createPackage(path, s.context);
+        assert(aPackage instanceof packages.ConfigPackage);
     })
     it("creates an InvalidPackage if package is not in vscode ws", async function () {
         let path = '/path/to/package';
-        mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
-        mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false)
-        mockWrapper.setup(x => x.getWorkspaceFolder(path)).
+        s.mockWrapper.setup(x => x.getWorkspaceFolder(path)).
             returns(() => undefined);
-        let aPackage = await subject.createPackage(path, mockContext.object);
+        let aPackage = await subject.createPackage(path, s.context);
         assert.equal(aPackage.name, '(Invalid package)');
     })
     describe("the package is neither invalid nor a configuration", function () {
-        let path = '/path/to/package';
-        let folder: vscode.WorkspaceFolder = {
-            uri: vscode.Uri.file(path),
-            name: 'package',
-            index: 0
-        }
-        beforeEach(function () {
-            mockContext.setup(x => x.workspaces).returns(() => mockWorkspaces.object);
-            mockWorkspaces.setup(x => x.isConfig(path)).returns(() => false);
-            mockWrapper.setup(x => x.getWorkspaceFolder(path)).
-                returns(() => folder);
+        let path;
+        let folder: vscode.WorkspaceFolder;
+        beforeEach(function() {
+            path = helpers.mkdir('package');
+            helpers.registerDir('.vscode');
+            folder = {
+                uri: vscode.Uri.file(path),
+                name: 'package',
+                index: 0
+            }
+            s.mockWrapper.setup(x => x.getWorkspaceFolder(path)).
+                returns(() => folder)
         })
         it("creates a ForeignPackage if the package is not in an autoproj ws", async function () {
-            mockContext.setup(x => x.getWorkspaceByPath(TypeMoq.It.isAny())).
-                returns(() => undefined);
+            s.mockContext.
+                setup(x => x.getWorkspaceByPath(path)).returns(() => undefined)
 
-            let aPackage = await subject.createPackage(path, mockContext.object);
-            await assertThrowsAsync(async () => {
-                await aPackage.build();
-            }, /not part of an autoproj workspace/);
+            let aPackage = await subject.createPackage(path, s.context);
+            assert(aPackage instanceof packages.ForeignPackage);
         })
         describe("the package is in an autoproj workspace", function () {
-            let mockWs: TypeMoq.IMock<autoproj.Workspace>;
-            beforeEach(function () {
-                mockWs = TypeMoq.Mock.ofType<autoproj.Workspace>();
-                mockContext.setup(x => x.getWorkspaceByPath(path)).
-                    returns(() => mockWs.object)
+            let mockWS: TypeMoq.IMock<autoproj.Workspace>;
+            let ws: autoproj.Workspace;
+            let emptyInfo: autoproj.WorkspaceInfo;
+            const rubyType = packages.Type.fromType(packages.TypeList.RUBY)
+            const otherType = packages.Type.fromType(packages.TypeList.OTHER)
+            beforeEach(async function () {
+                let created = s.createAndRegisterWorkspace('test');
+                mockWS = created.mock;
+                ws = created.ws;
+                s.mockContext.setup(x => x.getWorkspaceByPath(path)).
+                    returns((path) => ws);
+                emptyInfo = new autoproj.WorkspaceInfo(ws.root);
+                mockWS.setup(x => x.envsh()).returns(() => Promise.resolve(emptyInfo));
             })
-            it("returns the type set by the user", async function () {
-                mockContext.setup(x => x.getWorkspaceByPath(path)).
-                    returns(() => undefined);
-                mockContext.setup(x => x.getPackageType(path)).
+            it("returns the type set by the user even if there is no data in the workspace", async function () {
+                s.mockContext.setup(x => x.getPackageType(path)).
                     returns(() => packages.Type.fromType(packages.TypeList.RUBY));
-                let aPackage = await subject.createPackage(path, mockContext.object);
+                let aPackage = await subject.createPackage(path, s.context);
                 assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.RUBY));
             })
-            it("returns an OTHER package if the manifest could not be loaded", async function () {
-                mockContext.setup(x => x.getPackageType(path)).
-                    returns(() => undefined);
-                mockWs.setup(x => x.info()).returns(() => Promise.reject(""));
-                let aPackage = await subject.createPackage(path, mockContext.object);
-                assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.OTHER));
+            it("returns the type set by the user, overriding what is in the workspace", async function () {
+                s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::CMake' });
+                s.context.setPackageType(path, rubyType);
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.deepEqual(aPackage.type, rubyType);
+            })
+            it("sets a null package info if the workspace doesn't have one", async function () {
+                s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::CMake' });
+                mockWS.setup(x => x.info()).returns(() => Promise.resolve(emptyInfo));
+                s.context.setPackageType(path, rubyType);
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.equal("Unknown", (aPackage as packages.RockPackage).info.type);
+            })
+            it("returns an OTHER package if the manifest has no type info and the user has not set a type", async function () {
+                mockWS.setup(x => x.info()).returns(() => Promise.resolve(emptyInfo));
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.deepEqual(aPackage.type, otherType);
             })
             it("returns the package type defined in the manifest", async function () {
-                let wsInfo = new autoproj.WorkspaceInfo('/path/to');
-                let mockPackage = TypeMoq.Mock.ofType<autoproj.Package>();
-                mockPackage.setup(x => x.type).returns(() => "Autobuild::CMake");
-                mockPackage.setup((x: any) => x.then).returns(() => undefined);
-                wsInfo.packages.set('/path/to/package', mockPackage.object);
-
-                mockContext.setup(x => x.getPackageType(path)).
-                    returns(() => undefined);
-                mockWs.setup(x => x.root).returns(() => '/path/to');
-                mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                let aPackage = await subject.createPackage(path, mockContext.object);
-                assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.CXX));
+                s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::Ruby' });
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.deepEqual(aPackage.type, rubyType);
             })
-            it("returns OTHER if the package is not in the manifest", async function () {
-                let wsInfo = new autoproj.WorkspaceInfo('/path/to');
-                mockContext.setup(x => x.getPackageType(path)).
-                    returns(() => undefined);
-                mockWs.setup(x => x.root).returns(() => '/path/to');
-                mockWs.setup(x => x.info()).returns(() => Promise.resolve(wsInfo));
-                mockWs.setup(x => x.envsh()).returns(() => Promise.resolve(wsInfo));
-                let aPackage = await subject.createPackage(path, mockContext.object);
-                assert.deepEqual(aPackage.type, packages.Type.fromType(packages.TypeList.OTHER));
+            it("embeds the containing workspace in the package objects", async function () {
+                s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::Ruby' });
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.equal((aPackage as packages.RockPackage).ws, ws);
+            })
+            it("attempts to regenerate the manifest if the package is not present in it", async function() {
+                mockWS.setup(x => x.envsh()).
+                    returns(() => {
+                        s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::Ruby' })
+                        return ws.reload();
+                    });
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.deepEqual(aPackage.type, rubyType);
+            })
+            it("returns OTHER if the package is not in the manifest even after reloading", async function () {
+                mockWS.setup(x => x.envsh()).returns(() => Promise.resolve(emptyInfo));
+                let aPackage = await subject.createPackage(path, s.context);
+                assert.deepEqual(aPackage.type, otherType);
             })
         })
     })
@@ -255,6 +261,7 @@ describe("RockRubyPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockRubyPackage(
             mockBridge.object,
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Ruby', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
@@ -356,6 +363,7 @@ describe("RockCXXPackage", function () {
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::CMake', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
@@ -512,6 +520,7 @@ describe("RockOrogenPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOrogenPackage(
             mockBridge.object,
+            new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
