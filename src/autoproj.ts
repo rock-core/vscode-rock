@@ -155,9 +155,9 @@ export class Workspace
         })
 
         return new Promise<string>((resolve, reject) => {
-            subprocess.on('close', (code, signal) => {
+            subprocess.on('exit', (code, signal) => {
                 if (code !== 0) {
-                    reject(`cannot find ${cmd} in the workspace`)
+                    reject(new Error(`cannot find ${cmd} in the workspace`))
                 }
                 else {
                     resolve(path.trim());
