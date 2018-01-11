@@ -151,20 +151,23 @@ describe("Pre Launch Task Provider", function () {
                 builddir: "/path/to/build",
                 prefix: "/path/to/prefix"
             }
-            it("replaces the srcdir", function() {
-                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:srcDir}:after")
+            it("replaces the srcdir", async function() {
+                let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(""), pkg, "before:${rock:srcDir}:after")
                 assert.equal("before:/path/to/src:after", expanded);
             })
-            it("replaces the builddir", function() {
-                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:buildDir}:after")
+            it("replaces the builddir", async function() {
+                let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(""), pkg, "before:${rock:buildDir}:after")
                 assert.equal("before:/path/to/build:after", expanded);
             })
-            it("replaces the prefix", function() {
-                let expanded = subject.expandAutoprojPaths(pkg, "before:${rock:prefixDir}:after")
+            it("replaces the prefix", async function() {
+                let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(""), pkg, "before:${rock:prefixDir}:after")
                 assert.equal("before:/path/to/prefix:after", expanded);
             })
+            it("resolves a command using 'which'", async function() {
+                let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg, "before:${rock:which:test}:after")
+                assert.equal("before:/path/to/test:after", expanded);
+            })
         })
-
     })
 
     describe("in a non empty workspace", function () {

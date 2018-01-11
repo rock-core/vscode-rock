@@ -145,9 +145,11 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
         }
     }
 
-    expandAutoprojPaths(pkg: { srcdir: string, builddir: string, prefix: string }, value: string) {
-        return value.replace(/\${rock:[a-zA-Z]+}/, (match) => {
-            let mode = match.substring(11, match.length - 1)
+    async expandAutoprojPaths(which: (cmd: string) => Promise<string>, pkg: { srcdir: string, builddir: string, prefix: string }, value: string) {
+        let whichReplacements = new Map<string, Promise<string>>();
+
+        let replaced = value.replace(/\${rock:[a-zA-Z]+(?::[^}]+)?}/, (match) => {
+            let mode = match.substring(7, match.length - 1)
             if (mode === "buildDir") {
                 return pkg.builddir;
             }
@@ -157,8 +159,19 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
             else if (mode === "prefixDir") {
                 return pkg.prefix;
             }
-            else return match;
-        })
+
+            if (mode.substring(0, 5) === "which") {
+                let toResolve = mode.substring(6, mode.length);
+                whichReplacements.set(match, which(toResolve));
+            }
+            return match;
+        });
+
+        for (let [string, promise] of whichReplacements) {
+            let s = await promise;
+            replaced = value.replace(string, s);
+        }
+        return replaced;
     }
 }
 
@@ -190,12 +203,9 @@ export class CXXConfigurationProvider extends ConfigurationProvider
             { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
         ])
 
-        config.program = this.expandAutoprojPaths(pkg.info, config.program)
-        if (!config.cwd) {
-            config.cwd = dirname(config.program);
-        }
-        else {
-            config.cwd = this.expandAutoprojPaths(pkg.info, config.cwd);
+        config.program = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.program)
+        if (config.cwd) {
+            config.cwd = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.cwd);
         }
         return config;
     }
@@ -217,7 +227,11 @@ export class RubyConfigurationProvider extends ConfigurationProvider
             config.env = {}
         }
         config.env.AUTOPROJ_CURRENT_ROOT = ws.root;
-        config.program = await ws.which(config.program);
+
+        config.program = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.program)
+        if (config.cwd) {
+            config.cwd = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.cwd);
+        }
         return config;
     }
 }
