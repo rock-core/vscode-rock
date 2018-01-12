@@ -11,8 +11,9 @@ import * as status from '../status'
 import * as wrappers from '../wrappers'
 import * as debug from '../debug'
 import * as async from '../async'
-import { dirname, basename } from 'path'
+import { dirname, basename, join as joinPath } from 'path'
 import { assertThrowsAsync } from './helpers';
+import * as fs from 'fs';
 
 function autoprojMakePackage(name, type, path) {
     return {
@@ -450,6 +451,52 @@ describe("RockCXXPackage", function () {
     it("returns the CXX package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.CXX));
     })
+    describe("listExecutables()", function () {
+        let pkgPath: string;
+        let pkgInfo: autoproj.Package;
+        let files: string[];
+        beforeEach(function () {
+            pkgPath = helpers.init();
+            pkgInfo = autoprojMakePackage('package', 'Autobuild::CMake', pkgPath);
+            pkgInfo.builddir = pkgPath;
+            helpers.mkdir('.hidden');
+            helpers.mkdir('CMakeFiles');
+            helpers.mkdir('subdir');
+
+            files = [];
+            files.push(helpers.mkfile('', 'suite'));
+            files.push(helpers.mkfile('', '.hidden', 'suite'));
+            files.push(helpers.mkfile('', 'CMakeFiles', 'suite'));
+            files.push(helpers.mkfile('', 'subdir', 'test'));
+            files.push(helpers.mkfile('', 'libtool'));
+            files.push(helpers.mkfile('', 'configure'));
+            files.push(helpers.mkfile('', 'config.status'));
+            files.push(helpers.mkfile('', 'lib.so'));
+            files.push(helpers.mkfile('', 'lib.so.1'));
+            files.push(helpers.mkfile('', 'lib.so.1.2'));
+            files.push(helpers.mkfile('', 'lib.so.1.2.3'));
+            files.push(helpers.mkfile('', 'file.rb'));
+            files.push(helpers.mkfile('', 'file.py'));
+            files.push(helpers.mkfile('', 'file.sh'));
+            for (let file of files)
+                fs.chmodSync(file, 0o755);
+            files.push(helpers.mkfile('', 'test'));
+
+            subject = new packages.RockCXXPackage(
+                new autoproj.Workspace(pkgPath, false),
+                pkgInfo, mockContext.object,
+                mockWrapper.object, mockTaskProvider.object);
+        });
+        afterEach(function () {
+            helpers.clear();
+        })
+        it("lists executables recursively", async function () {
+            const execs = await subject.listExecutables();
+            assert.equal(execs.length, 2);
+            assert(execs.some(file => file == files[0]));
+            assert(execs.some(file => file == files[3]));
+        });
+    });
 })
 
 describe("RockOtherPackage", function () {

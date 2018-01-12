@@ -468,6 +468,40 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
 
 export class RockCXXPackage extends RockPackageWithTargetPicker
 {
+    async listExecutables(path?: string): Promise<string[]> {
+        let executables: string[] = [];
+        const EXCLUDED_DIRS = [/^\./,
+                               /^CMakeFiles$/];
+
+        const EXCLUDED_FILES = [/^libtool$/,
+                                /^config.status$/,
+                                /^configure$/,
+                                /(\.so\.)+(\d+\.)?(\d+\.)?(\d+)$/,
+                                /\.so$/,
+                                /\.sh$/,
+                                /\.rb$/,
+                                /\.py$/];
+
+        if (!path) path = this.info.builddir;
+        const files = fs.readdirSync(path);
+        for (let file of files) {
+            const fullPath = joinpath(path, file);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+                if (!EXCLUDED_DIRS.some(filter => filter.test(file))) {
+                    executables = executables.concat(await this.listExecutables(fullPath));
+                }
+            } else if (stat.isFile()) {
+                if (!EXCLUDED_FILES.some(filter => filter.test(file))) {
+                    if (stat.mode & fs.constants.S_IXUSR) {
+                        executables.push(fullPath);
+                    }
+                }
+            }
+        }
+        return executables;
+    }
+
     async preLaunchTask(): Promise<void>
     {
     }
