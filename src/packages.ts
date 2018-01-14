@@ -486,7 +486,13 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
         const files = fs.readdirSync(path);
         for (let file of files) {
             const fullPath = joinpath(path, file);
-            const stat = fs.statSync(fullPath);
+            let stat: fs.Stats;
+            try {
+                stat = fs.statSync(fullPath);
+            }
+            catch (e) {
+                continue; // ignore files that can't be stat'ed (i.e broken symlinks)
+            }
             if (stat.isDirectory()) {
                 if (!EXCLUDED_DIRS.some(filter => filter.test(file))) {
                     executables = executables.concat(await this.listExecutables(fullPath));
