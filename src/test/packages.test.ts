@@ -11,7 +11,7 @@ import * as status from '../status'
 import * as wrappers from '../wrappers'
 import * as debug from '../debug'
 import * as async from '../async'
-import { dirname, basename, join as joinPath } from 'path'
+import { dirname, basename, join as joinPath, relative } from 'path'
 import { assertThrowsAsync } from './helpers';
 import * as fs from 'fs';
 
@@ -395,10 +395,30 @@ describe("RockCXXPackage", function () {
         mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
-    it("shows the target picking ui and sets the debugging target", async function () {
-        subject.pickTarget();
-        mockContext.verify(x => x.pickDebuggingFile(subject.path), TypeMoq.Times.once());
-    })
+    describe("pickTarget()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        })
+        it("sets the debugging target", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve("/path/to/package/build/test"));
+
+            await subject.pickTarget();
+            let debugTarget = new debug.Target("test", "/path/to/package/build/test");
+            mockContext.verify(x => x.setDebuggingTarget(subject.path, debugTarget),
+                TypeMoq.Times.once());
+        })
+        it("does nothing when canceled", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(undefined));
+
+            await subject.pickTarget();
+            mockContext.verify(x => x.setDebuggingTarget(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
+                TypeMoq.Times.never());
+        })
+    });
     describe("debug()", function () {
         it("throws if the debugging target is unset", async function () {
             await assertThrowsAsync(async () => {
@@ -459,10 +479,21 @@ describe("RockCXXPackage", function () {
         let pkgPath: string;
         let pkgInfo: autoproj.Package;
         let files: string[];
+        function createSubject() {
+            subject = new packages.RockCXXPackage(
+                new autoproj.Workspace(pkgPath, false),
+                pkgInfo, mockContext.object,
+                mockWrapper.object, mockTaskProvider.object);
+        }
         beforeEach(function () {
             pkgPath = helpers.init();
             pkgInfo = autoprojMakePackage('package', 'Autobuild::CMake', pkgPath);
-            pkgInfo.builddir = pkgPath;
+            createSubject();
+        })
+        afterEach(function () {
+            helpers.clear();
+        })
+        function createDummyExecutables() {
             helpers.mkdir('.hidden');
             helpers.mkdir('CMakeFiles');
             helpers.mkdir('subdir');
@@ -485,22 +516,64 @@ describe("RockCXXPackage", function () {
             for (let file of files)
                 fs.chmodSync(file, 0o755);
             files.push(helpers.mkfile('', 'test'));
-
-            subject = new packages.RockCXXPackage(
-                new autoproj.Workspace(pkgPath, false),
-                pkgInfo, mockContext.object,
-                mockWrapper.object, mockTaskProvider.object);
-        });
-        afterEach(function () {
-            helpers.clear();
-        })
+            pkgInfo.builddir = pkgPath;
+            createSubject();
+        }
         it("lists executables recursively", async function () {
+            createDummyExecutables();
             const execs = await subject.listExecutables();
             assert.equal(execs.length, 2);
             assert(execs.some(file => file == files[0]));
             assert(execs.some(file => file == files[3]));
         });
+        it("throws if builddir does not exist", async function () {
+            pkgInfo.builddir = '/path/not/found';
+            createSubject();
+            assertThrowsAsync(function () {
+                subject.listExecutables();
+            }, /Did you build/);
+        })
     });
+    describe("pickExecutable()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        let executables: string[];
+        beforeEach(function () {
+            executables = [];
+            executables.push('/path/to/package/build/test');
+            executables.push('/path/to/package/build/other_test');
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            mockSubject.setup(x => x.listExecutables()).
+                returns(() => Promise.resolve(executables));
+            subject = mockSubject.target;
+        })
+        it("shows a picker and returns the selected executable", async function () {
+            let choices: { label: string, description: string, path: string }[] = [];
+            let expectedChoices: { label: string, description: string, path: string }[] = [];
+            for (let choice of executables) {
+                expectedChoices.push({
+                    label: basename(choice),
+                    description: relative(subject.info.builddir, dirname(choice)),
+                    path: choice
+                });
+            }
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
+                returns(() => Promise.resolve(expectedChoices[0]));
+
+            let chosen = await subject.pickExecutable();
+            assert.deepEqual(choices, expectedChoices);
+            assert.equal(chosen, executables[0]);
+        });
+        it("returns undefined if canceled by the user", async function () {
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+
+            let chosen = await subject.pickExecutable();
+            assert(!chosen);
+        })
+    })
 })
 
 describe("RockOtherPackage", function () {

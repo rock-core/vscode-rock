@@ -466,7 +466,7 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
     get type() { return Type.fromType(TypeList.RUBY); }
 }
 
-export class RockCXXPackage extends RockPackageWithTargetPicker
+export class RockCXXPackage extends RockPackage
 {
     async listExecutables(path?: string): Promise<string[]> {
         let executables: string[] = [];
@@ -483,6 +483,9 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
                                 /\.py$/];
 
         if (!path) path = this.info.builddir;
+        if (!fs.existsSync(path))
+            throw new Error("Build directory does not exist. Did you build the package first?");
+
         const files = fs.readdirSync(path);
         for (let file of files) {
             const fullPath = joinpath(path, file);
@@ -506,6 +509,48 @@ export class RockCXXPackage extends RockPackageWithTargetPicker
             }
         }
         return executables;
+    }
+    private async pickerChoices(): Promise<{ label: string, description: string, path: string }[]>
+    {
+        let choices: { label: string, description: string, path: string }[] = [];
+        for (let choice of await this.listExecutables()) {
+            choices.push({
+                label: basename(choice),
+                description: relative(this.info.builddir, dirname(choice)),
+                path: choice
+            });
+        }
+        return choices;
+    }
+    async pickExecutable(): Promise<string | undefined>
+    {
+        const tokenSource = new vscode.CancellationTokenSource();
+        const choices = this.pickerChoices();
+        let err;
+        choices.catch((_err) => {
+            err = _err;
+            tokenSource.cancel();
+        })
+
+        const options: vscode.QuickPickOptions = {
+            placeHolder: "Select an executable target to debug"
+        }
+        const selected = await this._vscode.showQuickPick(choices, options, tokenSource.token);
+        tokenSource.dispose();
+
+        if (selected) {
+            return selected.path;
+        } else if (err) {
+            throw err;
+        }
+    }
+    async pickTarget()
+    {
+        const targetPath = await this.pickExecutable();
+        if (targetPath) {
+            this._context.setDebuggingTarget(this.path,
+                new debug.Target(basename(targetPath), targetPath));
+        }
     }
 
     async preLaunchTask(): Promise<void>
