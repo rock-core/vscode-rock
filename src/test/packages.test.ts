@@ -47,6 +47,9 @@ describe("PackageFactory", function () {
         s = new helpers.TestSetup();
         subject = s.packageFactory;
     })
+    afterEach(function () {
+        helpers.clear();
+    })
     it("creates a ConfigPackage for a package set", async function () {
         let path = '/path/to/package';
         s.mockWorkspaces.setup(x => x.isConfig(path)).returns(() => true)
@@ -65,7 +68,8 @@ describe("PackageFactory", function () {
         let folder: vscode.WorkspaceFolder;
         beforeEach(function() {
             path = helpers.mkdir('package');
-            helpers.registerDir('.vscode');
+            helpers.registerDir('package', '.vscode');
+            helpers.registerFile('package', '.vscode', 'rock.json')
             folder = {
                 uri: vscode.Uri.file(path),
                 name: 'package',
