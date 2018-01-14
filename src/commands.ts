@@ -2,6 +2,7 @@ import { basename, relative } from 'path';
 import * as context from './context';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
+import * as config from './config';
 
 function assert_workspace_not_empty(vscode)
 {
@@ -12,12 +13,15 @@ function assert_workspace_not_empty(vscode)
 export class Commands
 {
     private readonly _context: context.Context;
-    private _vscode : wrappers.VSCode;
+    private readonly _vscode : wrappers.VSCode;
+    private readonly _configManager: config.ConfigManager;
 
-    constructor(context: context.Context, vscode : wrappers.VSCode)
+    constructor(context: context.Context, vscode : wrappers.VSCode,
+        configManager: config.ConfigManager)
     {
         this._context = context;
         this._vscode  = vscode;
+        this._configManager = configManager;
     }
 
     async selectPackage()
@@ -77,6 +81,19 @@ export class Commands
         this.handlePromise(pkg.debug());
     }
 
+    async addLaunchConfig()
+    {
+        let pkg = await this._context.getSelectedPackage();
+        try {
+            let customConfig = await pkg.customDebugConfiguration();
+            if (customConfig)
+                this._configManager.addLaunchConfig(pkg.path, customConfig);
+        }
+        catch (err) {
+            this._vscode.showErrorMessage(err.message);
+        }
+    }
+
     register()
     {
         this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
@@ -85,5 +102,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.setDebuggingTarget', (...args) => { this.setDebuggingTarget(...args) });
         this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
     }
 }

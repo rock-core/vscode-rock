@@ -228,6 +228,7 @@ export interface Package
     build(): Promise<void>
     pickTarget(): Promise<void>
     pickType(): Promise<void>
+    customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 }
 
 abstract class GenericPackage implements Package
@@ -241,6 +242,7 @@ abstract class GenericPackage implements Package
     abstract debug(): Promise<void>
     abstract build(): Promise<void>
     abstract pickTarget(): Promise<void>
+    abstract customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 
     protected readonly _context: context.Context;
     constructor(context: context.Context)
@@ -346,6 +348,11 @@ export class InvalidPackage implements Package
         throw new Error("Select a valid package before picking the package type")
     }
 
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        throw new Error("Select a valid package before trying to create a debug configuration");
+    }
+
     get type()
     {
         return Type.invalid();
@@ -384,6 +391,11 @@ export class ConfigPackage implements Package
     async pickType(): Promise<void>
     {
         throw new Error("Setting a type for a configuration package is not possible");
+    }
+
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        throw new Error("Debug configurations are not available for configuration packages");
     }
 
     get type()
@@ -429,6 +441,11 @@ export class ForeignPackage extends GenericPackage
     {
         throw new Error("Setting a debugging target for a package that is not part of an autoproj workspace is not available");
     }
+
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        throw new Error("Debug configurations are not available for external packages");
+    }
 }
 
 export class RockRubyPackage extends RockPackageWithTargetPicker
@@ -462,6 +479,27 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
                     };
                     return options;
                 });
+    }
+
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        const options: vscode.OpenDialogOptions = {
+            canSelectMany: false,
+            canSelectFiles: true,
+            canSelectFolders: false,
+            defaultUri: vscode.Uri.file(this.path),
+            openLabel: "Debug file"
+        };
+        const targetUri = await this._vscode.showOpenDialog(options);
+        if (targetUri) {
+            const debugConfig: vscode.DebugConfiguration = {
+                type: "Ruby",
+                name: relative(this.path, targetUri[0].fsPath),
+                request: "launch",
+                program: targetUri[0].fsPath
+            };
+            return debugConfig;
+        }
     }
     get type() { return Type.fromType(TypeList.RUBY); }
 }
@@ -580,6 +618,28 @@ export class RockCXXPackage extends RockPackage
         };
         return options;
     }
+
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        const executable = await this.pickExecutable();
+        if (executable) {
+            const debugConfig: vscode.DebugConfiguration = {
+                type: "cppdbg",
+                name: relative(this.path, executable),
+                request: "launch",
+                program: executable,
+                MIMode: "gdb",
+                setupCommands: [
+                    {
+                        description: "Enable pretty-printing for gdb",
+                        text: "-enable-pretty-printing",
+                        ignoreFailures: false
+                    }
+                ]
+            };
+            return debugConfig;
+        }
+    }
     get type() { return Type.fromType(TypeList.CXX); }
 }
 
@@ -667,6 +727,10 @@ export class RockOrogenPackage extends RockPackage
             throw err;
         }
     }
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        throw new Error("Not supported yet");
+    }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }
 
@@ -706,6 +770,9 @@ export class RockOtherPackage extends GenericPackage
     {
         throw new Error("Set the package type before trying to debug this package");
     }
-
+    async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
+    {
+        throw new Error("Set the package type before creating a debug configuration");
+    }
     get type() { return Type.fromType(TypeList.OTHER); }
 }

@@ -184,6 +184,11 @@ describe("InvalidPackage", function () {
         assert.deepEqual(subject.type,
             packages.Type.invalid());
     })
+    it("does not allow debuging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /Select a valid package/);
+    })
 })
 
 describe("ConfigPackage", function () {
@@ -218,6 +223,11 @@ describe("ConfigPackage", function () {
         assert.deepEqual(subject.type,
             packages.Type.config());
     })
+    it("does not allow debuging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /not available for configuration/);
+    })
 })
 
 describe("ForeignPackage", function () {
@@ -249,6 +259,11 @@ describe("ForeignPackage", function () {
     it("shows the type picking ui and sets the package type", async function () {
         subject.pickType();
         mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
+    })
+    it("does not allow custom debugging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /not available for external/);
     })
 })
 
@@ -355,6 +370,41 @@ describe("RockRubyPackage", function () {
     })
     it("returns the RUBY package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.RUBY));
+    })
+    describe("customDebugConfiguration()", function () {
+        it("returns undefined if canceled", async function () {
+            const options: vscode.OpenDialogOptions = {
+                canSelectMany: false,
+                canSelectFiles: true,
+                canSelectFolders: false,
+                defaultUri: vscode.Uri.file(subject.path),
+                openLabel: "Debug file"
+            };
+            mockWrapper.setup(x => x.showOpenDialog(options)).
+                returns(() => Promise.resolve(undefined));
+            assert(!await subject.customDebugConfiguration());
+        })
+        it("returns a debug configuration for the selected file", async function () {
+            const uri = vscode.Uri.file(joinPath(subject.path, "test.rb"));
+            const options: vscode.OpenDialogOptions = {
+                canSelectMany: false,
+                canSelectFiles: true,
+                canSelectFolders: false,
+                defaultUri: vscode.Uri.file(subject.path),
+                openLabel: "Debug file"
+            };
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                type: "Ruby",
+                name: relative(subject.path, uri.fsPath),
+                request: "launch",
+                program: uri.fsPath
+            };
+            mockWrapper.setup(x => x.showOpenDialog(options)).
+                returns(() => Promise.resolve([uri]));
+
+            const customDebugConfig = await subject.customDebugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
     })
 })
 
@@ -574,6 +624,46 @@ describe("RockCXXPackage", function () {
             assert(!chosen);
         })
     })
+    describe("customDebugConfiguration()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        })
+        it("returns undefined if canceled", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(undefined));
+            assert(!await subject.customDebugConfiguration());
+        })
+        it("throws if executable picking fails", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.reject(new Error("test")));
+            assertThrowsAsync(async function () {
+                await subject.customDebugConfiguration();
+            }, /^test$/);
+        })
+        it("returns a debug configuration for the selected executable", async function () {
+            const executable = joinPath(subject.path, "test_suite");
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(executable));
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                type: "cppdbg",
+                name: relative(subject.path, executable),
+                request: "launch",
+                program: executable,
+                MIMode: "gdb",
+                setupCommands: [
+                    {
+                        description: "Enable pretty-printing for gdb",
+                        text: "-enable-pretty-printing",
+                        ignoreFailures: false
+                    }
+                ]
+            };
+            const customDebugConfig = await subject.customDebugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
+    })
 })
 
 describe("RockOtherPackage", function () {
@@ -713,5 +803,10 @@ describe("RockOrogenPackage", function () {
     })
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
+    })
+    it("does not support creating debug configuration yet", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /Not supported/);
     })
 })
