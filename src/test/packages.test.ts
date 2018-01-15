@@ -396,12 +396,14 @@ describe("RockCXXPackage", function () {
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
+        let pkgInfo = autoprojMakePackage('package',
+            'Autobuild::CMake', "/path/to/package");
+        pkgInfo.builddir = "/path/to/package/build";
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(
-            new autoproj.Workspace("path", false),
-            autoprojMakePackage('package', 'Autobuild::CMake', "/path/to/package"),
+            new autoproj.Workspace("path", false), pkgInfo,
             mockContext.object, mockWrapper.object, mockTaskProvider.object);
     })
     it("returns the basename", function () {
@@ -625,14 +627,16 @@ describe("RockCXXPackage", function () {
             }, /^test$/);
         })
         it("returns a debug configuration for the selected executable", async function () {
-            const executable = joinPath(subject.path, "test_suite");
+            const executable = joinPath(subject.info.builddir, "test_suite");
             mockSubject.setup(x => x.pickExecutable()).
                 returns(() => Promise.resolve(executable));
+            let expandablePath = relative(subject.info.builddir, executable);
+            expandablePath = joinPath("${rock:buildDir}", expandablePath);
             const expectedCustomDebugConfig: vscode.DebugConfiguration = {
                 type: "cppdbg",
-                name: relative(subject.path, executable),
+                name: relative(subject.info.builddir, executable),
                 request: "launch",
-                program: executable,
+                program: expandablePath,
                 MIMode: "gdb",
                 setupCommands: [
                     {
