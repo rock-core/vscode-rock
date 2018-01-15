@@ -318,17 +318,6 @@ describe("RockRubyPackage", function () {
                 await subject.debug();
             }, /Select a debugging target/);
         })
-        it("throws if environment cannot be loaded", async function () {
-            let error = new Error("test");
-            const target = new debug.Target('package', '/path/to/package/build/test');            
-            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-                returns(() => target);
-
-            await assertThrowsAsync(async () => {
-                await subject.debug();
-            }, /test/);
-        })
         it("starts a ruby debugging session", async function () {
             const target = new debug.Target('package', '/path/to/package/build/test');
             let userConf: context.RockDebugConfig = {
@@ -341,10 +330,6 @@ describe("RockRubyPackage", function () {
                 }
             }
             const type = packages.TypeList.RUBY;
-            let env = {
-                key: 'KEY',
-                value: 'VALUE'
-            }
             const options = {
                 type: "Ruby",
                 name: "rock debug",
@@ -352,10 +337,7 @@ describe("RockRubyPackage", function () {
                 program: target.path,
                 cwd: userConf.cwd,
                 args: userConf.args,
-                env: env
             };
-
-            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
             mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);

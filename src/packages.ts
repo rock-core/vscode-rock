@@ -465,20 +465,16 @@ export class RockRubyPackage extends RockPackageWithTargetPicker
     async debugConfiguration(): Promise<vscode.DebugConfiguration>
     {
         const debugTarget = this.debugTarget as debug.Target;
-        return this._bridge.env(this.path).
-            then(result => {
-                    let userConf = this._context.debugConfig(this.path);
-                    const options: vscode.DebugConfiguration = {
-                        type: "Ruby",
-                        name: "rock debug",
-                        request: "launch",
-                        program: debugTarget.path,
-                        env: result,
-                        cwd: userConf.cwd,
-                        args: userConf.args
-                    };
-                    return options;
-                });
+        let userConf = this._context.debugConfig(this.path);
+        const options: vscode.DebugConfiguration = {
+            type: "Ruby",
+            name: "rock debug",
+            request: "launch",
+            program: debugTarget.path,
+            cwd: userConf.cwd,
+            args: userConf.args
+        };
+        return options;
     }
 
     async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
