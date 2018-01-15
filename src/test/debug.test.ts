@@ -105,13 +105,11 @@ describe("Pre Launch Task Provider", function () {
     });
 
     describe("ConfigurationProvider", function() {
-        let root: string;
         let s: helpers.TestSetup;
         let subject: debug.ConfigurationProvider;
         let mock;
         let ws;
         beforeEach(function() {
-            root = helpers.init();
             s = new helpers.TestSetup();
             subject = new debug.ConfigurationProvider(s.context);
             let result = s.createAndRegisterWorkspace('test');

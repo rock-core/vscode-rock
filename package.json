@@ -140,6 +140,11 @@
                 "title": "Update package info",
                 "category": "rock",
                 "command": "rock.updatePackageInfo"
+            },
+            {
+                "title": "Add launch config",
+                "category": "rock",
+                "command": "rock.addLaunchConfig"
             }
         ],
         "languages": [

@@ -11,8 +11,9 @@ import * as status from '../status'
 import * as wrappers from '../wrappers'
 import * as debug from '../debug'
 import * as async from '../async'
-import { dirname, basename } from 'path'
+import { dirname, basename, join as joinPath, relative } from 'path'
 import { assertThrowsAsync } from './helpers';
+import * as fs from 'fs';
 
 function autoprojMakePackage(name, type, path) {
     return {
@@ -46,6 +47,9 @@ describe("PackageFactory", function () {
         s = new helpers.TestSetup();
         subject = s.packageFactory;
     })
+    afterEach(function () {
+        helpers.clear();
+    })
     it("creates a ConfigPackage for a package set", async function () {
         let path = '/path/to/package';
         s.mockWorkspaces.setup(x => x.isConfig(path)).returns(() => true)
@@ -64,7 +68,8 @@ describe("PackageFactory", function () {
         let folder: vscode.WorkspaceFolder;
         beforeEach(function() {
             path = helpers.mkdir('package');
-            helpers.registerDir('.vscode');
+            helpers.registerDir('package', '.vscode');
+            helpers.registerFile('package', '.vscode', 'rock.json')
             folder = {
                 uri: vscode.Uri.file(path),
                 name: 'package',
@@ -179,6 +184,11 @@ describe("InvalidPackage", function () {
         assert.deepEqual(subject.type,
             packages.Type.invalid());
     })
+    it("does not allow debuging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /Select a valid package/);
+    })
 })
 
 describe("ConfigPackage", function () {
@@ -213,6 +223,11 @@ describe("ConfigPackage", function () {
         assert.deepEqual(subject.type,
             packages.Type.config());
     })
+    it("does not allow debuging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /not available for configuration/);
+    })
 })
 
 describe("ForeignPackage", function () {
@@ -244,6 +259,11 @@ describe("ForeignPackage", function () {
     it("shows the type picking ui and sets the package type", async function () {
         subject.pickType();
         mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
+    })
+    it("does not allow custom debugging configurations", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /not available for external/);
     })
 })
 
@@ -298,17 +318,6 @@ describe("RockRubyPackage", function () {
                 await subject.debug();
             }, /Select a debugging target/);
         })
-        it("throws if environment cannot be loaded", async function () {
-            let error = new Error("test");
-            const target = new debug.Target('package', '/path/to/package/build/test');            
-            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.reject(error));
-            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-                returns(() => target);
-
-            await assertThrowsAsync(async () => {
-                await subject.debug();
-            }, /test/);
-        })
         it("starts a ruby debugging session", async function () {
             const target = new debug.Target('package', '/path/to/package/build/test');
             let userConf: context.RockDebugConfig = {
@@ -321,10 +330,6 @@ describe("RockRubyPackage", function () {
                 }
             }
             const type = packages.TypeList.RUBY;
-            let env = {
-                key: 'KEY',
-                value: 'VALUE'
-            }
             const options = {
                 type: "Ruby",
                 name: "rock debug",
@@ -332,10 +337,7 @@ describe("RockRubyPackage", function () {
                 program: target.path,
                 cwd: userConf.cwd,
                 args: userConf.args,
-                env: env
             };
-
-            mockBridge.setup(x => x.env(subject.path)).returns(() => Promise.resolve(env));
             mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
             mockContext.setup(x => x.getDebuggingTarget(subject.path)).
                 returns(() => target);
@@ -350,6 +352,41 @@ describe("RockRubyPackage", function () {
     })
     it("returns the RUBY package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.RUBY));
+    })
+    describe("customDebugConfiguration()", function () {
+        it("returns undefined if canceled", async function () {
+            const options: vscode.OpenDialogOptions = {
+                canSelectMany: false,
+                canSelectFiles: true,
+                canSelectFolders: false,
+                defaultUri: vscode.Uri.file(subject.path),
+                openLabel: "Debug file"
+            };
+            mockWrapper.setup(x => x.showOpenDialog(options)).
+                returns(() => Promise.resolve(undefined));
+            assert(!await subject.customDebugConfiguration());
+        })
+        it("returns a debug configuration for the selected file", async function () {
+            const uri = vscode.Uri.file(joinPath(subject.path, "test.rb"));
+            const options: vscode.OpenDialogOptions = {
+                canSelectMany: false,
+                canSelectFiles: true,
+                canSelectFolders: false,
+                defaultUri: vscode.Uri.file(subject.path),
+                openLabel: "Debug file"
+            };
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                type: "Ruby",
+                name: relative(subject.path, uri.fsPath),
+                request: "launch",
+                program: uri.fsPath
+            };
+            mockWrapper.setup(x => x.showOpenDialog(options)).
+                returns(() => Promise.resolve([uri]));
+
+            const customDebugConfig = await subject.customDebugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
     })
 })
 
@@ -390,10 +427,30 @@ describe("RockCXXPackage", function () {
         mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
-    it("shows the target picking ui and sets the debugging target", async function () {
-        subject.pickTarget();
-        mockContext.verify(x => x.pickDebuggingFile(subject.path), TypeMoq.Times.once());
-    })
+    describe("pickTarget()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        })
+        it("sets the debugging target", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve("/path/to/package/build/test"));
+
+            await subject.pickTarget();
+            let debugTarget = new debug.Target("test", "/path/to/package/build/test");
+            mockContext.verify(x => x.setDebuggingTarget(subject.path, debugTarget),
+                TypeMoq.Times.once());
+        })
+        it("does nothing when canceled", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(undefined));
+
+            await subject.pickTarget();
+            mockContext.verify(x => x.setDebuggingTarget(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
+                TypeMoq.Times.never());
+        })
+    });
     describe("debug()", function () {
         it("throws if the debugging target is unset", async function () {
             await assertThrowsAsync(async () => {
@@ -449,6 +506,145 @@ describe("RockCXXPackage", function () {
     })
     it("returns the CXX package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.CXX));
+    })
+    describe("listExecutables()", function () {
+        let pkgPath: string;
+        let pkgInfo: autoproj.Package;
+        let files: string[];
+        function createSubject() {
+            subject = new packages.RockCXXPackage(
+                new autoproj.Workspace(pkgPath, false),
+                pkgInfo, mockContext.object,
+                mockWrapper.object, mockTaskProvider.object);
+        }
+        beforeEach(function () {
+            pkgPath = helpers.init();
+            pkgInfo = autoprojMakePackage('package', 'Autobuild::CMake', pkgPath);
+            createSubject();
+        })
+        afterEach(function () {
+            helpers.clear();
+        })
+        function createDummyExecutables() {
+            helpers.mkdir('.hidden');
+            helpers.mkdir('CMakeFiles');
+            helpers.mkdir('subdir');
+
+            files = [];
+            files.push(helpers.mkfile('', 'suite'));
+            files.push(helpers.mkfile('', '.hidden', 'suite'));
+            files.push(helpers.mkfile('', 'CMakeFiles', 'suite'));
+            files.push(helpers.mkfile('', 'subdir', 'test'));
+            files.push(helpers.mkfile('', 'libtool'));
+            files.push(helpers.mkfile('', 'configure'));
+            files.push(helpers.mkfile('', 'config.status'));
+            files.push(helpers.mkfile('', 'lib.so'));
+            files.push(helpers.mkfile('', 'lib.so.1'));
+            files.push(helpers.mkfile('', 'lib.so.1.2'));
+            files.push(helpers.mkfile('', 'lib.so.1.2.3'));
+            files.push(helpers.mkfile('', 'file.rb'));
+            files.push(helpers.mkfile('', 'file.py'));
+            files.push(helpers.mkfile('', 'file.sh'));
+            for (let file of files)
+                fs.chmodSync(file, 0o755);
+            files.push(helpers.mkfile('', 'test'));
+            pkgInfo.builddir = pkgPath;
+            createSubject();
+        }
+        it("lists executables recursively", async function () {
+            createDummyExecutables();
+            const execs = await subject.listExecutables();
+            assert.equal(execs.length, 2);
+            assert(execs.some(file => file == files[0]));
+            assert(execs.some(file => file == files[3]));
+        });
+        it("throws if builddir does not exist", async function () {
+            pkgInfo.builddir = '/path/not/found';
+            createSubject();
+            assertThrowsAsync(function () {
+                subject.listExecutables();
+            }, /Did you build/);
+        })
+    });
+    describe("pickExecutable()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        let executables: string[];
+        beforeEach(function () {
+            executables = [];
+            executables.push('/path/to/package/build/test');
+            executables.push('/path/to/package/build/other_test');
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            mockSubject.setup(x => x.listExecutables()).
+                returns(() => Promise.resolve(executables));
+            subject = mockSubject.target;
+        })
+        it("shows a picker and returns the selected executable", async function () {
+            let choices: { label: string, description: string, path: string }[] = [];
+            let expectedChoices: { label: string, description: string, path: string }[] = [];
+            for (let choice of executables) {
+                expectedChoices.push({
+                    label: basename(choice),
+                    description: relative(subject.info.builddir, dirname(choice)),
+                    path: choice
+                });
+            }
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
+                returns(() => Promise.resolve(expectedChoices[0]));
+
+            let chosen = await subject.pickExecutable();
+            assert.deepEqual(choices, expectedChoices);
+            assert.equal(chosen, executables[0]);
+        });
+        it("returns undefined if canceled by the user", async function () {
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+
+            let chosen = await subject.pickExecutable();
+            assert(!chosen);
+        })
+    })
+    describe("customDebugConfiguration()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        })
+        it("returns undefined if canceled", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(undefined));
+            assert(!await subject.customDebugConfiguration());
+        })
+        it("throws if executable picking fails", async function () {
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.reject(new Error("test")));
+            assertThrowsAsync(async function () {
+                await subject.customDebugConfiguration();
+            }, /^test$/);
+        })
+        it("returns a debug configuration for the selected executable", async function () {
+            const executable = joinPath(subject.path, "test_suite");
+            mockSubject.setup(x => x.pickExecutable()).
+                returns(() => Promise.resolve(executable));
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                type: "cppdbg",
+                name: relative(subject.path, executable),
+                request: "launch",
+                program: executable,
+                MIMode: "gdb",
+                setupCommands: [
+                    {
+                        description: "Enable pretty-printing for gdb",
+                        text: "-enable-pretty-printing",
+                        ignoreFailures: false
+                    }
+                ]
+            };
+            const customDebugConfig = await subject.customDebugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
     })
 })
 
@@ -589,5 +785,10 @@ describe("RockOrogenPackage", function () {
     })
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
+    })
+    it("does not support creating debug configuration yet", async function () {
+        await assertThrowsAsync(async () => {
+            await subject.customDebugConfiguration();
+        }, /Not supported/);
     })
 })

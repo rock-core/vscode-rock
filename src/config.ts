@@ -3,12 +3,19 @@ import * as context from './context';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as parser from 'jsonc-parser';
+import * as vscode from 'vscode';
+import { basename } from 'path';
 
 export class ConfigManager
 {
+    private readonly _defaultWriteOptions;
     private readonly _workspaces: autoproj.Workspaces;
     constructor(workspaces: autoproj.Workspaces)
     {
+        this._defaultWriteOptions = {
+            mode: 0o644,
+            flag: 'w'
+        };
         this._workspaces = workspaces;
     }
     async setupPackage(pkgPath: string): Promise<boolean>
@@ -37,10 +44,6 @@ export class ConfigManager
     private writeCppProperties(pkgPath: string, pkgModel: autoproj.Package): boolean
     {
         const dbPath = path.join(pkgModel.builddir, "compile_commands.json");
-        const options = {
-            mode: 0o644,
-            flag: 'w'
-        };
         if (fs.existsSync(this.cppPropertiesPath(pkgPath))) {
             this.updateCppProperties(pkgPath, pkgModel);
         } else {
@@ -53,7 +56,8 @@ export class ConfigManager
                 version: 3
             }
             this.createVscodeFolder(pkgPath);
-            fs.writeFileSync(this.cppPropertiesPath(pkgPath), JSON.stringify(data, null, 4), options);
+            fs.writeFileSync(this.cppPropertiesPath(pkgPath),
+                JSON.stringify(data, null, 4), this._defaultWriteOptions);
         }
         return true;
     }
@@ -70,25 +74,10 @@ export class ConfigManager
     {
         return path.join(pkgPath, ".vscode", "c_cpp_properties.json");
     }
-    private loadCppProperties(pkgPath: string)
-    {
-        let errors: parser.ParseError[] = [];
-        let stringData = fs.readFileSync(this.cppPropertiesPath(pkgPath), "utf8");
-        let data = parser.parse(stringData, errors)
-
-        if (errors.length > 0)
-            throw new Error("Could not load c_cpp_properties.json");
-
-        return data;
-    }
-    private updateCppProperties(pkgPath: string, pkgModel: autoproj.Package)
+    private updateCppProperties(pkgPath: string, pkgModel: autoproj.Package): void
     {
         const dbPath = path.join(pkgModel.builddir, "compile_commands.json");
-        const data = this.loadCppProperties(pkgPath);
-        const options = {
-            mode: 0o644,
-            flag: 'w'
-        };
+        const data = this.loadJsonFile(this.cppPropertiesPath(pkgPath));
 
         if (!data.configurations) data.configurations = [];
         if (!Array.isArray(data.configurations))
@@ -104,6 +93,58 @@ export class ConfigManager
             }
         });
         if (!data.version) data.version = 3;
-        fs.writeFileSync(this.cppPropertiesPath(pkgPath), JSON.stringify(data, null, 4), options);
+        fs.writeFileSync(this.cppPropertiesPath(pkgPath),
+            JSON.stringify(data, null, 4), this._defaultWriteOptions);
+    }
+    private loadJsonFile(path: string)
+    {
+        let errors: parser.ParseError[] = [];
+        let stringData = fs.readFileSync(path, "utf8");
+        let data = parser.parse(stringData, errors)
+
+        if (errors.length > 0)
+            throw new Error(`Could not load ${basename(path)}`);
+
+        return data;
+    }
+    private launchConfigurationPath(pkgPath: string)
+    {
+        return path.join(pkgPath, ".vscode", "launch.json");
+    }
+    private uniqueLaunchConfigName(candidate: string, currentConfigs: vscode.DebugConfiguration[]): string
+    {
+        let count = 2;
+        while (currentConfigs.some(config => config.name == candidate)) {
+            candidate = `${candidate} ${count}`;
+        }
+        return candidate;
+    }
+    private updateLaunchConfig(pkgPath: string, config: vscode.DebugConfiguration)
+    {
+        const data = this.loadJsonFile(this.launchConfigurationPath(pkgPath));
+
+        if (!data.configurations) data.configurations = [];
+        if (!Array.isArray(data.configurations))
+            throw new Error("Invalid configuration in launch.json");
+
+        config.name = this.uniqueLaunchConfigName(config.name, data.configurations);
+        (data.configurations as Array<any>).unshift(config);
+        if (!data.version) data.version = "0.2.0";
+        fs.writeFileSync(this.launchConfigurationPath(pkgPath),
+            JSON.stringify(data, null, 4), this._defaultWriteOptions);
+    }
+    addLaunchConfig(pkgPath: string, config: vscode.DebugConfiguration)
+    {
+        if (fs.existsSync(this.launchConfigurationPath(pkgPath))) {
+            this.updateLaunchConfig(pkgPath, config);
+        } else {
+            const data = {
+                version: "0.2.0",
+                configurations: [config]
+            }
+            this.createVscodeFolder(pkgPath);
+            fs.writeFileSync(this.launchConfigurationPath(pkgPath),
+                JSON.stringify(data, null, 4), this._defaultWriteOptions);
+        }
     }
 }

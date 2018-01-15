@@ -4,27 +4,24 @@ import * as fs from 'fs';
 import * as TypeMoq from 'typemoq';
 import * as autoproj from '../autoproj';
 import * as assert from 'assert';
+import * as vscode from 'vscode';
 import { join, basename, dirname } from 'path';
 import { assertThrowsAsync } from './helpers';
 
 describe("ConfigManager", function () {
+    let pkgPath: string;
+    let mockWorkspaces: TypeMoq.IMock<autoproj.Workspaces>;
+    let subject: config.ConfigManager;
+    beforeEach(function () {
+        pkgPath = helpers.init();
+        mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
+        subject = new config.ConfigManager(mockWorkspaces.object);
+        helpers.registerDir('.vscode');
+    })
+    afterEach(function () {
+        helpers.clear();
+    })
     describe("setupPackage", function () {
-        let pkgPath: string;
-        let subject: config.ConfigManager;
-        let mockWorkspaces: TypeMoq.IMock<autoproj.Workspaces>;
-        beforeEach(function () {
-            pkgPath = helpers.init();
-            mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-            subject = new config.ConfigManager(mockWorkspaces.object);
-        })
-        afterEach(function () {
-            try
-            {
-                fs.rmdirSync(join(pkgPath, '.vscode'));
-            }
-            catch {}
-            helpers.clear();
-        })
         describe("writeCppProperties", function () {
             let folderToWorkspaces: Map<string, autoproj.Workspace>;
             let mockWs: TypeMoq.IMock<autoproj.Workspace>;
@@ -37,14 +34,8 @@ describe("ConfigManager", function () {
                 mockWorkspaces.setup(x => x.folderToWorkspace).returns(() => folderToWorkspaces);
                 wsInfo = new autoproj.WorkspaceInfo(dirname(pkgPath));
                 wsInfo.packages = new Map<string, autoproj.Package>();
-                propertiesPath = join(pkgPath, ".vscode", "c_cpp_properties.json");
-            })
-            afterEach(function () {
-                try
-                {
-                    fs.unlinkSync(propertiesPath);
-                }
-                catch {}
+                propertiesPath = join(pkgPath, ".vscode",  "c_cpp_properties.json");
+                helpers.registerFile('.vscode', 'c_cpp_properties.json');
             })
             it("does nothing if the package is not in an autoproj workspace", async function () {
                 assert.equal(await subject.setupPackage(pkgPath), false);
@@ -173,6 +164,72 @@ describe("ConfigManager", function () {
                 let actualData = fs.readFileSync(propertiesPath, "utf8");
                 assert.equal(actualData, expectedData);
             })
+        })
+    })
+    describe("addLaunchConfig()", function () {
+        let launchConfigPath: string;
+        let debugConfig: vscode.DebugConfiguration;
+        beforeEach(function () {
+            launchConfigPath = join(pkgPath, ".vscode",  "launch.json");
+            helpers.registerFile('.vscode', 'launch.json');
+            debugConfig = {
+                name: "Test launch config",
+                type: "cppdbg",
+                request: "launch",
+                program: "${rock:buildDir}/test/test_suite",
+                stopAtEntry: false,
+                cwd: "${workspaceRoot}"
+            }
+        })
+        it("throws if existing file is invalid", async function () {
+            fs.mkdirSync(join(pkgPath, ".vscode"));
+            fs.writeFileSync(launchConfigPath, "dummyfile");
+            await assertThrowsAsync(async _ => {
+                await subject.addLaunchConfig(pkgPath, debugConfig);
+            }, /Could not load/);
+            assert.equal(fs.readFileSync(launchConfigPath, "utf8"), "dummyfile");
+        })
+        it("creates the launch config file", async function () {
+            await subject.addLaunchConfig(pkgPath, debugConfig);
+            let data = {
+                version: "0.2.0",
+                configurations: [debugConfig],
+            }
+            let expectedData = JSON.stringify(data, null, 4);
+            let actualData = fs.readFileSync(launchConfigPath, "utf8");
+            assert.equal(actualData, expectedData);
+        })
+        it("updates an existing launch config file", async function () {
+            let currentConf = {
+                version: "0.2.0",
+                configurations: [{}],
+            }
+            let expectedConfig = {
+                version: "0.2.0",
+                configurations: [{}],
+            }
+            currentConf.configurations[0] = Object.assign({}, debugConfig);
+            expectedConfig.configurations[0] = Object.assign({}, currentConf.configurations[0]);
+            expectedConfig.configurations.unshift(debugConfig);
+            (expectedConfig.configurations[0] as any).name = "Test launch config 2";
+            fs.mkdirSync(join(pkgPath, ".vscode"));
+            fs.writeFileSync(launchConfigPath, JSON.stringify(currentConf));
+
+            await subject.addLaunchConfig(pkgPath, debugConfig);
+            let updated = JSON.parse(fs.readFileSync(launchConfigPath, "utf8"));
+            assert.deepEqual(updated, expectedConfig);
+        })
+        it("throws if 'configurations' property is not an array", async function () {
+            let currentConf = { configurations: "test" }
+            fs.mkdirSync(join(pkgPath, ".vscode"));
+            fs.writeFileSync(launchConfigPath, JSON.stringify(currentConf));
+            await assertThrowsAsync(async _ => {
+                await subject.addLaunchConfig(pkgPath, debugConfig);
+            }, /Invalid configuration/);
+
+            let expectedData = JSON.stringify(currentConf);
+            let actualData = fs.readFileSync(launchConfigPath, "utf8");
+            assert.equal(actualData, expectedData);
         })
     })
 })

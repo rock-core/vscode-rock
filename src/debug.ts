@@ -44,7 +44,7 @@ export class PreLaunchTaskProvider implements vscode.TaskProvider
     {
         let ws = context.workspaces.folderToWorkspace.get(pkg.path)
         if (!ws) {
-            throw new Error("package not in a workspace");
+            return;
         }
 
         if (pkg.type.id === packages.TypeList.OROGEN.id)

@@ -13,6 +13,7 @@ import * as debug from '../debug';
 import * as commands from '../commands';
 import * as packages from '../packages'
 import { assertThrowsAsync } from './helpers';
+import * as config from '../config';
 
 describe("Commands", function () {
     let root: string;
@@ -20,6 +21,7 @@ describe("Commands", function () {
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockPackage: TypeMoq.IMock<packages.Package>;
+    let mockConfigManager: TypeMoq.IMock<config.ConfigManager>;
     let mockExtensionContext: TypeMoq.IMock<vscode.ExtensionContext>;
     let subject: commands.Commands;
 
@@ -35,7 +37,9 @@ describe("Commands", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockPackage = TypeMoq.Mock.ofType<packages.Package>();
-        subject = new commands.Commands(mockContext.object, mockWrapper.object);
+        mockConfigManager = TypeMoq.Mock.ofType<config.ConfigManager>();
+        subject = new commands.Commands(mockContext.object,
+            mockWrapper.object, mockConfigManager.object);
         mockContext.setup(x => x.workspaces).returns(() => workspaces);
 
         helpers.mkdir('one');
@@ -133,6 +137,37 @@ describe("Commands", function () {
                 await subject.debugPackage();
                 mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
             });
+        })
+        describe("addLaunchConfig()", function () {
+            it("does nothing if canceled", async function () {
+                mockPackage.setup(x => x.customDebugConfiguration()).
+                    returns(() => Promise.resolve(undefined));
+                await subject.addLaunchConfig();
+                mockConfigManager.verify(x => x.addLaunchConfig(TypeMoq.It.isAny(),
+                    TypeMoq.It.isAny()), TypeMoq.Times.never());
+            })
+            it("handles an exception in the custom configuration method", async function () {
+                mockPackage.setup(x => x.customDebugConfiguration()).
+                    returns(() => Promise.reject(new Error("test")));
+                await subject.addLaunchConfig();
+                mockWrapper.setup(x => x.showErrorMessage("test"));
+                mockConfigManager.verify(x => x.addLaunchConfig(TypeMoq.It.isAny(),
+                    TypeMoq.It.isAny()), TypeMoq.Times.never());
+            })
+            it("adds a launch config to the package", async function () {
+                let debugConfig: vscode.DebugConfiguration = {
+                    name: "test",
+                    type: "cppdbg",
+                    request: "launch"
+                }
+                mockPackage.setup(x => x.path).returns(() => '/path/to/package');
+                mockPackage.setup(x => x.customDebugConfiguration()).
+                    returns(() => Promise.resolve(debugConfig));
+                await subject.addLaunchConfig();
+                mockWrapper.setup(x => x.showErrorMessage("test"));
+                mockConfigManager.verify(x => x.addLaunchConfig('/path/to/package',
+                    debugConfig), TypeMoq.Times.once());
+            })
         })
     })
 });

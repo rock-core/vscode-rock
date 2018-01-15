@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as autoproj from './autoproj';
 import { SpawnOptions } from 'child_process';
 
-const ENV_DUMP_SCRIPT = "require 'json'; puts ENV.to_hash.to_json";
 const OROGEN_DESCRIBE_SCRIPT = `
 require 'orogen'
 require 'json'
@@ -90,22 +89,6 @@ export class EnvironmentBridge
                 },
                 err => {
                     reject(new Error("Could not load orogen project: " + err.message));
-                }
-            )
-        });
-        return promise;
-    }
-
-    async env(root: string): Promise<{ [key: string]: string }>
-    {
-        let env = jsonFromRubyScript(root, ENV_DUMP_SCRIPT);
-        let promise = new Promise<{ [key: string]: string }>((resolve, reject) => {
-            env.then(
-                result => {
-                    resolve(result);
-                },
-                err => {
-                    reject(new Error("Could not load environment: " + err.message));
                 }
             )
         });
