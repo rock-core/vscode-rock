@@ -619,11 +619,13 @@ export class RockCXXPackage extends RockPackage
     {
         const executable = await this.pickExecutable();
         if (executable) {
+            let expandablePath = relative(this.info.builddir, executable);
+            expandablePath = joinpath("${rock:buildDir}", expandablePath);
             const debugConfig: vscode.DebugConfiguration = {
                 type: "cppdbg",
-                name: relative(this.path, executable),
+                name: relative(this.info.builddir, executable),
                 request: "launch",
-                program: executable,
+                program: expandablePath,
                 MIMode: "gdb",
                 setupCommands: [
                     {
