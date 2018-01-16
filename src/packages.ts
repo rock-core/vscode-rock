@@ -167,14 +167,7 @@ export class PackageFactory
 
         let defs = wsInfo.packages.get(path);
         if (!defs) {
-            let wsInfo = await ws.envsh();
-            let defs = wsInfo.packages.get(path);
-            if (defs) {
-                return { ws, info: defs };
-            }
-            else {
-                return { ws, info: this.nullPackageInfo(path, ws) };
-            }
+            return { ws, info: this.nullPackageInfo(path, ws) };
         }
         else {
             return { ws, info: defs };
