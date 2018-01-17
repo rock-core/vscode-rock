@@ -172,12 +172,12 @@ export class ConfigManager
             }
         }
     }
-    updateGlobalConfig()
+    updateCodeConfig(configTarget: vscode.ConfigurationTarget): any
     {
         const configs = this._vscode.getConfiguration();
         for (const key in this.suggestedSettings()) {
             configs.update(key, this.suggestedSettings()[key],
-                vscode.ConfigurationTarget.Global);
+                configTarget);
         }
         return this.suggestedSettings();
     }

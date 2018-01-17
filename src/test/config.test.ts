@@ -236,7 +236,7 @@ describe("ConfigManager", function () {
             assert.equal(actualData, expectedData);
         })
     })
-    describe("updateGlobalConfig()", function () {
+    describe("updateCodeConfig()", function () {
         let mockSubject: TypeMoq.IMock<config.ConfigManager>;
         let mockConfiguration: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
         let mockSettings;
@@ -254,20 +254,27 @@ describe("ConfigManager", function () {
             mockWrapper.setup(x => x.getConfiguration()).returns(() => mockConfiguration.object);
             subject = mockSubject.target;
         })
-        function verifyConfig(section: string, value: any): void
+        function verifyConfig(section: string, value: any,
+            scope: vscode.ConfigurationTarget): void
         {
             mockConfiguration.verify(x => x.update(section, value,
-                vscode.ConfigurationTarget.Global), TypeMoq.Times.once());
+                scope), TypeMoq.Times.once());
+        }
+        function testConfig(scope: vscode.ConfigurationTarget)
+        {
+            subject.updateCodeConfig(scope);
+            mockWrapper.verify(x => x.getConfiguration(), TypeMoq.Times.once());
+            verifyConfig("some.property", "string", scope);
+            verifyConfig("some.number", 31337, scope);
+            verifyConfig("some.boolean", true, scope);
+            verifyConfig("some.array", [2, 4, 6], scope);
+            verifyConfig("some.object", { key: "value" }, scope);
         }
         it("updates global configuration", function () {
-            let settings = subject.suggestedSettings();
-            subject.updateGlobalConfig();
-            mockWrapper.verify(x => x.getConfiguration(), TypeMoq.Times.once());
-            verifyConfig("some.property", "string");
-            verifyConfig("some.number", 31337);
-            verifyConfig("some.boolean", true);
-            verifyConfig("some.array", [2, 4, 6]);
-            verifyConfig("some.object", { key: "value" });
+            testConfig(vscode.ConfigurationTarget.Global);
+        })
+        it("updates workspace configuration", function () {
+            testConfig(vscode.ConfigurationTarget.Workspace);
         })
     })
 })

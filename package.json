@@ -149,7 +149,7 @@
             {
                 "title": "Update VS Code configuration",
                 "category": "rock",
-                "command": "rock.updateGlobalConfig"
+                "command": "rock.updateCodeConfig"
             }
         ],
         "languages": [

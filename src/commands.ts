@@ -3,6 +3,7 @@ import * as context from './context';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
 import * as config from './config';
+import * as vscode from 'vscode'
 
 function assert_workspace_not_empty(vscode)
 {
@@ -94,13 +95,32 @@ export class Commands
         }
     }
 
-    updateGlobalConfig()
+    async updateCodeConfig()
     {
-        try {
-            this._configManager.updateGlobalConfig();
+        let choices: { label, description, configTarget }[] = [];
+        function addChoice(label: string, scope: vscode.ConfigurationTarget)
+        {
+            const choice = {
+                label: label,
+                description: '',
+                configTarget: scope
+            }
+            choices.push(choice);
         }
-        catch (err) {
-            this._vscode.showErrorMessage(err.message);
+        addChoice("Global", vscode.ConfigurationTarget.Global);
+        addChoice("Workspace", vscode.ConfigurationTarget.Workspace);
+
+        const options: vscode.QuickPickOptions = {
+            placeHolder: 'Select whether the settings should be applied globally or to the current workspace only'
+        }
+        const configTarget = await this._vscode.showQuickPick(choices, options);
+        if (configTarget) {
+            try {
+                this._configManager.updateCodeConfig(configTarget.configTarget);
+            }
+            catch (err) {
+                this._vscode.showErrorMessage(err.message);
+            }
         }
     }
 
@@ -113,6 +133,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.updateGlobalConfig', (...args) => { this.updateGlobalConfig(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', (...args) => { this.updateCodeConfig(...args) });
     }
 }
