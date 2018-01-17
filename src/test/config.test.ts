@@ -7,15 +7,19 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join, basename, dirname } from 'path';
 import { assertThrowsAsync } from './helpers';
+import * as wrappers from '../wrappers';
 
 describe("ConfigManager", function () {
     let pkgPath: string;
     let mockWorkspaces: TypeMoq.IMock<autoproj.Workspaces>;
+    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let subject: config.ConfigManager;
     beforeEach(function () {
         pkgPath = helpers.init();
         mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-        subject = new config.ConfigManager(mockWorkspaces.object);
+        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        subject = new config.ConfigManager(mockWorkspaces.object,
+            mockWrapper.object);
         helpers.registerDir('.vscode');
     })
     afterEach(function () {
@@ -230,6 +234,40 @@ describe("ConfigManager", function () {
             let expectedData = JSON.stringify(currentConf);
             let actualData = fs.readFileSync(launchConfigPath, "utf8");
             assert.equal(actualData, expectedData);
+        })
+    })
+    describe("updateGlobalConfig()", function () {
+        let mockSubject: TypeMoq.IMock<config.ConfigManager>;
+        let mockConfiguration: TypeMoq.IMock<vscode.WorkspaceConfiguration>;
+        let mockSettings;
+        beforeEach(function () {
+            mockSettings = {
+                "some.property": "string",
+                "some.number": 31337,
+                "some.boolean": true,
+                "some.array": [2, 4, 6],
+                "some.object": { key: "value" }
+            }
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            mockConfiguration = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
+            mockSubject.setup(x => x.suggestedSettings()).returns(() => mockSettings);
+            mockWrapper.setup(x => x.getConfiguration()).returns(() => mockConfiguration.object);
+            subject = mockSubject.target;
+        })
+        function verifyConfig(section: string, value: any): void
+        {
+            mockConfiguration.verify(x => x.update(section, value,
+                vscode.ConfigurationTarget.Global), TypeMoq.Times.once());
+        }
+        it("updates global configuration", function () {
+            let settings = subject.suggestedSettings();
+            subject.updateGlobalConfig();
+            mockWrapper.verify(x => x.getConfiguration(), TypeMoq.Times.once());
+            verifyConfig("some.property", "string");
+            verifyConfig("some.number", 31337);
+            verifyConfig("some.boolean", true);
+            verifyConfig("some.array", [2, 4, 6]);
+            verifyConfig("some.object", { key: "value" });
         })
     })
 })
