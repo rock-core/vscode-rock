@@ -168,5 +168,17 @@ describe("Commands", function () {
                     debugConfig), TypeMoq.Times.once());
             })
         })
+        describe("updateGlobalConfig()", function () {
+            it("updates vs code configuration", function () {
+                subject.updateGlobalConfig();
+                mockConfigManager.verify(x => x.updateGlobalConfig(), TypeMoq.Times.once());
+            })
+            it("handles an exception if configuration fails", function () {
+                mockConfigManager.setup(x => x.updateGlobalConfig()).
+                    throws(new Error("test"));
+                subject.updateGlobalConfig();
+                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
+            });
+        })
     })
 });

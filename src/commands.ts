@@ -94,6 +94,16 @@ export class Commands
         }
     }
 
+    updateGlobalConfig()
+    {
+        try {
+            this._configManager.updateGlobalConfig();
+        }
+        catch (err) {
+            this._vscode.showErrorMessage(err.message);
+        }
+    }
+
     register()
     {
         this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
@@ -103,5 +113,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
+        this._vscode.registerAndSubscribeCommand('rock.updateGlobalConfig', (...args) => { this.updateGlobalConfig(...args) });
     }
 }
