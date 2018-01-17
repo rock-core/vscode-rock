@@ -150,7 +150,7 @@ describe("Commands", function () {
                 mockPackage.setup(x => x.customDebugConfiguration()).
                     returns(() => Promise.reject(new Error("test")));
                 await subject.addLaunchConfig();
-                mockWrapper.setup(x => x.showErrorMessage("test"));
+                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
                 mockConfigManager.verify(x => x.addLaunchConfig(TypeMoq.It.isAny(),
                     TypeMoq.It.isAny()), TypeMoq.Times.never());
             })
@@ -164,7 +164,6 @@ describe("Commands", function () {
                 mockPackage.setup(x => x.customDebugConfiguration()).
                     returns(() => Promise.resolve(debugConfig));
                 await subject.addLaunchConfig();
-                mockWrapper.setup(x => x.showErrorMessage("test"));
                 mockConfigManager.verify(x => x.addLaunchConfig('/path/to/package',
                     debugConfig), TypeMoq.Times.once());
             })
