@@ -153,12 +153,8 @@ export class ConfigManager
     suggestedSettings(): any
     {
         return {
-            "C_Cpp.errorSquiggles": "Enabled",
             "C_Cpp.intelliSenseEngine": "Default",
             "C_Cpp.intelliSenseEngineFallback": "Enabled",
-            "debug.openExplorerOnEnd": true,
-            "debug.openDebug": "openOnSessionStart",
-            "debug.showInStatusBar": "always",
             "editor.detectIndentation": false,
             "editor.insertSpaces": true,
             "editor.rulers": [80],
