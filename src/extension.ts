@@ -64,7 +64,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
         new packages.PackageFactory(vscodeWrapper, taskProvider, bridge));
 
     let statusBar = new status.StatusBar(extensionContext, rockContext);
-    let configManager = new config.ConfigManager(workspaces);
+    let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
     let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext, vscodeWrapper);
 

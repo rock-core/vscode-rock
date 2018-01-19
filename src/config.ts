@@ -5,22 +5,25 @@ import * as fs from 'fs';
 import * as parser from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { basename } from 'path';
+import * as wrappers from './wrappers';
 
 export class ConfigManager
 {
     private readonly _defaultWriteOptions;
     private readonly _workspaces: autoproj.Workspaces;
-    constructor(workspaces: autoproj.Workspaces)
+    private readonly _vscode: wrappers.VSCode;
+    constructor(workspaces: autoproj.Workspaces, wrapper: wrappers.VSCode)
     {
         this._defaultWriteOptions = {
             mode: 0o644,
             flag: 'w'
         };
         this._workspaces = workspaces;
+        this._vscode = wrapper;
     }
     async setupPackage(pkgPath: string): Promise<boolean>
     {
-        let ws = this._workspaces.folderToWorkspace.get(pkgPath); 
+        let ws = this._workspaces.folderToWorkspace.get(pkgPath);
         if (!ws)
             return false;
 
@@ -146,5 +149,36 @@ export class ConfigManager
             fs.writeFileSync(this.launchConfigurationPath(pkgPath),
                 JSON.stringify(data, null, 4), this._defaultWriteOptions);
         }
+    }
+    suggestedSettings(): any
+    {
+        return {
+            "C_Cpp.intelliSenseEngine": "Default",
+            "C_Cpp.intelliSenseEngineFallback": "Enabled",
+            "editor.detectIndentation": false,
+            "editor.insertSpaces": true,
+            "editor.rulers": [80],
+            "editor.tabSize": 4,
+            "editor.trimAutoWhitespace": true,
+            "files.trimTrailingWhitespace": true,
+            "git.countBadge": "tracked",
+            "ruby.lint": {
+                "rubocop": {
+                    "except": [
+                        "Layout/IndentationWidth",
+                        "Style/DoubleNegation"
+                    ]
+                }
+            }
+        }
+    }
+    updateCodeConfig(configTarget: vscode.ConfigurationTarget): any
+    {
+        const configs = this._vscode.getConfiguration();
+        for (const key in this.suggestedSettings()) {
+            configs.update(key, this.suggestedSettings()[key],
+                configTarget);
+        }
+        return this.suggestedSettings();
     }
 }

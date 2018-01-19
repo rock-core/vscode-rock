@@ -150,7 +150,7 @@ describe("Commands", function () {
                 mockPackage.setup(x => x.customDebugConfiguration()).
                     returns(() => Promise.reject(new Error("test")));
                 await subject.addLaunchConfig();
-                mockWrapper.setup(x => x.showErrorMessage("test"));
+                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
                 mockConfigManager.verify(x => x.addLaunchConfig(TypeMoq.It.isAny(),
                     TypeMoq.It.isAny()), TypeMoq.Times.never());
             })
@@ -164,10 +164,56 @@ describe("Commands", function () {
                 mockPackage.setup(x => x.customDebugConfiguration()).
                     returns(() => Promise.resolve(debugConfig));
                 await subject.addLaunchConfig();
-                mockWrapper.setup(x => x.showErrorMessage("test"));
                 mockConfigManager.verify(x => x.addLaunchConfig('/path/to/package',
                     debugConfig), TypeMoq.Times.once());
             })
+        })
+        describe("updateCodeConfig()", function () {
+            let choices: { label, description, configTarget }[];
+            function makeChoice(label: string, scope: vscode.ConfigurationTarget) {
+                return {
+                    label: label,
+                    description: '',
+                    configTarget: scope
+                }
+            }
+            beforeEach(function () {
+                choices = [];
+                choices.push(makeChoice('Global', vscode.ConfigurationTarget.Global));
+                choices.push(makeChoice('Workspace', vscode.ConfigurationTarget.Workspace))
+            })
+            it("applies configuration globally", async function () {
+                const choice = makeChoice('Global', vscode.ConfigurationTarget.Global);
+                mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(choice));
+                await subject.updateCodeConfig();
+                mockConfigManager.verify(x => x.updateCodeConfig(choice.configTarget),
+                    TypeMoq.Times.once());
+            })
+            it("applies configuration to the workspace", async function () {
+                const choice = makeChoice('Workspace', vscode.ConfigurationTarget.Workspace);
+                mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(choice));
+                await subject.updateCodeConfig();
+                mockConfigManager.verify(x => x.updateCodeConfig(choice.configTarget),
+                    TypeMoq.Times.once());
+            })
+            it("handles an exception if configuration fails", async function () {
+                const choice = makeChoice('Workspace', vscode.ConfigurationTarget.Workspace);
+                mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(choice));
+                mockConfigManager.setup(x => x.updateCodeConfig(choice.configTarget)).
+                    throws(new Error("test"));
+                await subject.updateCodeConfig();
+                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
+            });
+            it("does nothing when canceled", async function () {
+                mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(undefined));
+                await subject.updateCodeConfig();
+                mockConfigManager.verify(x => x.updateCodeConfig(TypeMoq.It.isAny()),
+                    TypeMoq.Times.never());
+            });
         })
     })
 });

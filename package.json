@@ -145,6 +145,11 @@
                 "title": "Add launch config",
                 "category": "rock",
                 "command": "rock.addLaunchConfig"
+            },
+            {
+                "title": "Update VS Code configuration",
+                "category": "rock",
+                "command": "rock.updateCodeConfig"
             }
         ],
         "languages": [
