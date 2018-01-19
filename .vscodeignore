@@ -8,3 +8,4 @@ tsconfig.json
 vsc-extension-quickstart.md
 coverconfig.json
 coverage/**
+test/**
