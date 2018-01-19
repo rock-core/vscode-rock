@@ -3,7 +3,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as autoproj from '../autoproj';
+import * as autoproj from '../src/autoproj';
 import * as helpers from './helpers';
 import * as TypeMoq from 'typemoq'
 import * as events from 'events';
@@ -51,7 +51,7 @@ describe("Autoproj helpers tests", function () {
     url: https://github.com/rock-core/tools-rest_api.git
     repository_id: github:/rock-core/tools-rest_api.git
   srcdir: "/path/to/tools/rest_api"
-  builddir: 
+  builddir:
   logdir: "/path/to/install/tools/rest_api/log"
   prefix: "/path/to/install/tools/rest_api"
   dependencies:

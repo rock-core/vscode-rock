@@ -1,8 +1,8 @@
 'use strict';
 import * as assert from 'assert';
 import * as helpers from './helpers';
-import * as autoproj from '../autoproj';
-import * as tasks from '../tasks';
+import * as autoproj from '../src/autoproj';
+import * as tasks from '../src/tasks';
 import { basename, relative } from 'path';
 import * as vscode from 'vscode';
 
@@ -48,7 +48,7 @@ describe("Task provider", function () {
     {
         let process = autoprojExePath(path);
         let args = ['update', '--progress=f', '-k', '--color'];
-        if (isPackage) args.push(path);        
+        if (isPackage) args.push(path);
         assertTask(task, process, args);
     }
     function assertCheckoutTask(task: vscode.Task, path: string, isPackage = true)
@@ -143,11 +143,11 @@ describe("Task provider", function () {
         it("is initalized with all tasks", function () {
             let tasks = subject.provideTasks(null);
             assert.equal(tasks.length, 22);
-    
+
             assertAllTasks(a);
             assertAllTasks(b);
             assertAllTasks(c);
-        });            
+        });
     });
 
     describe("in an empty workspace", function () {

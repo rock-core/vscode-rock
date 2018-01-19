@@ -1,13 +1,13 @@
-import * as config from '../config';
+import * as config from '../src/config';
 import * as helpers from './helpers';
 import * as fs from 'fs';
 import * as TypeMoq from 'typemoq';
-import * as autoproj from '../autoproj';
+import * as autoproj from '../src/autoproj';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join, basename, dirname } from 'path';
 import { assertThrowsAsync } from './helpers';
-import * as wrappers from '../wrappers';
+import * as wrappers from '../src/wrappers';
 
 describe("ConfigManager", function () {
     let pkgPath: string;

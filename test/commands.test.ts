@@ -2,18 +2,18 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as TypeMoq from 'typemoq';
-import * as status from '../status';
-import * as wrappers from '../wrappers';
-import * as context from '../context';
+import * as status from '../src/status';
+import * as wrappers from '../src/wrappers';
+import * as context from '../src/context';
 import * as helpers from './helpers';
-import * as autoproj from '../autoproj';
-import * as tasks from '../tasks';
+import * as autoproj from '../src/autoproj';
+import * as tasks from '../src/tasks';
 import { basename, relative } from 'path';
-import * as debug from '../debug';
-import * as commands from '../commands';
-import * as packages from '../packages'
+import * as debug from '../src/debug';
+import * as commands from '../src/commands';
+import * as packages from '../src/packages'
 import { assertThrowsAsync } from './helpers';
-import * as config from '../config';
+import * as config from '../src/config';
 
 describe("Commands", function () {
     let root: string;

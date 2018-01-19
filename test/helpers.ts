@@ -1,18 +1,18 @@
 'use strict';
 
 import * as vscode from 'vscode'
-import * as Autoproj from '../autoproj'
+import * as Autoproj from '../src/autoproj'
 import * as FS from 'fs';
 import * as Temp from 'fs-temp';
 import * as Path from 'path';
 import * as YAML from 'js-yaml';
 import * as assert from 'assert'
 import * as TypeMoq from 'typemoq'
-import * as Wrappers from '../wrappers'
-import * as Context from '../context'
-import * as Packages from '../packages'
-import * as Tasks from '../tasks'
-import * as Async from '../async'
+import * as Wrappers from '../src/wrappers'
+import * as Context from '../src/context'
+import * as Packages from '../src/packages'
+import * as Tasks from '../src/tasks'
+import * as Async from '../src/async'
 import { writeFileSync } from 'fs';
 
 export async function assertThrowsAsync(fn, msg: RegExp)
