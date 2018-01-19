@@ -1,15 +1,15 @@
 import * as assert from 'assert'
 import * as TypeMoq from 'typemoq'
-import * as debug from '../debug'
-import * as wrappers from '../wrappers'
-import * as context from '../context'
+import * as debug from '../src/debug'
+import * as wrappers from '../src/wrappers'
+import * as context from '../src/context'
 import * as vscode from 'vscode'
-import * as autoproj from '../autoproj'
+import * as autoproj from '../src/autoproj'
 import * as helpers from './helpers'
 import * as path from 'path'
-import * as packages from '../packages'
+import * as packages from '../src/packages'
 import { basename } from 'path'
-import { EnvironmentBridge } from '../async';
+import { EnvironmentBridge } from '../src/async';
 
 describe("Target", function () {
     let subject: debug.Target;

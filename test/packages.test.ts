@@ -1,16 +1,16 @@
 'use strict'
-import * as packages from '../packages'
-import * as autoproj from '../autoproj'
+import * as packages from '../src/packages'
+import * as autoproj from '../src/autoproj'
 import * as helpers from './helpers'
 import * as vscode from 'vscode'
 import * as assert from 'assert'
 import * as TypeMoq from 'typemoq'
-import * as context from '../context'
-import * as tasks from '../tasks'
-import * as status from '../status'
-import * as wrappers from '../wrappers'
-import * as debug from '../debug'
-import * as async from '../async'
+import * as context from '../src/context'
+import * as tasks from '../src/tasks'
+import * as status from '../src/status'
+import * as wrappers from '../src/wrappers'
+import * as debug from '../src/debug'
+import * as async from '../src/async'
 import { dirname, basename, join as joinPath, relative } from 'path'
 import { assertThrowsAsync } from './helpers';
 import * as fs from 'fs';
@@ -590,7 +590,7 @@ describe("RockCXXPackage", function () {
                     path: choice
                 });
             }
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
                 returns(() => Promise.resolve(expectedChoices[0]));
@@ -600,7 +600,7 @@ describe("RockCXXPackage", function () {
             assert.equal(chosen, executables[0]);
         });
         it("returns undefined if canceled by the user", async function () {
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), 
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 returns(() => Promise.resolve(undefined));
 
@@ -711,10 +711,10 @@ describe("RockOrogenPackage", function () {
     let subject: packages.RockOrogenPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
-    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;    
+    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     beforeEach(function () {
-        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();        
+        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
@@ -773,7 +773,7 @@ describe("RockOrogenPackage", function () {
 
             mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
                 .returns(() => Promise.resolve([ task ]));
-        
+
             let choices;
             mockContext.setup(x => x.pickDebuggingTarget(subject.path, TypeMoq.It.isAny(), TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 callback((path, choicesArg, ...ignored) => { choices = choicesArg });

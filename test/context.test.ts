@@ -2,16 +2,16 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as TypeMoq from 'typemoq';
-import * as wrappers from '../wrappers';
-import * as tasks from '../tasks';
-import * as context from '../context';
-import * as autoproj from '../autoproj';
+import * as wrappers from '../src/wrappers';
+import * as tasks from '../src/tasks';
+import * as context from '../src/context';
+import * as autoproj from '../src/autoproj';
 import * as helpers from './helpers';
-import * as packages from '../packages';
-import * as async from '../async';
+import * as packages from '../src/packages';
+import * as async from '../src/async';
 import { basename, join } from 'path';
 import * as fs from 'fs'
-import * as debug from '../debug'
+import * as debug from '../src/debug'
 
 class TestContext
 {
