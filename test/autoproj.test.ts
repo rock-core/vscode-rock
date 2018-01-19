@@ -85,22 +85,20 @@ describe("Autoproj helpers tests", function () {
     }
 
     describe("loadWorkspaceInfo", function() {
-        it("parses the manifest and returns it", function() {
+        it("parses the manifest and returns it", async function() {
             helpers.mkdir('.autoproj');
             helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-            return autoproj.loadWorkspaceInfo(root).then(function (manifest) {
-                assert.deepStrictEqual(manifest.packageSets.get('user/pkg/set/dir'), PKG_SET_OROCOS_TOOLCHAIN);
-                assert.deepStrictEqual(manifest.packages.get('/path/to/tools/rest_api'), PKG_TOOLS_REST_API);
-            })
+            let manifest = await autoproj.loadWorkspaceInfo(root)
+            assert.deepStrictEqual(manifest.packageSets.get('user/pkg/set/dir'), PKG_SET_OROCOS_TOOLCHAIN);
+            assert.deepStrictEqual(manifest.packages.get('/path/to/tools/rest_api'), PKG_TOOLS_REST_API);
         })
-        it("parses an empty manifest", function() {
+        it("parses an empty manifest", async function() {
             helpers.mkdir('.autoproj');
             helpers.mkfile('', ".autoproj", "installation-manifest");
-            return autoproj.loadWorkspaceInfo(root).then(function (manifest) {
-                assert.equal(manifest.path, root);
-                assert.equal(0, manifest.packages.size);
-                assert.equal(0, manifest.packages.size);
-            })
+            let manifest = await autoproj.loadWorkspaceInfo(root)
+            assert.equal(manifest.path, root);
+            assert.equal(0, manifest.packages.size);
+            assert.equal(0, manifest.packages.size);
         })
     })
 
@@ -169,6 +167,38 @@ describe("Autoproj helpers tests", function () {
                 let reloaded = await workspace.reload();
                 assert.notEqual(reloaded, initial);
                 assert.equal(reloaded, await workspace.info());
+            })
+            it("triggers onInfoUpdated the first time the info is resolved", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+
+                let called = false;
+                workspace.onInfoUpdated((callback) => called = true);
+                await workspace.info();
+                assert(called);
+            })
+            it("does not re-trigger onInfoUpdated on multiple info() calls", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+
+                await workspace.info();
+                let called = false;
+                workspace.onInfoUpdated((callback) => called = true);
+                await workspace.info();
+                assert(!called);
+            })
+            it("re-triggers onInfoUpdated on reload", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                let workspace = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+
+                await workspace.info();
+                let called = false;
+                workspace.onInfoUpdated((callback) => called = true);
+                await workspace.reload();
+                assert(called);
             })
         })
 
@@ -266,10 +296,10 @@ describe("Autoproj helpers tests", function () {
         })
     })
     describe("Workspaces", function () {
-        let workspaces;
+        let workspaces: autoproj.Workspaces;
 
         beforeEach(function () {
-            this.workspaces = new autoproj.Workspaces();
+            workspaces = new autoproj.Workspaces();
         })
 
         describe("add", function() {
@@ -278,16 +308,16 @@ describe("Autoproj helpers tests", function () {
                 helpers.createInstallationManifest([]);
                 let ws = autoproj.Workspace.fromDir(root) as autoproj.Workspace;
                 ws.name = 'test';
-                this.workspaces.add(ws);
+                workspaces.add(ws);
                 assert.equal('test', ws.name);
             })
             it ("sets the workspace name if devFolder is set", function() {
-                this.workspaces.devFolder = root
+                workspaces.devFolder = root
                 let dir = helpers.mkdir('a');
                 helpers.createInstallationManifest([], 'a')
                 let ws = autoproj.Workspace.fromDir(dir) as autoproj.Workspace;
                 ws.name = 'test';
-                this.workspaces.add(ws);
+                workspaces.add(ws);
                 assert.equal('a', ws.name);
             })
         })
@@ -295,53 +325,85 @@ describe("Autoproj helpers tests", function () {
         describe("addFolder", function () {
             it("does not add a folder that is not within an Autoproj workspace", function() {
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = this.workspaces.addFolder(dir);
+                let workspace = workspaces.addFolder(dir);
                 assert(!workspace);
             })
             it("adds folders that are within a workspace", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = this.workspaces.addFolder(dir);
+                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
                 assert.equal(workspace.root, root);
-                assert.equal(1, this.workspaces.useCount(workspace));
+                assert.equal(1, workspaces.useCount(workspace));
             })
             it("adds the same workspace only once", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let a = helpers.mkdir('a');
-                let wsA = this.workspaces.addFolder(a)
+                let wsA = workspaces.addFolder(a)
                 let b = helpers.mkdir('a', 'b');
-                let wsB = this.workspaces.addFolder(b)
+                let wsB = workspaces.addFolder(b) as autoproj.Workspace;
                 assert.equal(wsA, wsB);
-                assert.equal(2, this.workspaces.useCount(wsB));
+                assert.equal(2, workspaces.useCount(wsB));
+            })
+            it("forwards the info updated event", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let called = false;
+                workspaces.onWorkspaceInfo((info) => called = true);
+                await workspace.info();
+                assert(called);
+            })
+            it("does not fire the package info event if the manifest has no data for it", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let called = false;
+                workspaces.onFolderInfo((info) => called = true);
+                await workspace.info();
+                assert(!called);
+            })
+            it("fires the package info event if the manifest has data for it", async function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                helpers.addPackageToManifest(workspace, ['a', 'b']);
+                let received;
+                workspaces.onFolderInfo((info) => received = info);
+                await workspace.reload();
+                assert(received);
+                assert.equal(dir, received.srcdir);
             })
         })
 
         describe("deleteFolder", function () {
             it("does nothing for a folder that is not registered", function() {
                 let dir = helpers.mkdir('a', 'b');
-                assert(!this.workspaces.deleteFolder(dir));
+                assert(!workspaces.deleteFolder(dir));
             })
             it("removes a registered folder", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = this.workspaces.addFolder(dir);
-                assert(this.workspaces.deleteFolder(dir));
-                assert.equal(0, this.workspaces.useCount(workspace));
+                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                assert(workspaces.deleteFolder(dir));
+                assert.equal(0, workspaces.useCount(workspace));
             })
             it("keeps a workspace until all the corresponding folders have been removed", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let a = helpers.mkdir('a');
-                let ws = this.workspaces.addFolder(a)
+                let ws = workspaces.addFolder(a) as autoproj.Workspace;
                 let b = helpers.mkdir('a', 'b');
-                this.workspaces.addFolder(b)
-                this.workspaces.deleteFolder(b)
-                assert.equal(1, this.workspaces.useCount(ws));
-                this.workspaces.deleteFolder(a)
-                assert.equal(0, this.workspaces.useCount(ws));
+                workspaces.addFolder(b)
+                workspaces.deleteFolder(b)
+                assert.equal(1, workspaces.useCount(ws));
+                workspaces.deleteFolder(a)
+                assert.equal(0, workspaces.useCount(ws));
             })
         })
         describe("isConfig", function () {
@@ -357,23 +419,23 @@ describe("Autoproj helpers tests", function () {
                 let a = helpers.mkdir('one', 'autoproj');
                 let b = helpers.mkdir('one', 'autoproj', 'overrides.d');
                 let c = helpers.mkdir('two', '.autoproj', 'remotes');
-                let ws = this.workspaces.addFolder(a);
-                this.workspaces.addFolder(b);
-                this.workspaces.addFolder(c);
-                assert.equal(this.workspaces.isConfig(a), true);
-                assert.equal(this.workspaces.isConfig(b), true);
-                assert.equal(this.workspaces.isConfig(c), true);
+                let ws = workspaces.addFolder(a);
+                workspaces.addFolder(b);
+                workspaces.addFolder(c);
+                assert.equal(workspaces.isConfig(a), true);
+                assert.equal(workspaces.isConfig(b), true);
+                assert.equal(workspaces.isConfig(c), true);
             })
             it("returns false if the folder is not part of the workspace configuration", function() {
                 let a = helpers.mkdir('one', 'a');
                 let b = helpers.mkdir('one', 'b');
                 let c = helpers.mkdir('two', 'c');
-                let ws = this.workspaces.addFolder(a);
-                this.workspaces.addFolder(b);
-                this.workspaces.addFolder(c);
-                assert.equal(this.workspaces.isConfig(a), false);
-                assert.equal(this.workspaces.isConfig(b), false);
-                assert.equal(this.workspaces.isConfig(c), false);
+                let ws = workspaces.addFolder(a);
+                workspaces.addFolder(b);
+                workspaces.addFolder(c);
+                assert.equal(workspaces.isConfig(a), false);
+                assert.equal(workspaces.isConfig(b), false);
+                assert.equal(workspaces.isConfig(c), false);
             })
         })
     })

@@ -5,6 +5,7 @@ import * as yaml from 'js-yaml';
 import * as path from 'path';
 import * as global from 'glob';
 import * as fs from 'fs';
+import * as vscode from 'vscode';
 
 export function findWorkspaceRoot(rootPath: string): string | null
 {
@@ -61,10 +62,25 @@ export class WorkspaceInfo
     packages: Map<string, Package>;
     packageSets: Map<string, PackageSet>;
 
-    constructor(path: string) {
+    constructor(
+            path: string,
+            packages: Map<string, Package> = new Map<string, Package>(),
+            packageSets: Map<string, PackageSet> = new Map<string, PackageSet>()) {
         this.path = path;
-        this.packages = new Map<string, Package>();
-        this.packageSets = new Map<string, PackageSet>();
+        this.packages = packages;
+        this.packageSets = packageSets;
+    }
+
+    findPackage(path: string): Package | undefined {
+        return this.packages.get(path);
+    }
+
+    findPackageSet(path: string): PackageSet | undefined {
+        return this.packageSets.get(path);
+    }
+
+    find(path: string): Package | PackageSet | undefined {
+        return this.findPackage(path) || this.findPackageSet(path);
     }
 }
 
@@ -84,11 +100,13 @@ export class Workspace
     name: string;
     readonly root: string;
     private _info: Promise<WorkspaceInfo>;
+    private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
 
     constructor(root: string, loadInfo: boolean = true)
     {
         this.root = root;
         this.name = path.basename(root);
+        this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
         if (loadInfo) {
             this._info = this.createInfoPromise();
         }
@@ -110,7 +128,16 @@ export class Workspace
     async reload()
     {
         this._info = this.createInfoPromise()
+        this._info.then((info) => { this._infoUpdatedEvent.fire(info) });
         return this._info;
+    }
+
+    dispose() {
+        this._infoUpdatedEvent.dispose();
+    }
+
+    onInfoUpdated(callback: (info: WorkspaceInfo) => any) : vscode.Disposable {
+        return this._infoUpdatedEvent.event(callback);
     }
 
     async info(): Promise<WorkspaceInfo>
@@ -200,7 +227,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
                 packageSets.set(entry.user_local_dir, entry)
             }
         })
-        return { path: workspacePath, packageSets: packageSets, packages: packages };
+        return new WorkspaceInfo(workspacePath, packages, packageSets);
     });
 }
 
@@ -210,13 +237,27 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
 export class Workspaces
 {
     devFolder : string | null;
-    workspaces : Map<string, Workspace>
-    folderToWorkspace : Map<string, Workspace>;
+    workspaces = new Map<string, Workspace>();
+    folderToWorkspace = new Map<string, Workspace>();
+    private _workspaceInfoEvent = new vscode.EventEmitter<WorkspaceInfo>();
+    private _folderInfoEvent = new vscode.EventEmitter<Package | PackageSet>();
+    private _folderInfoDisposables = new Map<string, vscode.Disposable>();
 
     constructor(devFolder = null) {
         this.devFolder = devFolder;
-        this.workspaces = new Map();
-        this.folderToWorkspace = new Map();
+    }
+
+    dispose() {
+        this._workspaceInfoEvent.dispose();
+        this._folderInfoEvent.dispose();
+    }
+
+    onWorkspaceInfo(callback : (info: WorkspaceInfo) => any) : vscode.Disposable {
+        return this._workspaceInfoEvent.event(callback);
+    }
+
+    onFolderInfo(callback : (info: Package | PackageSet) => any) : vscode.Disposable {
+        return this._folderInfoEvent.event(callback);
     }
 
     /** Add workspaces that contain some directory paths
@@ -239,6 +280,9 @@ export class Workspaces
         }
         else {
             this.add(ws);
+            ws.onInfoUpdated((info) => {
+                this._workspaceInfoEvent.fire(info);
+            })
             if (loadInfo) {
                 ws.info();
             }
@@ -262,6 +306,13 @@ export class Workspaces
         let { added, workspace } = this.addCandidate(path);
         if (workspace) {
             this.associateFolderToWorkspace(path, workspace);
+            let event = workspace.onInfoUpdated((info) => {
+                let pkgInfo = info.find(path);
+                if (pkgInfo) {
+                    this._folderInfoEvent.fire(pkgInfo);
+                }
+            })
+            this._folderInfoDisposables.set(path, event);
         }
         return workspace;
     }
@@ -274,6 +325,10 @@ export class Workspaces
      */
     deleteFolder(path: string) {
         let ws = this.folderToWorkspace.get(path);
+        let event = this._folderInfoDisposables.get(path);
+        if (event) {
+            event.dispose();
+        }
         this.folderToWorkspace.delete(path);
         if (ws) {
             if (this.useCount(ws) == 0) {
@@ -308,6 +363,10 @@ export class Workspaces
 
     /** Remove workspaces */
     delete(workspace: Workspace) {
+        if (this.useCount(workspace) !== 0) {
+            throw new Error("cannot remove a workspace that is in-use");
+        }
+        workspace.dispose();
         this.workspaces.delete(workspace.root);
     }
 

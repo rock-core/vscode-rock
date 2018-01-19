@@ -11,20 +11,44 @@ import * as packages from './packages';
 import * as async from './async';
 import * as debug from './debug';
 import * as config from './config';
+import * as fs from 'fs';
+import { join as joinpath } from 'path';
 
-function initializeWorkspacesFromVSCodeFolders(workspaces: autoproj.Workspaces,
+function registerNewWorkspaceFolder(
+        path: string, workspaces: autoproj.Workspaces,
+        configManager: config.ConfigManager) : void {
+
+    workspaces.addFolder(path);
+    configManager.setupPackage(path).catch((reason) => {
+        vscode.window.showErrorMessage(reason.message);
+    });
+}
+
+function handleNewWorkspaceFolder(
+        path: string,
+        rockContext : context.Context,
+        workspaces: autoproj.Workspaces,
+        configManager: config.ConfigManager) : void {
+
+    let ws = autoproj.Workspace.fromDir(path, false);
+    if (!ws) {
+        return;
+    }
+
+    registerNewWorkspaceFolder(path, workspaces, configManager);
+}
+
+function initializeWorkspacesFromVSCodeFolders(
+    rockContext: context.Context,
+    workspaces: autoproj.Workspaces,
     configManager: config.ConfigManager)
 {
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
-            if (workspaces.addFolder(folder.uri.fsPath)) {
-                configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
-                    vscode.window.showErrorMessage(reason.message);
+            handleNewWorkspaceFolder(folder.uri.fsPath, rockContext, workspaces, configManager);
                 });
             }
-        });
     }
-}
 
 function setupEvents(rockContext: context.Context, extensionContext: vscode.ExtensionContext,
     workspaces: autoproj.Workspaces, taskProvider: tasks.Provider,
@@ -33,11 +57,7 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
     extensionContext.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
-                if (workspaces.addFolder(folder.uri.fsPath)) {
-                    configManager.setupPackage(folder.uri.fsPath).catch((reason) => {
-                        vscode.window.showErrorMessage(reason.message);
-                    });
-                }
+                handleNewWorkspaceFolder(folder.uri.fsPath, rockContext, workspaces, configManager);
             });
             event.removed.forEach((folder) => {
                 workspaces.deleteFolder(folder.uri.fsPath);
@@ -64,11 +84,13 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
 
-    initializeWorkspacesFromVSCodeFolders(workspaces, configManager);
+    initializeWorkspacesFromVSCodeFolders(rockContext, workspaces, configManager);
     taskProvider.reloadTasks();
     setupEvents(rockContext, extensionContext, workspaces,
         taskProvider, configManager);
     rockCommands.register();
+
+    extensionContext.subscriptions.push(workspaces);
 
     let cppDebugProvider = new debug.CXXConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));
