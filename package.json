@@ -177,8 +177,7 @@
                 "fileLocation": [
                     "absolute"
                 ],
-                "pattern":
-                {
+                "pattern": {
                     "regexp": "^\\(\\d+\\) .+\\(([^\\)]+)\\): (failed in .* phase)$",
                     "file": 1,
                     "message": 2
