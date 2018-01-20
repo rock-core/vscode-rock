@@ -84,6 +84,8 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));
     let rubyDebugProvider = new debug.RubyConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('Ruby', rubyDebugProvider));
+    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, bridge, vscodeWrapper);
+    extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('orogen', orogenDebugProvider));
 
     statusBar.update();
     extensionContext.subscriptions.push(statusBar);

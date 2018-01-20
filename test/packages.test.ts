@@ -749,39 +749,82 @@ describe("RockOrogenPackage", function () {
             TypeMoq.Times.once());
     })
     describe("pickTarget()", function () {
-        it("throws if orogen project loading fails", async function () {
-            let error = new Error("test");
-            mockBridge.setup(x => x.describeOrogenProject(subject.path,
-                subject.name)).returns(() => Promise.reject(error));
-            await assertThrowsAsync(async () => {
-                await subject.pickTarget();
-            }, /test/);
+        let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
         })
-        it("shows the target picking ui and sets the debugging target", async function () {
-            let expectedChoices = new Array<context.DebuggingTargetChoice>();
+        it("sets the debugging target", async function () {
             let task: async.IOrogenTask = {
                 model_name: 'task1',
                 deployment_name: "orogen_task1",
                 file: '/some/bin/deployment/binfile'
             }
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.resolve(task));
 
+            await subject.pickTarget();
+            let debugTarget = new debug.Target("task1", '/some/bin/deployment/binfile');
+            mockContext.verify(x => x.setDebuggingTarget(subject.path, debugTarget),
+                TypeMoq.Times.once());
+        })
+        it("does nothing when canceled", async function () {
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.resolve(undefined));
+
+            await subject.pickTarget();
+            mockContext.verify(x => x.setDebuggingTarget(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
+                TypeMoq.Times.never());
+        })
+    });
+    describe("pickTask()", function () {
+        it("throws if orogen project loading fails", async function () {
+            let error = new Error("test");
+            mockBridge.setup(x => x.describeOrogenProject(subject.path,
+                subject.name)).returns(() => Promise.reject(error));
+            await assertThrowsAsync(async () => {
+                await subject.pickTask();
+            }, /test/);
+        })
+        it("shows a quick pick ui and returns the selected task", async function () {
+            let expectedChoices = new Array<any>();
+            let task: async.IOrogenTask = {
+                model_name: 'task1',
+                deployment_name: "orogen_task1",
+                file: '/some/bin/deployment/binfile'
+            }
             expectedChoices.push({
                 label: 'task1',
                 description: '',
-                targetName: task.model_name,
-                targetFile: task.file
+                task: task
             });
 
             mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
                 .returns(() => Promise.resolve([ task ]));
 
             let choices;
-            mockContext.setup(x => x.pickDebuggingTarget(subject.path, TypeMoq.It.isAny(), TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                callback((path, choicesArg, ...ignored) => { choices = choicesArg });
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
+                returns(() => Promise.resolve(expectedChoices[0]));
 
-            await subject.pickTarget();
-            let givenChoices = await choices;
-            assert.deepEqual(givenChoices, expectedChoices);
+            let selected = await subject.pickTask();
+            assert.deepEqual(choices, expectedChoices);
+            assert.deepEqual(selected, task);
+        })
+        it("shows a quick pick ui and returns undefined if canceled", async function () {
+            let task: async.IOrogenTask = {
+                model_name: 'task1',
+                deployment_name: "orogen_task1",
+                file: '/some/bin/deployment/binfile'
+            }
+            mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
+                .returns(() => Promise.resolve([ task ]));
+            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
+                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                returns(() => Promise.resolve(undefined));
+            let selected = await subject.pickTask();
+            assert.deepEqual(selected, undefined);
         })
     })
     it("shows the type picking ui and sets the package type", async function () {
@@ -791,9 +834,40 @@ describe("RockOrogenPackage", function () {
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
     })
-    it("does not support creating debug configuration yet", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.customDebugConfiguration();
-        }, /Not supported/);
+    describe("customDebugConfiguration()", function () {
+        let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
+        beforeEach(function () {
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        })
+        it("returns undefined if canceled", async function () {
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.resolve(undefined));
+            assert(!await subject.customDebugConfiguration());
+        })
+        it("throws if task picking fails", async function () {
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.reject(new Error("test")));
+            assertThrowsAsync(async function () {
+                await subject.customDebugConfiguration();
+            }, /^test$/);
+        })
+        it("returns a debug configuration for the selected task", async function () {
+            let task: async.IOrogenTask = {
+                model_name: 'component::Task',
+                deployment_name: "component",
+                file: '/some/bin/deployment/binfile'
+            }
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.resolve(task));
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                name: "component::Task",
+                type: "orogen",
+                request: "launch",
+                task: "Task"
+            }
+            const customDebugConfig = await subject.customDebugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
     })
 })

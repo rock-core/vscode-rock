@@ -691,7 +691,7 @@ export class RockOrogenPackage extends RockPackage
         return options;
     }
 
-    async pickTarget(): Promise<void>
+    async pickTask(): Promise<async.IOrogenTask | undefined>
     {
         let description = this._bridge.describeOrogenProject(this.path, this.name);
         let tokenSource = new vscode.CancellationTokenSource();
@@ -703,32 +703,54 @@ export class RockOrogenPackage extends RockPackage
         })
         let promise = description.then(
             (result) => {
-                let choices : context.DebuggingTargetChoice[] = [];
+                let choices: { label: string, description: string, task: async.IOrogenTask }[] = [];
                 result.forEach((task) => {
                     choices.push({
                         label: task.model_name,
                         description: '',
-                        targetName: task.model_name,
-                        targetFile: task.file
+                        task: task
                     });
                 });
                 return choices;
-            })
-
+            }
+        )
         let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select a task to debug' }
+            placeHolder: 'Select a task' }
 
-        await this._context.pickDebuggingTarget(this.path, promise, options, tokenSource.token);
+        let task = await this._vscode.showQuickPick(promise, options, tokenSource.token);
         tokenSource.dispose();
         // Note: we know the promise is resolved at this point thanks to the
         // await on the target picker
         if (err) {
             throw err;
         }
+        if (task)
+        {
+            return task.task;
+        }
     }
+
+    async pickTarget(): Promise<void>
+    {
+        let task = await this.pickTask();
+        if (task) {
+            this._context.setDebuggingTarget(this.path,
+                new debug.Target(task.model_name, task.file));
+        }
+    }
+
     async customDebugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Not supported yet");
+        const task = await this.pickTask();
+        if (task) {
+            const debugConfig: vscode.DebugConfiguration = {
+                name: task.model_name,
+                type: "orogen",
+                request: "launch",
+                task: (task.model_name.split("::"))[1]
+            };
+            return debugConfig;
+        }
     }
     get type() { return Type.fromType(TypeList.OROGEN); }
 }

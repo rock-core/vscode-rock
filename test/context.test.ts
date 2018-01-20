@@ -552,56 +552,6 @@ describe("Context tests", function () {
             assert.deepEqual(selectedPackageType, packages.Type.fromName('cxx'));
         })
     })
-
-    describe("pickDebuggingTarget", function() {
-        let packagePath : string;
-
-        beforeEach(function() {
-            packagePath = helpers.mkdir('package');
-            helpers.registerDir('package', '.vscode');
-            helpers.registerFile('package', '.vscode', 'rock.json');
-        })
-
-        it("selects the package target from the provided list", async function() {
-            let choices : context.DebuggingTargetChoice[] = [
-                {
-                    'label': 'label1',
-                    'description': 'descriptiont1',
-                    'targetName': 'name1',
-                    'targetFile': 'path1'
-                },
-                {
-                    'label': 'label2',
-                    'description': 'descriptiont2',
-                    'targetName': 'name2',
-                    'targetFile': 'path2'
-                }
-            ];
-
-            testContext.mockWrapper.setup(x => x.showQuickPick(choices, TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(choices[0]));
-
-            await testContext.subject.pickDebuggingTarget(packagePath, choices, {}, undefined);
-            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
-            assert(selectedTarget);
-            if (selectedTarget) {
-                assert.equal(selectedTarget.name, 'name1');
-                assert.equal(selectedTarget.path, 'path1');
-            }
-        })
-
-        it("does not modify the selection if the picker is cancelled", async function() {
-            testContext.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(undefined));
-
-            let expected = new debug.Target('name', 'path')
-            testContext.subject.setDebuggingTarget(packagePath, expected);
-            await testContext.subject.pickDebuggingTarget(packagePath, [], {}, undefined);
-            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
-            assert.deepEqual(expected, selectedTarget);
-        })
-    })
-
     describe("pickDebuggingFile", function() {
         let packagePath : string;
 

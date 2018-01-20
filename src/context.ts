@@ -51,13 +51,6 @@ function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
     })
 }
 
-export class DebuggingTargetChoice implements vscode.QuickPickItem {
-    label : string;
-    description : string;
-    targetName : string;
-    targetFile : string;
-};
-
 export class Context
 {
     private readonly _vscode: wrappers.VSCode;
@@ -307,15 +300,6 @@ export class Context
         if (targetUri) {
             let target = new debug.Target(basename(targetUri[0].fsPath), targetUri[0].fsPath);
             this.setDebuggingTarget(path, target);
-        }
-    }
-
-    public async pickDebuggingTarget(packagePath : string, choices : DebuggingTargetChoice[] | Thenable<DebuggingTargetChoice[]>, options, token) {
-        const selected = await this._vscode.showQuickPick(choices, options, token);
-        if (selected) {
-            let target = new debug.Target(selected.targetName, selected.targetFile);
-            this.setDebuggingTarget(packagePath, target);
-            return target;
         }
     }
 }

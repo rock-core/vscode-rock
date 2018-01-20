@@ -45,6 +45,52 @@
         "roby"
     ],
     "contributes": {
+        "debuggers": [
+            {
+                "type": "orogen",
+                "label": "Orogen",
+                "enableBreakpointsFor": {
+                    "languageIds": [
+                        "c",
+                        "cpp"
+                    ]
+                },
+                "configurationAttributes": {
+                    "launch": {
+                        "required": [
+                            "task"
+                        ],
+                        "properties": {
+                            "task": {
+                                "type": "string",
+                                "description": "Task name to debug."
+                            },
+                            "deployAs": {
+                                "type": "string",
+                                "description": "Name to be used as the deployment name."
+                            },
+                            "start": {
+                                "type": "boolean",
+                                "description": "Start task on launch.",
+                                "default": false
+                            },
+                            "confDir": {
+                                "type": "string",
+                                "description": "Directory to launch task configuration from."
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "component_name::Task",
+                        "type": "orogen",
+                        "request": "launch",
+                        "task": "Task"
+                    }
+                ]
+            }
+        ],
         "configuration": {
             "title": "Rock integration with Visual Studio Code",
             "properties": {
