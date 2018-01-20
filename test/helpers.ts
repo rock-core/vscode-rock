@@ -15,20 +15,19 @@ import * as Tasks from '../src/tasks'
 import * as Async from '../src/async'
 import { writeFileSync } from 'fs';
 
-export async function assertThrowsAsync(fn, msg: RegExp)
+export function assertThrowsAsync(p, msg: RegExp)
 {
-    let f = () => {};
-    try {
-        await fn();
-    }
-    catch (e)
-    {
-        f = () => {throw e};
-    }
-    finally
-    {
-        assert.throws(f, msg);
-    }
+    return new Promise((resolve, reject) => {
+        p.then(() => { reject(new Error("expected promise failure but it succeeded")) })
+        p.catch((e) => {
+            if (msg.test(e.message)) {
+                resolve();
+            }
+            else {
+                reject(`expected message "${e.message}" to match "${msg}"`)
+            }
+        })
+    })
 }
 
 let root;

@@ -248,7 +248,7 @@ export class InvalidPackage implements Package
     get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Select a valid package before trying to create a debug configuration");
+        return Promise.reject(new Error("Select a valid package before trying to create a debug configuration"));
     }
 
     get type()
@@ -270,7 +270,7 @@ export class ConfigPackage implements Package
     get name() { return basename(this.path); }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Debug configurations are not available for configuration packages");
+        return Promise.reject(new Error("Debug configurations are not available for configuration packages"));
     }
 
     get type()
@@ -293,7 +293,7 @@ export class ForeignPackage extends GenericPackage
     get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Debug configurations are not available for external packages");
+        return Promise.reject(new Error("Debug configurations are not available for external packages"));
     }
     get name() { return basename(this.path); }
 }

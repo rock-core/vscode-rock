@@ -86,9 +86,8 @@ describe("ConfigManager", function () {
                 setMockPackageType("Autobuild::CMake");
                 fs.mkdirSync(join(pkgPath, ".vscode"));
                 fs.writeFileSync(propertiesPath, "dummyfile");
-                await assertThrowsAsync(async _ => {
-                    await subject.setupPackage(pkgPath);
-                }, /Could not load/);
+                await assertThrowsAsync(subject.setupPackage(pkgPath),
+                    /Could not load/);
                 assert.equal(fs.readFileSync(propertiesPath, "utf8"), "dummyfile");
             })
             async function testType(type: string)
@@ -160,9 +159,8 @@ describe("ConfigManager", function () {
                 setMockPackageType("Autobuild::CMake");
                 fs.mkdirSync(join(pkgPath, ".vscode"));
                 fs.writeFileSync(propertiesPath, JSON.stringify(currentConf));
-                await assertThrowsAsync(async _ => {
-                    await subject.setupPackage(pkgPath);
-                }, /Invalid configuration/);
+                await assertThrowsAsync(subject.setupPackage(pkgPath),
+                    /Invalid configuration/);
 
                 let expectedData = JSON.stringify(currentConf);
                 let actualData = fs.readFileSync(propertiesPath, "utf8");
@@ -188,9 +186,8 @@ describe("ConfigManager", function () {
         it("throws if existing file is invalid", async function () {
             fs.mkdirSync(join(pkgPath, ".vscode"));
             fs.writeFileSync(launchConfigPath, "dummyfile");
-            await assertThrowsAsync(async _ => {
-                await subject.addLaunchConfig(pkgPath, debugConfig);
-            }, /Could not load/);
+            assert.throws(() => subject.addLaunchConfig(pkgPath, debugConfig),
+                /Could not load/)
             assert.equal(fs.readFileSync(launchConfigPath, "utf8"), "dummyfile");
         })
         it("creates the launch config file", async function () {
@@ -227,9 +224,8 @@ describe("ConfigManager", function () {
             let currentConf = { configurations: "test" }
             fs.mkdirSync(join(pkgPath, ".vscode"));
             fs.writeFileSync(launchConfigPath, JSON.stringify(currentConf));
-            await assertThrowsAsync(async _ => {
-                await subject.addLaunchConfig(pkgPath, debugConfig);
-            }, /Invalid configuration/);
+            assert.throws(() => subject.addLaunchConfig(pkgPath, debugConfig),
+                /Invalid configuration/);
 
             let expectedData = JSON.stringify(currentConf);
             let actualData = fs.readFileSync(launchConfigPath, "utf8");

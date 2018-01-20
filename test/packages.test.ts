@@ -150,10 +150,9 @@ describe("InvalidPackage", function () {
         assert.deepEqual(subject.type,
             packages.Type.invalid());
     })
-    it("does not allow debuging configurations", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debugConfiguration();
-        }, /Select a valid package/);
+    it("does not allow debugging configurations", async function () {
+        await assertThrowsAsync(subject.debugConfiguration(),
+            /Select a valid package/);
     })
     it("returns an undefined workspace", function () {
         assert(!subject.workspace);
@@ -179,9 +178,8 @@ describe("ConfigPackage", function () {
             packages.Type.config());
     })
     it("does not allow debuging configurations", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debugConfiguration();
-        }, /not available for configuration/);
+        await assertThrowsAsync(subject.debugConfiguration(),
+            /not available for configuration/);
     })
     it("returns the given workspace", function () {
         assert.strictEqual(subject.workspace, mockWorkspace.object);
@@ -200,9 +198,8 @@ describe("ForeignPackage", function () {
         assert.equal(subject.name, "package");
     })
     it("does not allow custom debugging configurations", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debugConfiguration();
-        }, /not available for external/);
+        await assertThrowsAsync(subject.debugConfiguration(),
+            /not available for external/);
     })
     it("returns an undefined workspace", function () {
         assert(!subject.workspace);
@@ -352,9 +349,8 @@ describe("RockCXXPackage", function () {
         it("throws if builddir does not exist", async function () {
             pkgInfo.builddir = '/path/not/found';
             createSubject();
-            assertThrowsAsync(function () {
-                subject.listExecutables();
-            }, /Did you build/);
+            await assertThrowsAsync(subject.listExecutables(),
+                /Did you build/);
         })
     });
     describe("pickExecutable()", function () {
@@ -411,9 +407,8 @@ describe("RockCXXPackage", function () {
         it("throws if executable picking fails", async function () {
             mockSubject.setup(x => x.pickExecutable()).
                 returns(() => Promise.reject(new Error("test")));
-            assertThrowsAsync(async function () {
-                await subject.debugConfiguration();
-            }, /^test$/);
+            await assertThrowsAsync(subject.debugConfiguration(),
+                /^test$/);
         })
         it("returns a debug configuration for the selected executable", async function () {
             const executable = joinPath(subject.info.builddir, "test_suite");
@@ -517,9 +512,8 @@ describe("RockOrogenPackage", function () {
             let error = new Error("test");
             mockBridge.setup(x => x.describeOrogenProject(subject.path,
                 basename(subject.path))).returns(() => Promise.reject(error));
-            await assertThrowsAsync(async () => {
-                await subject.pickTask();
-            }, /test/);
+            await assertThrowsAsync(subject.pickTask(),
+                /test/);
         })
         it("shows a quick pick ui and returns the selected task", async function () {
             let expectedChoices = new Array<any>();
@@ -579,9 +573,8 @@ describe("RockOrogenPackage", function () {
         it("throws if task picking fails", async function () {
             mockSubject.setup(x => x.pickTask()).
                 returns(() => Promise.reject(new Error("test")));
-            assertThrowsAsync(async function () {
-                await subject.debugConfiguration();
-            }, /^test$/);
+            await assertThrowsAsync(subject.debugConfiguration(),
+                /^test$/);
         })
         it("returns a debug configuration for the selected task", async function () {
             let task: async.IOrogenTask = {

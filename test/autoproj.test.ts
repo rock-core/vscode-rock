@@ -290,7 +290,9 @@ describe("Autoproj helpers tests", function () {
             })
 
             it("rejects the promise on failure", async function() {
-                helpers.assertThrowsAsync(async () => subject.which('cmd'),
+                let p = subject.which('cmd');
+                processMock.emit('exit', 1, null);
+                await helpers.assertThrowsAsync(p,
                     /cannot find cmd in the workspace/)
             })
         })
