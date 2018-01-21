@@ -637,6 +637,7 @@ describe("RockCXXPackage", function () {
                 name: relative(subject.info.builddir, executable),
                 request: "launch",
                 program: expandablePath,
+                cwd: "${rock:buildDir}",
                 MIMode: "gdb",
                 setupCommands: [
                     {
