@@ -11,37 +11,7 @@ import { join as joinPath } from 'path'
 export interface PackageInternalData
 {
     type: string | undefined;
-    debuggingTarget: {
-        name: string | undefined,
-        path: string | undefined
-    }
 }
-
-export interface RockOrogenDebugConfig
-{
-    start: boolean,
-    gui: boolean,
-    confDir: string | undefined
-}
-
-export interface RockDebugConfig
-{
-    cwd: string | undefined;
-    args: string[],
-    orogen: RockOrogenDebugConfig
-}
-
-const NullOrogenDebugConfig = {
-    start: false,
-    gui: false,
-    confDir: undefined
-};
-
-const NullRockDebugConfig = {
-    cwd: undefined,
-    args: [],
-    orogen: NullOrogenDebugConfig
-};
 
 /** Checks that a given filesystem path is registered in a list of workspace folders */
 function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
@@ -119,26 +89,6 @@ export class Context
         return pkgType;
     }
 
-    public setDebuggingTarget(path: string, target: debug.Target): void
-    {
-        let data = this.loadPersistedData(path);
-        data.debuggingTarget.name = target.name;
-        data.debuggingTarget.path = target.path;
-        this.persistData(path, data);
-        this._contextUpdatedEvent.fire();
-    }
-
-    public getDebuggingTarget(path: string): debug.Target | undefined
-    {
-        let data = this.loadPersistedData(path);
-        if (!data || !data.debuggingTarget ||
-            !data.debuggingTarget.name || !data.debuggingTarget.path)
-            return undefined;
-
-        return new debug.Target(data.debuggingTarget.name,
-            data.debuggingTarget.path);
-    }
-
     public async getSelectedWorkspace() : Promise<autoproj.Workspace | undefined>
     {
         let pkg = await this.getSelectedPackage();
@@ -204,18 +154,6 @@ export class Context
         return this._workspaces;
     }
 
-    public debugConfig(path: string): RockDebugConfig
-    {
-        let resource = vscode.Uri.file(path);
-        let conf = this._vscode.getConfiguration('rock', resource).get('debug');
-        if (conf) {
-            return conf as RockDebugConfig;
-        }
-        else {
-            return NullRockDebugConfig;
-        }
-    }
-
     private persistedDataPath(rootPath: string)
     {
         return joinPath(rootPath, '.vscode', 'rock.json');
@@ -224,11 +162,7 @@ export class Context
     private loadPersistedData(path: string): PackageInternalData
     {
         let data: PackageInternalData = {
-            type: undefined,
-            debuggingTarget: {
-                name: undefined,
-                path: undefined
-            }
+            type: undefined
         }
         try
         {
@@ -286,20 +220,5 @@ export class Context
             this.setPackageType(path, chosen.type);
         }
         return chosen;
-    }
-
-    public async pickDebuggingFile(path : string) {
-        const options: vscode.OpenDialogOptions = {
-            canSelectMany: false,
-            canSelectFiles: true,
-            canSelectFolders: false,
-            defaultUri: vscode.Uri.file(path)
-        };
-
-        const targetUri = await this._vscode.showOpenDialog(options);
-        if (targetUri) {
-            let target = new debug.Target(basename(targetUri[0].fsPath), targetUri[0].fsPath);
-            this.setDebuggingTarget(path, target);
-        }
     }
 }

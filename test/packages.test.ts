@@ -153,27 +153,12 @@ describe("PackageFactory", function () {
 })
 
 describe("InvalidPackage", function () {
-    let subject;
+    let subject: packages.InvalidPackage;
     beforeEach(function () {
         subject = new packages.InvalidPackage();
     })
     it("returns a valid string as its name", function () {
         assert.equal(subject.name, "(Invalid package)");
-    })
-    it("does not allow to debugging", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /Select a valid package/);
-    })
-    it("does not allow building", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /Select a valid package/);
-    })
-    it("does not allow to pick a debugging target", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.pickTarget();
-        }, /Select a valid package/);
     })
     it("does not allow to pick the package type", async function () {
         await assertThrowsAsync(async () => {
@@ -186,33 +171,18 @@ describe("InvalidPackage", function () {
     })
     it("does not allow debuging configurations", async function () {
         await assertThrowsAsync(async () => {
-            await subject.customDebugConfiguration();
+            await subject.debugConfiguration();
         }, /Select a valid package/);
     })
 })
 
 describe("ConfigPackage", function () {
-    let subject;
+    let subject: packages.ConfigPackage;
     beforeEach(function () {
         subject = new packages.ConfigPackage("/path/to/package");
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("does not allow debugging", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /configuration package/);
-    })
-    it("does not allow building", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /configuration package/);
-    })
-    it("does not allow to pick a debugging target", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.pickTarget();
-        }, /configuration package/);
     })
     it("does not allow to pick the package type", async function () {
         await assertThrowsAsync(async () => {
@@ -225,13 +195,13 @@ describe("ConfigPackage", function () {
     })
     it("does not allow debuging configurations", async function () {
         await assertThrowsAsync(async () => {
-            await subject.customDebugConfiguration();
+            await subject.debugConfiguration();
         }, /not available for configuration/);
     })
 })
 
 describe("ForeignPackage", function () {
-    let subject;
+    let subject: packages.ForeignPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     beforeEach(function () {
         mockContext = TypeMoq.Mock.ofType<context.Context>();
@@ -240,16 +210,6 @@ describe("ForeignPackage", function () {
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("does not allow debugging", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /not part of an autoproj workspace/);
-    })
-    it("does not allow debugging target picking", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.pickTarget();
-        }, /not part of an autoproj workspace/);
     })
     it("does not allow building", async function () {
         await assertThrowsAsync(async () => {
@@ -262,7 +222,7 @@ describe("ForeignPackage", function () {
     })
     it("does not allow custom debugging configurations", async function () {
         await assertThrowsAsync(async () => {
-            await subject.customDebugConfiguration();
+            await subject.debugConfiguration();
         }, /not available for external/);
     })
 })
@@ -307,45 +267,6 @@ describe("RockRubyPackage", function () {
         await subject.build();
         mockWrapper.verify(x => x.runTask(task), TypeMoq.Times.once());
     })
-    it("shows the target picking ui and sets the debugging target", async function () {
-        subject.pickTarget();
-        mockContext.verify(x => x.pickDebuggingFile(subject.path), TypeMoq.Times.once());
-    })
-
-    describe("debug()", function () {
-        it("throws if the debugging target is unset", async function () {
-            await assertThrowsAsync(async () => {
-                await subject.debug();
-            }, /Select a debugging target/);
-        })
-        it("starts a ruby debugging session", async function () {
-            const target = new debug.Target('package', '/path/to/package/build/test');
-            let userConf: context.RockDebugConfig = {
-                cwd: subject.path,
-                args: ['--test'],
-                orogen: {
-                    start: true,
-                    gui: true,
-                    confDir: subject.path
-                }
-            }
-            const type = packages.TypeList.RUBY;
-            const options = {
-                type: "Ruby",
-                name: "rock debug",
-                request: "launch",
-                program: target.path,
-                cwd: userConf.cwd,
-                args: userConf.args,
-            };
-            mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
-            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-                returns(() => target);
-
-            await subject.debug();
-            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
-        })
-    })
     it("shows the type picking ui and sets the package type", async function () {
         subject.pickType();
         mockContext.verify(x => x.pickPackageType(subject.path), TypeMoq.Times.once());
@@ -353,7 +274,7 @@ describe("RockRubyPackage", function () {
     it("returns the RUBY package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.RUBY));
     })
-    describe("customDebugConfiguration()", function () {
+    describe("debugConfiguration()", function () {
         it("returns undefined if canceled", async function () {
             const options: vscode.OpenDialogOptions = {
                 canSelectMany: false,
@@ -364,7 +285,7 @@ describe("RockRubyPackage", function () {
             };
             mockWrapper.setup(x => x.showOpenDialog(options)).
                 returns(() => Promise.resolve(undefined));
-            assert(!await subject.customDebugConfiguration());
+            assert(!await subject.debugConfiguration());
         })
         it("returns a debug configuration for the selected file", async function () {
             const uri = vscode.Uri.file(joinPath(subject.path, "test.rb"));
@@ -384,7 +305,7 @@ describe("RockRubyPackage", function () {
             mockWrapper.setup(x => x.showOpenDialog(options)).
                 returns(() => Promise.resolve([uri]));
 
-            const customDebugConfig = await subject.customDebugConfiguration();
+            const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
         })
     })
@@ -428,79 +349,6 @@ describe("RockCXXPackage", function () {
         await subject.build();
         mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
-    })
-    describe("pickTarget()", function () {
-        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
-        beforeEach(function () {
-            mockSubject = TypeMoq.Mock.ofInstance(subject);
-            subject = mockSubject.target;
-        })
-        it("sets the debugging target", async function () {
-            mockSubject.setup(x => x.pickExecutable()).
-                returns(() => Promise.resolve("/path/to/package/build/test"));
-
-            await subject.pickTarget();
-            let debugTarget = new debug.Target("test", "/path/to/package/build/test");
-            mockContext.verify(x => x.setDebuggingTarget(subject.path, debugTarget),
-                TypeMoq.Times.once());
-        })
-        it("does nothing when canceled", async function () {
-            mockSubject.setup(x => x.pickExecutable()).
-                returns(() => Promise.resolve(undefined));
-
-            await subject.pickTarget();
-            mockContext.verify(x => x.setDebuggingTarget(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
-                TypeMoq.Times.never());
-        })
-    });
-    describe("debug()", function () {
-        it("throws if the debugging target is unset", async function () {
-            await assertThrowsAsync(async () => {
-                await subject.debug();
-            }, /Select a debugging target/);
-        })
-        it("starts a cxx debugging session", async function () {
-            const target = new debug.Target('package', '/path/to/package/build/test');
-            const type = packages.TypeList.CXX;
-            let userConf: context.RockDebugConfig = {
-                cwd: subject.path,
-                args: ['--test'],
-                orogen: {
-                    start: true,
-                    gui: true,
-                    confDir: subject.path
-                }
-            }
-            const options = {
-                type: "cppdbg",
-                name: "rock debug",
-                request: "launch",
-                program: target.path,
-                externalConsole: false,
-                MIMode: "gdb",
-                cwd: userConf.cwd,
-                args: userConf.args,
-                setupCommands: [
-                    {
-                        description: "Enable pretty-printing for gdb",
-                        text: "-enable-pretty-printing",
-                        ignoreFailures: false
-                    }
-                ]
-            };
-            const uri = vscode.Uri.file(subject.path);
-            let folder = {
-                uri: vscode.Uri.file(subject.path),
-                name: basename(subject.path),
-                index: 0
-            }
-            mockContext.setup(x => x.debugConfig(subject.path)).returns(() => userConf);
-            mockContext.setup(x => x.getDebuggingTarget(subject.path)).
-                returns(() => target);
-
-            await subject.debug();
-            mockWrapper.verify(x => x.startDebugging(subject.path, options), TypeMoq.Times.once());
-        })
     })
     it("shows the type picking ui and sets the package type", async function () {
         subject.pickType();
@@ -608,7 +456,7 @@ describe("RockCXXPackage", function () {
             assert(!chosen);
         })
     })
-    describe("customDebugConfiguration()", function () {
+    describe("debugConfiguration()", function () {
         let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
         beforeEach(function () {
             mockSubject = TypeMoq.Mock.ofInstance(subject);
@@ -617,13 +465,13 @@ describe("RockCXXPackage", function () {
         it("returns undefined if canceled", async function () {
             mockSubject.setup(x => x.pickExecutable()).
                 returns(() => Promise.resolve(undefined));
-            assert(!await subject.customDebugConfiguration());
+            assert(!await subject.debugConfiguration());
         })
         it("throws if executable picking fails", async function () {
             mockSubject.setup(x => x.pickExecutable()).
                 returns(() => Promise.reject(new Error("test")));
             assertThrowsAsync(async function () {
-                await subject.customDebugConfiguration();
+                await subject.debugConfiguration();
             }, /^test$/);
         })
         it("returns a debug configuration for the selected executable", async function () {
@@ -647,7 +495,7 @@ describe("RockCXXPackage", function () {
                     }
                 ]
             };
-            const customDebugConfig = await subject.customDebugConfiguration();
+            const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
         })
     })
@@ -688,16 +536,6 @@ describe("RockOtherPackage", function () {
         await subject.build();
         mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
-    })
-    it("does not allow debugging target picking", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.pickTarget();
-        }, /Set the package type/);
-    })
-    it("does not allow debugging", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.debug();
-        }, /Set the package type/);
     })
     it("shows the type picking ui and sets the package type", async function () {
         subject.pickType();
@@ -748,35 +586,6 @@ describe("RockOrogenPackage", function () {
         mockWrapper.verify(x => x.runTask(task),
             TypeMoq.Times.once());
     })
-    describe("pickTarget()", function () {
-        let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
-        beforeEach(function () {
-            mockSubject = TypeMoq.Mock.ofInstance(subject);
-            subject = mockSubject.target;
-        })
-        it("sets the debugging target", async function () {
-            let task: async.IOrogenTask = {
-                model_name: 'task1',
-                deployment_name: "orogen_task1",
-                file: '/some/bin/deployment/binfile'
-            }
-            mockSubject.setup(x => x.pickTask()).
-                returns(() => Promise.resolve(task));
-
-            await subject.pickTarget();
-            let debugTarget = new debug.Target("task1", '/some/bin/deployment/binfile');
-            mockContext.verify(x => x.setDebuggingTarget(subject.path, debugTarget),
-                TypeMoq.Times.once());
-        })
-        it("does nothing when canceled", async function () {
-            mockSubject.setup(x => x.pickTask()).
-                returns(() => Promise.resolve(undefined));
-
-            await subject.pickTarget();
-            mockContext.verify(x => x.setDebuggingTarget(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
-                TypeMoq.Times.never());
-        })
-    });
     describe("pickTask()", function () {
         it("throws if orogen project loading fails", async function () {
             let error = new Error("test");
@@ -834,7 +643,7 @@ describe("RockOrogenPackage", function () {
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
     })
-    describe("customDebugConfiguration()", function () {
+    describe("debugConfiguration()", function () {
         let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
         beforeEach(function () {
             mockSubject = TypeMoq.Mock.ofInstance(subject);
@@ -843,13 +652,13 @@ describe("RockOrogenPackage", function () {
         it("returns undefined if canceled", async function () {
             mockSubject.setup(x => x.pickTask()).
                 returns(() => Promise.resolve(undefined));
-            assert(!await subject.customDebugConfiguration());
+            assert(!await subject.debugConfiguration());
         })
         it("throws if task picking fails", async function () {
             mockSubject.setup(x => x.pickTask()).
                 returns(() => Promise.reject(new Error("test")));
             assertThrowsAsync(async function () {
-                await subject.customDebugConfiguration();
+                await subject.debugConfiguration();
             }, /^test$/);
         })
         it("returns a debug configuration for the selected task", async function () {
@@ -866,7 +675,7 @@ describe("RockOrogenPackage", function () {
                 request: "launch",
                 task: "Task"
             }
-            const customDebugConfig = await subject.customDebugConfiguration();
+            const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
         })
     })

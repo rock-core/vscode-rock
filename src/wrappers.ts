@@ -65,14 +65,6 @@ export class VSCode {
         return vscode.window.showOpenDialog(options);
     }
 
-    public startDebugging(folder: vscode.WorkspaceFolder | string | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Thenable<boolean>
-    {
-        if (typeof folder == 'string') {
-            folder = this.getWorkspaceFolder(folder);
-        }
-        return vscode.debug.startDebugging(folder, nameOrConfiguration);
-    }
-
     public showErrorMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
     {
         return vscode.window.showErrorMessage(message, ...items);

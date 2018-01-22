@@ -66,13 +66,9 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let statusBar = new status.StatusBar(extensionContext, rockContext);
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
-    let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext, vscodeWrapper);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
-
-    extensionContext.subscriptions.push(
-        vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
 
     initializeWorkspacesFromVSCodeFolders(workspaces, configManager);
     taskProvider.reloadTasks();

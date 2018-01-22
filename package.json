@@ -103,56 +103,6 @@
                     "default": "auto",
                     "description": "How current package is determined. Supported modes are 'auto' or 'manual'",
                     "scope": "window"
-                },
-                "rock.debug": {
-                    "type": "object",
-                    "description": "Debugging configuration",
-                    "scope": "resource",
-                    "properties": {
-                        "cwd": {
-                            "type": "string",
-                            "description": "The working directory of the target",
-                            "default": "${workspaceFolder}"
-                        },
-                        "args": {
-                            "type": "array",
-                            "description": "Command line arguments passed to the program",
-                            "items": {
-                                "type": "string"
-                            },
-                            "default": []
-                        },
-                        "orogen": {
-                            "type": "object",
-                            "description": "Debugging configuration specific to orogen packages",
-                            "properties": {
-                                "start": {
-                                    "type": "boolean",
-                                    "description": "Start (and configure) the task",
-                                    "default": false
-                                },
-                                "gui": {
-                                    "type": "boolean",
-                                    "description": "Start vizkit task inspector",
-                                    "default": true
-                                },
-                                "confDir": {
-                                    "type": "string",
-                                    "description": "Directory to load task configurations from",
-                                    "default": "${workspaceFolder}/scripts"
-                                }
-                            }
-                        }
-                    },
-                    "default": {
-                        "cwd": "${workspaceFolder}",
-                        "args": [],
-                        "orogen": {
-                            "start": false,
-                            "gui": true,
-                            "confDir": "${workspaceFolder}/scripts"
-                        }
-                    }
                 }
             }
         },
@@ -168,19 +118,9 @@
                 "command": "rock.selectPackageType"
             },
             {
-                "title": "Set debugging target",
-                "category": "rock",
-                "command": "rock.setDebuggingTarget"
-            },
-            {
                 "title": "Build package",
                 "category": "rock",
                 "command": "rock.buildPackage"
-            },
-            {
-                "title": "Debug package",
-                "category": "rock",
-                "command": "rock.debugPackage"
             },
             {
                 "title": "Update package info",

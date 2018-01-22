@@ -124,30 +124,16 @@ describe("Commands", function () {
                 mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
             });
         })
-        describe("setDebuggingTarget", function () {
-            it("handles exceptions thrown in the promise", async function () {
-                mockPackage.setup(x => x.pickTarget()).returns(() => Promise.reject(new Error("test")));
-                await subject.setDebuggingTarget();
-                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
-            });
-        })
-        describe("debugPackage", function () {
-            it("handles exceptions thrown in the promise", async function () {
-                mockPackage.setup(x => x.debug()).returns(() => Promise.reject(new Error("test")));
-                await subject.debugPackage();
-                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
-            });
-        })
         describe("addLaunchConfig()", function () {
             it("does nothing if canceled", async function () {
-                mockPackage.setup(x => x.customDebugConfiguration()).
+                mockPackage.setup(x => x.debugConfiguration()).
                     returns(() => Promise.resolve(undefined));
                 await subject.addLaunchConfig();
                 mockConfigManager.verify(x => x.addLaunchConfig(TypeMoq.It.isAny(),
                     TypeMoq.It.isAny()), TypeMoq.Times.never());
             })
             it("handles an exception in the custom configuration method", async function () {
-                mockPackage.setup(x => x.customDebugConfiguration()).
+                mockPackage.setup(x => x.debugConfiguration()).
                     returns(() => Promise.reject(new Error("test")));
                 await subject.addLaunchConfig();
                 mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
@@ -161,7 +147,7 @@ describe("Commands", function () {
                     request: "launch"
                 }
                 mockPackage.setup(x => x.path).returns(() => '/path/to/package');
-                mockPackage.setup(x => x.customDebugConfiguration()).
+                mockPackage.setup(x => x.debugConfiguration()).
                     returns(() => Promise.resolve(debugConfig));
                 await subject.addLaunchConfig();
                 mockConfigManager.verify(x => x.addLaunchConfig('/path/to/package',

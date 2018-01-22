@@ -70,23 +70,11 @@ export class Commands
         this.handlePromise(pkg.pickType());
     }
 
-    async setDebuggingTarget()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.pickTarget());
-    }
-
-    async debugPackage()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.debug());
-    }
-
     async addLaunchConfig()
     {
         let pkg = await this._context.getSelectedPackage();
         try {
-            let customConfig = await pkg.customDebugConfiguration();
+            let customConfig = await pkg.debugConfiguration();
             if (customConfig)
                 this._configManager.addLaunchConfig(pkg.path, customConfig);
         }
@@ -129,8 +117,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.buildPackage', (...args) => { this.buildPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.selectPackageType', (...args) => { this.selectPackageType(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.setDebuggingTarget', (...args) => { this.setDebuggingTarget(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', (...args) => { this.updateCodeConfig(...args) });

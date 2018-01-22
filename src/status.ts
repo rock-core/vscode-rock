@@ -27,21 +27,13 @@ export class StatusBar implements vscode.Disposable {
     private readonly _buildPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 3.5);
 
-    private readonly _debugButton =
-        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 2.5);
-
-    private readonly _debuggingTargetButton =
-        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1.5);
-
     private readonly _packageTypeButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0.5);
 
     private readonly _buttons = { selectPackage:   this._selectPackageButton,
                                   buildPackage:    this._buildPackageButton,
-                                  packageType:     this._packageTypeButton,
-                                  debuggingTarget: this._debuggingTargetButton,
-                                  debug:           this._debugButton };
-     
+                                  packageType:     this._packageTypeButton };
+
     public dispose() {
         Object.keys(this._buttons).forEach(key => {
             this._buttons[key].dispose();
@@ -86,8 +78,6 @@ export class StatusBar implements vscode.Disposable {
         const selectedPackage = await this._context.getSelectedPackage();
         this.updateSelectedPackage(selectedPackage);
         this.updateBuildButton(selectedPackage);
-        this.updateDebugButton(selectedPackage);
-        this.updateDebuggingTarget(selectedPackage);
         this.updatePackageType(selectedPackage);
         this.reloadVisibility();
     }
@@ -113,18 +103,6 @@ export class StatusBar implements vscode.Disposable {
         this.updateButton(this._buildPackageButton, text, tooltip, 'rock.buildPackage');
     }
 
-    private updateDebugButton(selectedPackage: packages.Package) {
-        let text: string = '';
-        let tooltip = "Debug package";
-        let command : string | undefined;
-        if (selectedPackage.debugable && selectedPackage.debugTarget) {
-            text = "$(bug) Debug";
-            command = 'rock.debugPackage';
-        }
-
-        this.updateButton(this._debugButton, text, tooltip, command);
-    }
-
     private updatePackageType(selectedPackage: packages.Package) {
         let text: string = '';
         let tooltip: string | undefined;
@@ -137,21 +115,6 @@ export class StatusBar implements vscode.Disposable {
             command = 'rock.selectPackageType';
         }
         this.updateButton(this._packageTypeButton, text, tooltip, command);
-    }
-
-    private updateDebuggingTarget(selectedPackage: packages.Package) {
-        let text: string;
-        if (!selectedPackage.debugable)
-            text = '';
-        else if (!selectedPackage.debugTarget) {
-            text = '(No debugging target)'
-        } else {
-            text = selectedPackage.debugTarget.name;
-        }
-
-        let tooltip = "Change debugging target";
-        let command = 'rock.setDebuggingTarget';
-        this.updateButton(this._debuggingTargetButton, text, tooltip, command);
     }
 
     private updateButton(item: vscode.StatusBarItem, text: string,

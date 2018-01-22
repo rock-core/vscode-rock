@@ -190,8 +190,6 @@ describe("Context tests", function () {
             let writtenData = loadRockJson();
 
             assert.equal(writtenData.type, "ruby");
-            assert.equal(writtenData.debuggingTarget.name, undefined);
-            assert.equal(writtenData.debuggingTarget.path, undefined);
             verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the type keeping previous data", function () {
@@ -208,8 +206,6 @@ describe("Context tests", function () {
 
             let writtenData = loadRockJson();
             assert.equal(writtenData.type, "cxx");
-            assert.equal(writtenData.debuggingTarget.name, "target");
-            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
             verifyContextUpdated(TypeMoq.Times.once());
         })
         it("writes a json file with the type discarding previous data", function () {
@@ -221,8 +217,6 @@ describe("Context tests", function () {
 
             let writtenData = loadRockJson();
             assert.equal(writtenData.type, "cxx");
-            assert.equal(writtenData.debuggingTarget.name, undefined);
-            assert.equal(writtenData.debuggingTarget.path, undefined);
             verifyContextUpdated(TypeMoq.Times.once());
         })
     })
@@ -261,82 +255,6 @@ describe("Context tests", function () {
             assert.equal(type, undefined);
         })
     })
-    describe("setDebuggingTarget", function () {
-        it("writes a json file with the target only", function () {
-            let target = new debug.Target("target", "/path/to/target");
-            testContext.subject.setDebuggingTarget(testContext.root, target);
-            let writtenData = loadRockJson();
-
-            assert.equal(writtenData.type, undefined);
-            assert.equal(writtenData.debuggingTarget.name, "target");
-            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-        it("writes a json file with the target keeping previous data", function () {
-            let previous = { type: "orogen" }
-            let target = new debug.Target("target", "/path/to/target");
-            fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), JSON.stringify(previous));
-            testContext.subject.setDebuggingTarget(testContext.root, target);
-
-            let writtenData = loadRockJson();
-            assert.equal(writtenData.type, "orogen");
-            assert.equal(writtenData.debuggingTarget.name, "target");
-            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-        it("writes a json file with the type discarding previous data", function () {
-            let previous = { type: "orogen" }
-            let target = new debug.Target("target", "/path/to/target");
-            fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "invalid data");
-            testContext.subject.setDebuggingTarget(testContext.root, target);
-
-            let writtenData = loadRockJson();
-            assert.equal(writtenData.type, undefined);
-            assert.equal(writtenData.debuggingTarget.name, "target");
-            assert.equal(writtenData.debuggingTarget.path, "/path/to/target");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-    })
-    describe("getDebuggingTarget", function () {
-        function writeJson(name: string | undefined, path: string | undefined)
-        {
-            let jsonData = JSON.stringify({ debuggingTarget: { name: name, path: path }});
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), jsonData);
-        }
-        it("reads the package type from the json file", function () {
-            writeJson("target", "/path/to/target");
-            let target = testContext.subject.getDebuggingTarget(testContext.root) as debug.Target;
-            assert.equal(target.name, "target");
-            assert.equal(target.path, "/path/to/target");
-        })
-        it("returns undefiend name is missing", function () {
-            writeJson(undefined, "/path/to/json");
-            let target = testContext.subject.getDebuggingTarget(testContext.root);
-            assert.equal(target, undefined);
-        })
-        it("returns undefiend path is missing", function () {
-            writeJson("target", undefined);
-            let target = testContext.subject.getDebuggingTarget(testContext.root);
-            assert.equal(target, undefined);
-        })
-        it("returns undefined if the target is unset", function () {
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'),
-                JSON.stringify({ data: "garbage" }));
-            let target = testContext.subject.getDebuggingTarget(testContext.root);
-            assert.equal(target, undefined);
-        })
-        it("returns undefined if the file is invalid", function () {
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "corrupted data");
-            let target = testContext.subject.getDebuggingTarget(testContext.root);
-            assert.equal(target, undefined);
-        })
-    })
-
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });
@@ -347,22 +265,6 @@ describe("Context tests", function () {
 
         let selectionMode = testContext.subject.packageSelectionMode;
         assert.equal(selectionMode, "auto");
-    });
-    it("gets the debugging configuration", function () {
-        let config: context.RockDebugConfig = {
-            cwd: '/a/path/to/something',
-            args: ["--test", "--argument"],
-            orogen: {
-                start: true,
-                gui: true,
-                confDir: '/some/path'
-            }
-        }
-        testContext.addWorkspaceConfiguration('rock', '/the/package');
-        testContext.addConfigurationValue('debug', config);
-
-        let debugConfig = testContext.subject.debugConfig('/the/package');
-        assert.deepEqual(debugConfig, config);
     });
     it("sets the selected package and fires the event", function () {
         let path = '/path/to/package';
@@ -550,39 +452,6 @@ describe("Context tests", function () {
             await testContext.subject.pickPackageType(packagePath);
             const selectedPackageType = testContext.subject.getPackageType(packagePath);
             assert.deepEqual(selectedPackageType, packages.Type.fromName('cxx'));
-        })
-    })
-    describe("pickDebuggingFile", function() {
-        let packagePath : string;
-
-        beforeEach(function() {
-            packagePath = helpers.mkdir('package');
-            helpers.registerDir('package', '.vscode');
-            helpers.registerFile('package', '.vscode', 'rock.json');
-        })
-
-        it("selects the package target from the file system", async function() {
-            testContext.mockWrapper.setup(x => x.showOpenDialog(TypeMoq.It.isAny())).
-                returns(() => Promise.resolve([vscode.Uri.file('/picked/file')]));
-
-            await testContext.subject.pickDebuggingFile(packagePath);
-            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
-            assert(selectedTarget);
-            if (selectedTarget) {
-                assert.equal(selectedTarget.name, 'file');
-                assert.equal(selectedTarget.path, '/picked/file');
-            }
-        })
-
-        it("does not modify the selection if the picker is cancelled", async function() {
-            testContext.mockWrapper.setup(x => x.showOpenDialog(TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(undefined));
-
-            let expected = new debug.Target('name', 'path')
-            testContext.subject.setDebuggingTarget(packagePath, expected);
-            await testContext.subject.pickDebuggingFile(packagePath);
-            const selectedTarget = testContext.subject.getDebuggingTarget(packagePath);
-            assert.deepEqual(expected, selectedTarget);
         })
     })
 });
