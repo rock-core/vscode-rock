@@ -52,7 +52,7 @@ function initializeWorkspacesFromVSCodeFolders(
 }
 
 function setupEvents(rockContext: context.Context, extensionContext: vscode.ExtensionContext,
-    workspaces: autoproj.Workspaces, taskProvider: tasks.Provider,
+    workspaces: autoproj.Workspaces, taskProvider: tasks.AutoprojProvider,
     configManager: config.ConfigManager)
 {
     extensionContext.subscriptions.push(
@@ -73,7 +73,7 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
 export function activate(extensionContext: vscode.ExtensionContext) {
     let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let workspaces = new autoproj.Workspaces;
-    let taskProvider = new tasks.Provider(workspaces);
+    let taskProvider = new tasks.AutoprojProvider(workspaces);
     let bridge = new async.EnvironmentBridge();
 
     let rockContext = new context.Context(vscodeWrapper, workspaces,

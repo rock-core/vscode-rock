@@ -137,7 +137,7 @@ export class TestSetup
         return this.mockWorkspaces.target;
     }
 
-    mockTaskProvider : TypeMoq.IMock<Tasks.Provider>;
+    mockTaskProvider : TypeMoq.IMock<Tasks.AutoprojProvider>;
     get taskProvider()
     {
         return this.mockTaskProvider.target;
@@ -167,7 +167,7 @@ export class TestSetup
         this.mockWrapper.setup(x => x.createOutputChannel("Rock")).returns(() => this.mockOutputChannel.object);
 
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
-        this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.Provider, [this.workspaces]);
+        this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
         this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider, this.mockBridge.target]);
         this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory]);
     }

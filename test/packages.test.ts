@@ -212,14 +212,14 @@ describe("ForeignPackage", function () {
 describe("RockRubyPackage", function () {
     let subject: packages.RockRubyPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let workspace: autoproj.Workspace;
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         workspace = new autoproj.Workspace("path", false);
         subject = new packages.RockRubyPackage(workspace,
@@ -275,7 +275,7 @@ describe("RockRubyPackage", function () {
 describe("RockCXXPackage", function () {
     let subject: packages.RockCXXPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let workspace: autoproj.Workspace;
     beforeEach(function () {
@@ -284,7 +284,7 @@ describe("RockCXXPackage", function () {
             'Autobuild::CMake', "/path/to/package");
         pkgInfo.builddir = "/path/to/package/build";
         mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(workspace, pkgInfo,
             mockContext.object, mockWrapper.object);
@@ -443,7 +443,7 @@ describe("RockCXXPackage", function () {
 describe("RockOtherPackage", function () {
     let subject: packages.RockOtherPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let pkgInfo: autoproj.Package;
     let workspace: autoproj.Workspace;
@@ -464,7 +464,7 @@ describe("RockOtherPackage", function () {
     beforeEach(function () {
         pkgInfo = nullPackageInfo("/path/to/package");
         mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         workspace = new autoproj.Workspace("path", false);
         subject = new packages.RockOtherPackage(workspace,
@@ -489,14 +489,14 @@ describe("RockOtherPackage", function () {
 describe("RockOrogenPackage", function () {
     let subject: packages.RockOrogenPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.Provider>;
+    let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
     let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let workspace: autoproj.Workspace;
     beforeEach(function () {
         mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         workspace = new autoproj.Workspace("path", false);
         subject = new packages.RockOrogenPackage(

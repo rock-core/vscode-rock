@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 describe("Task provider", function () {
     let root: string;
     let workspaces: autoproj.Workspaces;
-    let subject: tasks.Provider;
+    let subject: tasks.AutoprojProvider;
 
     beforeEach(function () {
         root = helpers.init();
@@ -138,7 +138,7 @@ describe("Task provider", function () {
             workspaces.addFolder(c);
             workspaces.addFolder(d);
             workspaces.addFolder(e);
-            subject = new tasks.Provider(workspaces);
+            subject = new tasks.AutoprojProvider(workspaces);
         })
         it("is initalized with all tasks", function () {
             let tasks = subject.provideTasks(null);
@@ -152,7 +152,7 @@ describe("Task provider", function () {
 
     describe("in an empty workspace", function () {
         beforeEach(function () {
-            subject = new tasks.Provider(workspaces);
+            subject = new tasks.AutoprojProvider(workspaces);
         });
         it("provides an empty array of tasks", function () {
             let tasks = subject.provideTasks(null);

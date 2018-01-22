@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as autoproj from './autoproj';
 import * as path from 'path';
 
-export class Provider implements vscode.TaskProvider
+export class AutoprojProvider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;
 
