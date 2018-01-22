@@ -73,22 +73,26 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
 export function activate(extensionContext: vscode.ExtensionContext) {
     let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let workspaces = new autoproj.Workspaces;
-    let taskProvider = new tasks.AutoprojProvider(workspaces);
+    let autoprojTaskProvider = new tasks.AutoprojProvider(workspaces);
     let bridge = new async.EnvironmentBridge();
 
     let rockContext = new context.Context(vscodeWrapper, workspaces,
         new packages.PackageFactory(vscodeWrapper, bridge));
 
+    let syskitTaskProvider = new tasks.SyskitProvider(rockContext, workspaces);
+
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
 
     extensionContext.subscriptions.push(
-        vscode.workspace.registerTaskProvider('autoproj', taskProvider));
+        vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));
+    extensionContext.subscriptions.push(
+        vscode.workspace.registerTaskProvider('syskit', syskitTaskProvider));
 
     initializeWorkspacesFromVSCodeFolders(rockContext, workspaces, configManager);
-    taskProvider.reloadTasks();
+    autoprojTaskProvider.reloadTasks();
     setupEvents(rockContext, extensionContext, workspaces,
-        taskProvider, configManager);
+        autoprojTaskProvider, configManager);
     rockCommands.register();
 
     extensionContext.subscriptions.push(workspaces);

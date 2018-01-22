@@ -216,6 +216,10 @@ export class Workspace
         });
     }
 
+    public syskitDefaultBundle() : string {
+        return path.join(this.root, '.vscode', 'rock-default-bundle');
+    }
+
     syskitGenApp(path: string) : Promise<void> {
         let process = this.autoprojExec("syskit", ["gen", "app", path]);
         return this.runCommandToCompletion(process, `failed to run \`syskit gen app ${path}\``);
@@ -406,7 +410,7 @@ export class Workspaces
      *
      * Yields (ws)
      */
-    forEachWorkspace(callback) {
+    forEachWorkspace(callback: (ws: Workspace) => void) {
         this.workspaces.forEach(callback);
     }
 
@@ -414,7 +418,7 @@ export class Workspaces
      *
      * Yields (ws, folder)
      */
-    forEachFolder(callback) {
+    forEachFolder(callback: (ws: Workspace, folder: string) => void) {
         this.folderToWorkspace.forEach(callback);
     }
 

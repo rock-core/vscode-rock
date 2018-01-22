@@ -2,6 +2,15 @@
 import * as vscode from 'vscode';
 import * as autoproj from './autoproj';
 import * as path from 'path';
+import * as context from './context';
+
+function runAutoproj(ws, ...args) {
+    return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
+}
+
+function runAutoprojExec(ws, cmd, args, options = {}) {
+    return new vscode.ProcessExecution(ws.autoprojExePath(), ['exec', cmd, ...args], { cwd: ws.root, ...options })
+}
 
 export class AutoprojProvider implements vscode.TaskProvider
 {
@@ -15,10 +24,6 @@ export class AutoprojProvider implements vscode.TaskProvider
     private _updateConfigTasks: Map<string, vscode.Task>;
     private _allTasks: vscode.Task[];
 
-    private runAutoproj(ws, ...args) {
-        return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
-    }
-
     constructor(workspaces: autoproj.Workspaces)
     {
         this.workspaces = workspaces;
@@ -27,7 +32,7 @@ export class AutoprojProvider implements vscode.TaskProvider
 
     private createTask(name, ws, defs = {}, args : string[] = []) {
         let definition = { type: 'autoproj', workspace: ws.root, ...defs }
-        let exec = this.runAutoproj(ws, ...args);
+        let exec = runAutoproj(ws, ...args);
         return new vscode.Task(definition, name, 'autoproj', exec, []);
     }
 
@@ -189,6 +194,50 @@ export class AutoprojProvider implements vscode.TaskProvider
     provideTasks(token)
     {
         return this._allTasks;
+    }
+
+    resolveTask(task, token)
+    {
+        return null;
+    }
+}
+
+export class SyskitProvider implements vscode.TaskProvider
+{
+    private _workspaces : autoproj.Workspaces;
+    private _context    : context.Context;
+
+    constructor(context : context.Context, workspaces : autoproj.Workspaces)
+    {
+        this._workspaces = workspaces;
+        this._context    = context;
+    }
+
+    provideTasks(token)
+    {
+        let tasks : vscode.Task[] = [];
+        let resolvers : Promise<vscode.Task|undefined>[] = [];
+
+        this._workspaces.forEachWorkspace((ws) => {
+            let bundlePath = ws.syskitDefaultBundle();
+            let definition = { type: 'rock', workspace: ws.root, bundle: bundlePath }
+            let exec = runAutoprojExec(ws, 'syskit', ['run', '--rest'], { cwd: bundlePath });
+            let task = new vscode.Task(definition, `syskit run - ${ws.root}`, 'rock', exec, []);
+            let p = this._context.ensureSyskitContextAvailable(ws).
+                then(() => task).
+                catch(() => undefined);
+            resolvers.push(p);
+        })
+        return Promise.all(resolvers).
+            then((tasks) => {
+                let acc : vscode.Task[] = [];
+                tasks.forEach((task) => {
+                    if (task) {
+                        acc.push(task);
+                    }
+                })
+                return acc;
+            })
     }
 
     resolveTask(task, token)
