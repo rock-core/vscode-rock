@@ -146,8 +146,9 @@ export class Workspace
 
     async which(cmd: string)
     {
-        let options: child_process.SpawnOptions = {};
-        options.env = { AUTOPROJ_CURRENT_ROOT: this.root };
+        let options: child_process.SpawnOptions = { env: {} };
+        Object.assign(options.env, process.env);
+        Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: this.root });
         let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
         let path = '';
         subprocess.stdout.on('data', (buffer) => {
@@ -169,7 +170,7 @@ export class Workspace
 
 export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
 {
-    return new Promise<Buffer>((resolve, reject) => 
+    return new Promise<Buffer>((resolve, reject) =>
     {
         fs.readFile(installationManifestPath(workspacePath), (err, data) =>
         {
@@ -204,7 +205,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
 }
 
 /** Dynamic management of a set of workspaces
- * 
+ *
  */
 export class Workspaces
 {
@@ -219,10 +220,10 @@ export class Workspaces
     }
 
     /** Add workspaces that contain some directory paths
-     * 
+     *
      * The paths do not necessarily need to be within an autoproj workspace, in
      * which case they are ignored.
-     * 
+     *
      * Returns the list of newly added workspaces
      */
     addCandidate(path: string, loadInfo: boolean = true) {
@@ -252,7 +253,7 @@ export class Workspaces
     }
 
     /** Add a folder
-     * 
+     *
      * This adds the folder's workspace to the set, if the folder is part of an
      * Autoproj workspace, and returns it. Returns null if the folder is NOT
      * part of an autoproj workspace.
@@ -266,7 +267,7 @@ export class Workspaces
     }
 
     /** De-registers a folder
-     * 
+     *
      * Removes a folder, and removes the corresponding workspace
      * if it was the last folder of this workspace - in which case
      * the workspace object is returned.
@@ -283,7 +284,7 @@ export class Workspaces
         return null;
     }
 
-    /** 
+    /**
      * Returns the number of registered folders that use this workspace
      */
     useCount(workspace : Workspace) {
@@ -311,7 +312,7 @@ export class Workspaces
     }
 
     /** Enumerate the workspaces
-     * 
+     *
      * Yields (ws)
      */
     forEachWorkspace(callback) {
@@ -319,7 +320,7 @@ export class Workspaces
     }
 
     /** Enumerate the folders and workspaces
-     * 
+     *
      * Yields (ws, folder)
      */
     forEachFolder(callback) {
