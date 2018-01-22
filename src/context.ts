@@ -8,11 +8,6 @@ import * as packages from './packages'
 import * as fs from 'fs'
 import { join as joinPath } from 'path'
 
-export interface PackageInternalData
-{
-    type: string | undefined;
-}
-
 /** Checks that a given filesystem path is registered in a list of workspace folders */
 function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
 {
@@ -60,14 +55,6 @@ export class Context
         return (!folders || folders.length == 0);
     }
 
-    public setPackageType(path: string, type: packages.Type): void
-    {
-        let data = this.loadPersistedData(path);
-        data.type = type.name;
-        this.persistData(path, data);
-        this._contextUpdatedEvent.fire();
-    }
-
     public getWorkspaceByPath(path : string) : autoproj.Workspace | undefined
     {
         return this.workspaces.folderToWorkspace.get(path);
@@ -76,17 +63,6 @@ export class Context
     public async getPackageByPath(path : string) : Promise<packages.Package | undefined>
     {
         return this._packageFactory.createPackage(path, this);
-    }
-
-    public getPackageType(path: string): packages.Type | undefined
-    {
-        let pkgType: packages.Type | undefined;
-        let data = this.loadPersistedData(path);
-
-        if (data.type)
-            pkgType = packages.Type.fromName(data.type);
-
-        return pkgType;
     }
 
     public async getSelectedWorkspace() : Promise<autoproj.Workspace | undefined>
@@ -154,43 +130,6 @@ export class Context
         return this._workspaces;
     }
 
-    private persistedDataPath(rootPath: string)
-    {
-        return joinPath(rootPath, '.vscode', 'rock.json');
-    }
-
-    private loadPersistedData(path: string): PackageInternalData
-    {
-        let data: PackageInternalData = {
-            type: undefined
-        }
-        try
-        {
-            let dataPath = this.persistedDataPath(path);
-            let jsonData = fs.readFileSync(dataPath, "utf8");
-            Object.assign(data, JSON.parse(jsonData));
-        }
-        catch
-        {
-        }
-        return data;
-    }
-
-    private persistData(path: string, data: PackageInternalData): void
-    {
-        let dataPath = this.persistedDataPath(path);
-        let dataDir  = dirname(dataPath);
-        let jsonData = JSON.stringify(data);
-        let options = {
-            mode: 0o644,
-            flag: 'w'
-        };
-        if (!fs.existsSync(dataDir))
-            fs.mkdirSync(dataDir, 0o755);
-
-        fs.writeFileSync(dataPath, jsonData, options);
-    }
-
     private get rockSelectedPackage(): string | undefined
     {
         return this._vscode.getWorkspaceState('rockSelectedPackage');
@@ -207,18 +146,5 @@ export class Context
             await ws.envsh();
             this._contextUpdatedEvent.fire();
         }
-    }
-
-    public async pickPackageType(path : string) {
-        let choices = packages.Type.typePickerChoices();
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select the package type'
-        }
-
-        const chosen = await this._vscode.showQuickPick(choices, options);
-        if (chosen) {
-            this.setPackageType(path, chosen.type);
-        }
-        return chosen;
     }
 }

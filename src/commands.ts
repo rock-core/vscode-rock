@@ -64,12 +64,6 @@ export class Commands
         this.handlePromise(pkg.build());
     }
 
-    async selectPackageType()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.pickType());
-    }
-
     async addLaunchConfig()
     {
         let pkg = await this._context.getSelectedPackage();
@@ -116,7 +110,6 @@ export class Commands
     {
         this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.buildPackage', (...args) => { this.buildPackage(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.selectPackageType', (...args) => { this.selectPackageType(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', (...args) => { this.updateCodeConfig(...args) });

@@ -42,7 +42,7 @@ describe("ConfigurationProvider", function() {
             let resolved = await subject.resolvePackage(folder);
             assert.deepStrictEqual(resolved, pkg);
         })
-        it("returns undefined if the package is not a RockPackage", async function() {
+        it("returns undefined if the package is an unsupported type", async function() {
             let pkg = await s.registerPackage(ws, ['test'], { type: '' })
             let folder: vscode.WorkspaceFolder = {
                 uri: vscode.Uri.file(pkg.path),

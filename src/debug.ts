@@ -33,7 +33,7 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
             return;
         }
         let pkg = await this._context.getPackageByPath(folder.uri.fsPath);
-        if (pkg instanceof packages.RockPackage) {
+        if (pkg instanceof packages.RockPackage && pkg.type.id != packages.TypeList.OTHER.id) {
             return pkg;
         }
     }

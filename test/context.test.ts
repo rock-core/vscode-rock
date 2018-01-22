@@ -56,7 +56,6 @@ class TestContext
     {
         try
         {
-            fs.unlinkSync(join(this.root, '.vscode', 'rock.json'));
             fs.rmdirSync(join(this.root, '.vscode'));
         }
         catch {}
@@ -159,15 +158,6 @@ describe("Context tests", function () {
         testContext.subject.onUpdate(mock);
         mock.verify(x => x(), times);
     }
-
-    function loadRockJson()
-    {
-        let path = join(testContext.root, '.vscode', 'rock.json');
-        let writtenData: context.PackageInternalData;
-        let jsonString = fs.readFileSync(path, 'utf8');
-        writtenData = JSON.parse(jsonString);
-        return writtenData;
-    }
     it ("creates an output channel when instantiated", function () {
         let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
         let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
@@ -183,78 +173,6 @@ describe("Context tests", function () {
         mockWrapper.verify(x => x.createOutputChannel("Rock"), TypeMoq.Times.once());
         assert.strictEqual(subject.outputChannel, mockOutputChannel.object);
     });
-    describe("setPackageType", function () {
-        it("writes a json file with the type only", function () {
-            let type = packages.Type.fromName("ruby");
-            testContext.subject.setPackageType(testContext.root, type);
-            let writtenData = loadRockJson();
-
-            assert.equal(writtenData.type, "ruby");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-        it("writes a json file with the type keeping previous data", function () {
-            let type = packages.Type.fromName("cxx");
-            let previous = {
-                debuggingTarget: {
-                    name: 'target',
-                    path: '/path/to/target'
-                }
-            }
-            fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), JSON.stringify(previous));
-            testContext.subject.setPackageType(testContext.root, type);
-
-            let writtenData = loadRockJson();
-            assert.equal(writtenData.type, "cxx");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-        it("writes a json file with the type discarding previous data", function () {
-            let type = packages.Type.fromName("cxx");
-            let previous = "invalid json";
-            fs.mkdirSync(join(testContext.root, '.vscode'));
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), previous);
-            testContext.subject.setPackageType(testContext.root, type);
-
-            let writtenData = loadRockJson();
-            assert.equal(writtenData.type, "cxx");
-            verifyContextUpdated(TypeMoq.Times.once());
-        })
-    })
-    describe("getPackageType", function () {
-        function writeJson(type: string)
-        {
-            let jsonData = JSON.stringify({ type: type });
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), jsonData);
-        }
-        it("reads the package type from the json file", function () {
-            writeJson("orogen");
-            let type = testContext.subject.getPackageType(testContext.root) as packages.Type;
-            assert.equal(type.name, "orogen");
-        })
-        it("returns OTHER if the type is invalid", function () {
-            writeJson("invalid package type");
-            let type = testContext.subject.getPackageType(testContext.root) as packages.Type;
-            assert.equal(type.name, "other");
-        })
-        it("returns undefined if the file is missing", function () {
-            let type = testContext.subject.getPackageType(testContext.root);
-            assert.equal(type, undefined);
-        })
-        it("returns undefined if the type is unset", function () {
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'),
-                JSON.stringify({ data: "garbage" }));
-            let type = testContext.subject.getPackageType(testContext.root);
-            assert.equal(type, undefined);
-        })
-        it("returns undefined if the file is invalid", function () {
-            fs.mkdirSync(join(testContext.root, '.vscode'), 0o755);
-            fs.writeFileSync(join(testContext.root, '.vscode', 'rock.json'), "corrupted data");
-            let type = testContext.subject.getPackageType(testContext.root);
-            assert.equal(type, undefined);
-        })
-    })
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });
@@ -414,44 +332,6 @@ describe("Context tests", function () {
                     assert(!pkg.type.isValid());
                 });
             })
-        })
-    })
-
-    describe("pickPackageType", function() {
-        let packagePath : string;
-
-        beforeEach(function() {
-            packagePath = helpers.mkdir('package');
-            helpers.registerDir('package', '.vscode');
-            helpers.registerFile('package', '.vscode', 'rock.json');
-        })
-
-        it("selects the package type from the user-selected type", async function() {
-            let expectedChoices = packages.Type.typePickerChoices();
-            let packageType = {
-                label: 'Ruby',
-                description: '',
-                type: packages.Type.fromType(packages.TypeList.RUBY)
-            }
-            testContext.mockWrapper.setup(x => x.showQuickPick(expectedChoices, TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(packageType));
-
-            await testContext.subject.pickPackageType(packagePath);
-            const selectedPackageType = testContext.subject.getPackageType(packagePath);
-            assert(selectedPackageType);
-            if (selectedPackageType) {
-                assert.equal(selectedPackageType.id, packages.TypeList.RUBY.id);
-            }
-        })
-
-        it("does not modify the selection if the picker is cancelled", async function() {
-            testContext.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(undefined));
-
-            testContext.subject.setPackageType(packagePath, packages.Type.fromName('cxx'));
-            await testContext.subject.pickPackageType(packagePath);
-            const selectedPackageType = testContext.subject.getPackageType(packagePath);
-            assert.deepEqual(selectedPackageType, packages.Type.fromName('cxx'));
         })
     })
 });
