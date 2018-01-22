@@ -53,6 +53,10 @@ export function mkdir(...path): string {
     })
     return joinedPath;
 }
+export function rmdir(...path) {
+    let joinedPath = fullPath(...path);
+    FS.rmdirSync(joinedPath);
+}
 export function mkfile(data: string, ...path): string {
     let joinedPath = fullPath(...path);
     FS.writeFileSync(joinedPath, data)
@@ -94,6 +98,31 @@ export function clear() {
     createdFS = []
     FS.rmdirSync(root)
     root = null
+}
+
+export function addPackageToManifest(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Autoproj.Package {
+    let partialVCS: { [key: string]: any } = partialInfo.vcs || {};
+    let result: Autoproj.Package = {
+        name: partialInfo.name || 'Unknown',
+        srcdir: fullPath(...path),
+        builddir: partialInfo.builddir || "Unknown",
+        prefix: partialInfo.prefix || "Unknown",
+        vcs: {
+            url: partialVCS.url || "Unknown",
+            type: partialVCS.type || "Unknown",
+            repository_id: partialVCS.repository_id || "Unknown"
+        },
+        type: partialInfo.type || "Unknown",
+        logdir: partialInfo.logdir || "Unknown",
+        dependencies: partialInfo.dependencies || "Unknown"
+    };
+
+    let manifestPath = Autoproj.installationManifestPath(ws.root)
+    let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString());
+    manifest.push(result);
+    FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
+    ws.reload();
+    return result;
 }
 
 export class TestSetup
@@ -161,28 +190,7 @@ export class TestSetup
     }
 
     addPackageToManifest(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Autoproj.Package {
-        let partialVCS: { [key: string]: any } = partialInfo.vcs || {};
-        let result: Autoproj.Package = {
-            name: partialInfo.name || 'Unknown',
-            srcdir: fullPath(...path),
-            builddir: partialInfo.builddir || "Unknown",
-            prefix: partialInfo.prefix || "Unknown",
-            vcs: {
-                url: partialVCS.url || "Unknown",
-                type: partialVCS.type || "Unknown",
-                repository_id: partialVCS.repository_id || "Unknown"
-            },
-            type: partialInfo.type || "Unknown",
-            logdir: partialInfo.logdir || "Unknown",
-            dependencies: partialInfo.dependencies || "Unknown"
-        };
-
-        let manifestPath = Autoproj.installationManifestPath(ws.root)
-        let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString());
-        manifest.push(result);
-        FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
-        ws.reload();
-        return result;
+        return addPackageToManifest(ws, path, partialInfo);
     }
 
     async registerPackage(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Promise<Packages.Package>

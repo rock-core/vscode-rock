@@ -35,6 +35,7 @@ function handleNewWorkspaceFolder(
         return;
     }
 
+    rockContext.ensureSyskitContextAvailable(ws).catch(() => {})
     registerNewWorkspaceFolder(path, workspaces, configManager);
 }
 
@@ -46,9 +47,9 @@ function initializeWorkspacesFromVSCodeFolders(
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
             handleNewWorkspaceFolder(folder.uri.fsPath, rockContext, workspaces, configManager);
-                });
-            }
+        });
     }
+}
 
 function setupEvents(rockContext: context.Context, extensionContext: vscode.ExtensionContext,
     workspaces: autoproj.Workspaces, taskProvider: tasks.Provider,

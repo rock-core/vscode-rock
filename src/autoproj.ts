@@ -116,6 +116,15 @@ export class Workspace
         return autoprojExePath(this.root);
     }
 
+    autoprojExec(command: string, args: string[],
+        options?: child_process.SpawnOptions) : child_process.ChildProcess
+    {
+        return child_process.spawn(
+            this.autoprojExePath(), ['exec', command, ...args],
+            { cwd: this.root, stdio: 'ignore', ...options }
+        );
+    }
+
     private createInfoPromise()
     {
         return loadWorkspaceInfo(this.root);
@@ -192,6 +201,29 @@ export class Workspace
                 }
             })
         })
+    }
+
+    private runCommandToCompletion(process, error?: string) : Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            process.on('exit', (code, signal) => {
+                if (code == 0) {
+                    resolve();
+                }
+                else {
+                    reject(new Error(error));
+                }
+            });
+        });
+    }
+
+    syskitGenApp(path: string) : Promise<void> {
+        let process = this.autoprojExec("syskit", ["gen", "app", path]);
+        return this.runCommandToCompletion(process, `failed to run \`syskit gen app ${path}\``);
+    }
+
+    async syskitCheckApp(path: string) : Promise<void> {
+        let process = this.autoprojExec("syskit", ["check", path]);
+        return this.runCommandToCompletion(process, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
     }
 }
 

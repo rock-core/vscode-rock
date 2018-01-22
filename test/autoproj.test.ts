@@ -440,5 +440,64 @@ describe("Autoproj helpers tests", function () {
                 assert.equal(workspaces.isConfig(c), false);
             })
         })
+        describe("syskitCheckApp", function() {
+            let originalSpawn;
+            let processMock = new events.EventEmitter();
+            let subject;
+
+            beforeEach(async function() {
+                let spawn = function(...args) {
+                    return processMock
+                };
+                require('child_process').spawn = spawn;
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+            })
+            afterEach(function() {
+                require('child_process').spawn = originalSpawn;
+            })
+            it("resolves the promise if the subcommand succeeds", async function() {
+                let p = subject.syskitCheckApp("path/to/bundle");
+                processMock.emit("exit", 0, undefined);
+                await p;
+            })
+            it("rejects the promise if the subcommand fails", async function() {
+                let p = subject.syskitCheckApp("path/to/bundle");
+                processMock.emit("exit", 1, undefined);
+                await helpers.assertThrowsAsync(p, new RegExp("^bundle in path/to/bundle seem invalid, or syskit cannot be executed in this workspace$"));
+            })
+        })
+        describe("syskitGenApp", function() {
+            let originalSpawn;
+            let processMock = new events.EventEmitter();
+            let subject;
+
+            beforeEach(async function() {
+                let spawn = function(...args) {
+                    return processMock
+                };
+                require('child_process').spawn = spawn;
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+            })
+            afterEach(function() {
+                require('child_process').spawn = originalSpawn;
+            })
+
+            it("resolves the promise if the subcommand succeeds", async function() {
+                let p = subject.syskitGenApp("path/to/bundle");
+                processMock.emit("exit", 0, undefined);
+                await p;
+            })
+            it("rejects the promise if the subcommand fails", async function() {
+                let p = subject.syskitGenApp("path/to/bundle");
+                processMock.emit("exit", 1, undefined);
+                await helpers.assertThrowsAsync(p, new RegExp("^failed to run `syskit gen app path/to/bundle`$"));
+            })
+        })
     })
 });
