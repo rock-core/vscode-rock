@@ -191,7 +191,7 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         let ws = pkg.ws;
 
         let debuggerPath = config.miDebuggerPath || config.MIMode;
-        let stubScript = joinpath(__dirname, '..', 'stubs', config.MIMode);
+        let stubScript = joinpath(__dirname, '..', '..', 'stubs', config.MIMode);
 
         config.miDebuggerPath = stubScript;
         if (!config.environment) {

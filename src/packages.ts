@@ -627,6 +627,7 @@ export class RockCXXPackage extends RockPackage
                 request: "launch",
                 program: expandablePath,
                 MIMode: "gdb",
+                cwd: "${rock:buildDir}",
                 setupCommands: [
                     {
                         description: "Enable pretty-printing for gdb",
