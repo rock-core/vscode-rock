@@ -101,6 +101,7 @@ export class TestSetup
 {
     mockWrapper : TypeMoq.IMock<Wrappers.VSCode>;
     mockBridge : TypeMoq.IMock<Async.EnvironmentBridge>;
+    mockOutputChannel : TypeMoq.IMock<vscode.OutputChannel>;
 
     mockWorkspaces: TypeMoq.IMock<Autoproj.Workspaces>;
     get workspaces()
@@ -126,10 +127,16 @@ export class TestSetup
         return this.mockContext.target;
     }
 
+    get outputChannel() : vscode.OutputChannel
+    {
+        return this.mockOutputChannel.object;
+    }
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
         this.mockBridge = TypeMoq.Mock.ofType<Async.EnvironmentBridge>();
+        this.mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
+        this.mockWrapper.setup(x => x.createOutputChannel("Rock")).returns(() => this.mockOutputChannel.object);
 
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
         this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.Provider, [this.workspaces]);

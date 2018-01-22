@@ -168,6 +168,21 @@ describe("Context tests", function () {
         writtenData = JSON.parse(jsonString);
         return writtenData;
     }
+    it ("creates an output channel when instantiated", function () {
+        let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
+        let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
+        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
+        let mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
+        let mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
+        let mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
+
+        mockWrapper.setup(x => x.createOutputChannel("Rock")).
+            returns(() => mockOutputChannel.object);
+        let subject = new context.Context(mockWrapper.object, mockWorkspaces.object,
+            mockPackageFactory.object);
+        mockWrapper.verify(x => x.createOutputChannel("Rock"), TypeMoq.Times.once());
+        assert.strictEqual(subject.outputChannel, mockOutputChannel.object);
+    });
     describe("setPackageType", function () {
         it("writes a json file with the type only", function () {
             let type = packages.Type.fromName("ruby");

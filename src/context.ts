@@ -65,6 +65,7 @@ export class Context
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
     private _lastSelectedRoot: string | undefined;
+    private readonly _outputChannel: vscode.OutputChannel;
 
     public constructor(vscodeWrapper: wrappers.VSCode,
                        workspaces: autoproj.Workspaces,
@@ -74,6 +75,12 @@ export class Context
         this._workspaces = workspaces;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._packageFactory = packageFactory;
+        this._outputChannel = vscodeWrapper.createOutputChannel('Rock');
+    }
+
+    get outputChannel(): vscode.OutputChannel
+    {
+        return this._outputChannel;
     }
 
     public dispose() {

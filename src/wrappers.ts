@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import * as Path from 'path'
 
 /** Shim that provides us an API to the VSCode state we need within the extension
- * 
+ *
  * This helps during testing to mock VSCode itself, something VSCode's test
  * harness is fairly bad at
  */
@@ -37,7 +37,7 @@ export class VSCode {
         return vscode.workspace.getWorkspaceFolder(uri);
     }
 
-    public getConfiguration(section?: string, resource?: vscode.Uri): 
+    public getConfiguration(section?: string, resource?: vscode.Uri):
         vscode.WorkspaceConfiguration
     {
         return vscode.workspace.getConfiguration(section, resource);
@@ -92,5 +92,9 @@ export class VSCode {
     {
         vscode.commands.executeCommand("workbench.action.tasks.runTask",
             task.source + ": " + task.name);
+    }
+
+    public createOutputChannel(name: string) {
+        return vscode.window.createOutputChannel(name);
     }
 }
