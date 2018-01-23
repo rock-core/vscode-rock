@@ -91,27 +91,7 @@
                 ]
             }
         ],
-        "configuration": {
-            "title": "Rock integration with Visual Studio Code",
-            "properties": {
-                "rock.packageSelectionMode": {
-                    "type": "string",
-                    "enum": [
-                        "auto",
-                        "manual"
-                    ],
-                    "default": "auto",
-                    "description": "How current package is determined. Supported modes are 'auto' or 'manual'",
-                    "scope": "window"
-                }
-            }
-        },
         "commands": [
-            {
-                "title": "Select package",
-                "category": "rock",
-                "command": "rock.selectPackage"
-            },
             {
                 "title": "Update package info",
                 "category": "rock",

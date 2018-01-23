@@ -98,7 +98,8 @@ export class PackageFactory
     {
         if (context.workspaces.isConfig(path))
         {
-            return new ConfigPackage(path);
+            let ws = context.getWorkspaceByPath(path);
+            return new ConfigPackage(path, ws!);
         }
         else if (!this._vscode.getWorkspaceFolder(path))
         {
@@ -132,9 +133,15 @@ export class PackageFactory
         return new InvalidPackage();
     }
 
-    private nullPackageInfo(path : string) : autoproj.Package {
+    private nullPackageInfo(path : string, ws?: autoproj.Workspace) : autoproj.Package {
+        let name: string;
+        if (ws) {
+            name = relative(ws.root, path);
+        } else {
+            name = basename(path);
+        }
         let result : autoproj.Package = {
-            name: path,
+            name: name,
             type: 'Unknown',
             vcs: { type: 'unknown', url: 'unknown', repository_id: 'unknown' },
             srcdir: path,
@@ -157,7 +164,7 @@ export class PackageFactory
             wsInfo = await ws.info();
         }
         catch(err) {
-            return { ws, info: this.nullPackageInfo(path) };
+            return { ws, info: this.nullPackageInfo(path, ws) };
         }
 
         let defs = wsInfo.packages.get(path);
@@ -168,7 +175,7 @@ export class PackageFactory
                 return { ws, info: defs };
             }
             else {
-                return { ws, info: this.nullPackageInfo(path) };
+                return { ws, info: this.nullPackageInfo(path, ws) };
             }
         }
         else {
@@ -192,6 +199,7 @@ export interface Package
     readonly path: string;
     readonly name: string;
     readonly type: Type;
+    readonly workspace: autoproj.Workspace | undefined;
 
     debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 }
@@ -200,6 +208,8 @@ abstract class GenericPackage implements Package
 {
     abstract readonly path: string;
     abstract readonly type: Type;
+    abstract readonly name: string;
+    abstract readonly workspace: autoproj.Workspace | undefined;
     abstract debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 
     protected readonly _context: context.Context;
@@ -207,14 +217,12 @@ abstract class GenericPackage implements Package
     {
         this._context = context;
     }
-
-    get name() { return basename(this.path); }
 }
 
 export abstract class RockPackage extends GenericPackage
 {
     protected readonly _vscode: wrappers.VSCode;
-    readonly ws: autoproj.Workspace;
+    readonly workspace: autoproj.Workspace;
     readonly info: autoproj.Package;
 
     get path() : string
@@ -226,9 +234,10 @@ export abstract class RockPackage extends GenericPackage
     {
         super(context);
         this._vscode = vscode;
-        this.ws = ws;
+        this.workspace = ws;
         this.info = info;
     }
+    get name() { return this.info.name; }
 }
 
 export class InvalidPackage implements Package
@@ -236,7 +245,7 @@ export class InvalidPackage implements Package
     readonly path: string;
 
     get name () { return '(Invalid package)' }
-
+    get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
         throw new Error("Select a valid package before trying to create a debug configuration");
@@ -251,10 +260,11 @@ export class InvalidPackage implements Package
 export class ConfigPackage implements Package
 {
     readonly path: string;
-
-    constructor(path: string)
+    readonly workspace: autoproj.Workspace;
+    constructor(path: string, ws: autoproj.Workspace)
     {
         this.path = path;
+        this.workspace = ws;
     }
 
     get name() { return basename(this.path); }
@@ -280,10 +290,12 @@ export class ForeignPackage extends GenericPackage
     }
 
     get type() { return Type.fromType(TypeList.OTHER); }
+    get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
         throw new Error("Debug configurations are not available for external packages");
     }
+    get name() { return basename(this.path); }
 }
 
 export class RockRubyPackage extends RockPackage

@@ -81,7 +81,7 @@ export class CXXConfigurationProvider extends ConfigurationProvider
             return config;
         }
 
-        let ws = pkg.ws;
+        let ws = pkg.workspace;
 
         let debuggerPath = config.miDebuggerPath || config.MIMode;
         let stubScript = joinpath(__dirname, '..', '..', 'stubs', config.MIMode);
@@ -112,7 +112,7 @@ export class RubyConfigurationProvider extends ConfigurationProvider
         if (!pkg) {
             return config;
         }
-        let ws = pkg.ws;
+        let ws = pkg.workspace;
 
         config.useBundler = true;
         config.pathToBundler = ws.autoprojExePath();
@@ -147,7 +147,7 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
         if (!pkg) {
             throw new Error("Cannot debug orogen packages not within an Autoproj workspace");
         }
-        let ws = pkg.ws;
+        let ws = pkg.workspace;
         let deploymentInfo = await this.deploymentInfo(pkg, config.task);
         if (!deploymentInfo)
         {
