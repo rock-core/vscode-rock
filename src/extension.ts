@@ -61,7 +61,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let bridge = new async.EnvironmentBridge();
 
     let rockContext = new context.Context(vscodeWrapper, workspaces,
-        new packages.PackageFactory(vscodeWrapper, taskProvider, bridge));
+        new packages.PackageFactory(vscodeWrapper, bridge));
 
     let statusBar = new status.StatusBar(extensionContext, rockContext);
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);

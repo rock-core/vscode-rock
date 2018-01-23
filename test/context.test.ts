@@ -37,9 +37,8 @@ class TestContext
         this.mockWrapper.setup(x => x.activeDocumentURI)
             .returns(() => this._activeDocumentURI);
         this.mockContext = TypeMoq.Mock.ofType<vscode.ExtensionContext>();
-        let taskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
-        let packageFactory = new packages.PackageFactory(this.mockWrapper.object, taskProvider.object, this.mockBridge.object);
+        let packageFactory = new packages.PackageFactory(this.mockWrapper.object, this.mockBridge.object);
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
         this.mockPackageFactory.callBase = true;
         this.workspaces = new autoproj.Workspaces;

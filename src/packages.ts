@@ -87,12 +87,10 @@ export class Type
 export class PackageFactory
 {
     private readonly _vscode: wrappers.VSCode;
-    private readonly _taskProvider: tasks.Provider;
     private readonly _bridge: async.EnvironmentBridge;
-    constructor(vscode: wrappers.VSCode, taskProvider: tasks.Provider, bridge: async.EnvironmentBridge)
+    constructor(vscode: wrappers.VSCode, bridge: async.EnvironmentBridge)
     {
         this._vscode = vscode;
-        this._taskProvider = taskProvider;
         this._bridge = bridge;
     }
 
@@ -117,13 +115,13 @@ export class PackageFactory
             switch (type.id)
             {
                 case TypeList.CXX.id:
-                    return new RockCXXPackage(ws, info, context, this._vscode, this._taskProvider);
+                    return new RockCXXPackage(ws, info, context, this._vscode);
                 case TypeList.RUBY.id:
-                    return new RockRubyPackage(ws, info, context, this._vscode, this._taskProvider);
+                    return new RockRubyPackage(ws, info, context, this._vscode);
                 case TypeList.OROGEN.id:
-                    return new RockOrogenPackage(this._bridge, ws, info, context, this._vscode, this._taskProvider);
+                    return new RockOrogenPackage(this._bridge, ws, info, context, this._vscode);
                 default:
-                    return new RockOtherPackage(ws, info, context, this._vscode, this._taskProvider);
+                    return new RockOtherPackage(ws, info, context, this._vscode);
             }
         }
         return new ForeignPackage(path, context);
@@ -195,9 +193,6 @@ export interface Package
     readonly name: string;
     readonly type: Type;
 
-    readonly buildTask: vscode.Task | undefined;
-
-    build(): Promise<void>
     debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 }
 
@@ -205,9 +200,6 @@ abstract class GenericPackage implements Package
 {
     abstract readonly path: string;
     abstract readonly type: Type;
-    abstract readonly buildTask: vscode.Task | undefined;
-
-    abstract build(): Promise<void>
     abstract debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
 
     protected readonly _context: context.Context;
@@ -230,39 +222,20 @@ export abstract class RockPackage extends GenericPackage
         return this.info.srcdir;
     }
 
-    private readonly _taskProvider: tasks.Provider;
-
-    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode)
     {
         super(context);
         this._vscode = vscode;
         this.ws = ws;
         this.info = info;
-        this._taskProvider = taskProvider;
-    }
-
-    get buildTask()
-    {
-        return this._taskProvider.buildTask(this.path);
-    }
-
-    async build(): Promise<void>
-    {
-        this._vscode.runTask(this.buildTask);
     }
 }
 
 export class InvalidPackage implements Package
 {
     readonly path: string;
-    readonly buildTask: vscode.Task | undefined;
 
     get name () { return '(Invalid package)' }
-
-    async build(): Promise<void>
-    {
-        throw new Error("Select a valid package before building");
-    }
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
@@ -278,7 +251,6 @@ export class InvalidPackage implements Package
 export class ConfigPackage implements Package
 {
     readonly path: string;
-    readonly buildTask: vscode.Task | undefined;
 
     constructor(path: string)
     {
@@ -286,11 +258,6 @@ export class ConfigPackage implements Package
     }
 
     get name() { return basename(this.path); }
-    async build(): Promise<void>
-    {
-        throw new Error("Building a configuration package is not possible");
-    }
-
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
         throw new Error("Debug configurations are not available for configuration packages");
@@ -305,7 +272,6 @@ export class ConfigPackage implements Package
 export class ForeignPackage extends GenericPackage
 {
     readonly path: string;
-    readonly buildTask: vscode.Task | undefined;
 
     constructor(path: string, context: context.Context)
     {
@@ -314,11 +280,6 @@ export class ForeignPackage extends GenericPackage
     }
 
     get type() { return Type.fromType(TypeList.OTHER); }
-    async build(): Promise<void>
-    {
-        throw new Error("Building a package that is not part of an autoproj workspace is not available");
-    }
-
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
         throw new Error("Debug configurations are not available for external packages");
@@ -327,9 +288,9 @@ export class ForeignPackage extends GenericPackage
 
 export class RockRubyPackage extends RockPackage
 {
-    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode)
     {
-        super(ws, info, context, vscode, taskProvider);
+        super(ws, info, context, vscode);
     }
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
@@ -465,9 +426,9 @@ export class RockOrogenPackage extends RockPackage
 {
     private _bridge: async.EnvironmentBridge;
 
-    constructor(bridge: async.EnvironmentBridge, ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(bridge: async.EnvironmentBridge, ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode)
     {
-        super(ws, info, context, vscode, taskProvider);
+        super(ws, info, context, vscode);
         this._bridge = bridge;
     }
 
@@ -528,9 +489,9 @@ export class RockOrogenPackage extends RockPackage
 
 export class RockOtherPackage extends RockPackage
 {
-    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode, taskProvider: tasks.Provider)
+    constructor(ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode)
     {
-        super(ws, info, context, vscode, taskProvider);
+        super(ws, info, context, vscode);
     }
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>

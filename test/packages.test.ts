@@ -178,11 +178,6 @@ describe("ForeignPackage", function () {
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
     })
-    it("does not allow building", async function () {
-        await assertThrowsAsync(async () => {
-            await subject.build();
-        }, /not part of an autoproj workspace/);
-    })
     it("does not allow custom debugging configurations", async function () {
         await assertThrowsAsync(async () => {
             await subject.debugConfiguration();
@@ -204,29 +199,10 @@ describe("RockRubyPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockRubyPackage(new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Ruby', "/path/to/package"),
-            mockContext.object, mockWrapper.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("returns the task provided by the task provider", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        let theTask = subject.buildTask;
-        assert.deepEqual(theTask, task);
-    })
-    it("starts an autoproj build task", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        await subject.build();
-        mockWrapper.verify(x => x.runTask(task), TypeMoq.Times.once());
     })
     it("returns the RUBY package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.RUBY));
@@ -282,30 +258,10 @@ describe("RockCXXPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockCXXPackage(
             new autoproj.Workspace("path", false), pkgInfo,
-            mockContext.object, mockWrapper.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("returns the task provided by the task provider", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        let theTask = subject.buildTask;
-        assert.deepEqual(theTask, task);
-    })
-    it("starts an autoproj build task", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        await subject.build();
-        mockWrapper.verify(x => x.runTask(task),
-            TypeMoq.Times.once());
     })
     it("returns the CXX package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.CXX));
@@ -318,7 +274,7 @@ describe("RockCXXPackage", function () {
             subject = new packages.RockCXXPackage(
                 new autoproj.Workspace(pkgPath, false),
                 pkgInfo, mockContext.object,
-                mockWrapper.object, mockTaskProvider.object);
+                mockWrapper.object);
         }
         beforeEach(function () {
             pkgPath = helpers.init();
@@ -479,31 +435,10 @@ describe("RockOtherPackage", function () {
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         subject = new packages.RockOtherPackage(new autoproj.Workspace("path", false),
             nullPackageInfo("/path/to/package"),
-            mockContext.object, mockWrapper.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("returns the task provided by the task provider", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        let theTask = subject.buildTask;
-        assert.deepEqual(theTask, task);
-    })
-    it("starts an autoproj build task", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        await subject.build();
-        mockWrapper.verify(x => x.runTask(task),
-            TypeMoq.Times.once());
     })
     it("returns the OTHER package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OTHER));
@@ -525,30 +460,10 @@ describe("RockOrogenPackage", function () {
             mockBridge.object,
             new autoproj.Workspace("path", false),
             autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
-            mockContext.object, mockWrapper.object, mockTaskProvider.object);
+            mockContext.object, mockWrapper.object);
     })
     it("returns the basename", function () {
         assert.equal(subject.name, "package");
-    })
-    it("returns the task provided by the task provider", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        let theTask = subject.buildTask;
-        assert.deepEqual(theTask, task);
-    })
-    it("starts an autoproj build task", async function () {
-        let defs: vscode.TaskDefinition = { type: "test" };
-        let task = new vscode.Task(defs, "test", "test");
-        mockTaskProvider.setup(x => x.buildTask(subject.path)).
-            returns(() => task);
-
-        await subject.build();
-        mockWrapper.verify(x => x.runTask(task),
-            TypeMoq.Times.once());
     })
     describe("pickTask()", function () {
         it("throws if orogen project loading fails", async function () {

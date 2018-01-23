@@ -55,11 +55,6 @@ export class VSCode {
         this._extensionContext.subscriptions.push(cmd);
     }
 
-    public executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>
-    {
-        return vscode.commands.executeCommand(command, ...rest);
-    }
-
     public showOpenDialog(options: vscode.OpenDialogOptions): Thenable<vscode.Uri[] | undefined>
     {
         return vscode.window.showOpenDialog(options);
@@ -78,12 +73,6 @@ export class VSCode {
     public updateWorkspaceState(key : string, value : string | undefined)
     {
         this._extensionContext.workspaceState.update(key, value);
-    }
-
-    public runTask(task : vscode.Task)
-    {
-        vscode.commands.executeCommand("workbench.action.tasks.runTask",
-            task.source + ": " + task.name);
     }
 
     public createOutputChannel(name: string) {

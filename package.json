@@ -113,11 +113,6 @@
                 "command": "rock.selectPackage"
             },
             {
-                "title": "Build package",
-                "category": "rock",
-                "command": "rock.buildPackage"
-            },
-            {
                 "title": "Update package info",
                 "category": "rock",
                 "command": "rock.updatePackageInfo"

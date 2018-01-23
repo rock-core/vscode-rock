@@ -110,13 +110,6 @@ describe("Commands", function () {
             mockContext.setup(x => x.getSelectedPackage()).
                 returns(() => Promise.resolve(mockPackage.object));
         });
-        describe("buildPackage", function () {
-            it("handles exceptions thrown in the promise", async function () {
-                mockPackage.setup(x => x.build()).returns(() => Promise.reject(new Error("test")));
-                await subject.buildPackage();
-                mockWrapper.verify(x => x.showErrorMessage("test"), TypeMoq.Times.once());
-            });
-        })
         describe("addLaunchConfig()", function () {
             it("does nothing if canceled", async function () {
                 mockPackage.setup(x => x.debugConfiguration()).

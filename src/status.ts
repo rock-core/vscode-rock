@@ -24,14 +24,10 @@ export class StatusBar implements vscode.Disposable {
     private readonly _selectPackageButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 4.5);
 
-    private readonly _buildPackageButton =
-        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 3.5);
-
     private readonly _packageTypeButton =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0.5);
 
     private readonly _buttons = { selectPackage:   this._selectPackageButton,
-                                  buildPackage:    this._buildPackageButton,
                                   packageType:     this._packageTypeButton };
 
     public dispose() {
@@ -42,7 +38,6 @@ export class StatusBar implements vscode.Disposable {
 
     constructor(extensionContext : vscode.ExtensionContext, context: context.Context) {
         this._selectPackageButton.text = '';
-        this._buildPackageButton.text = '';
         this._context = context;
         this.reloadVisibility();
 
@@ -77,7 +72,6 @@ export class StatusBar implements vscode.Disposable {
     public async update() {
         const selectedPackage = await this._context.getSelectedPackage();
         this.updateSelectedPackage(selectedPackage);
-        this.updateBuildButton(selectedPackage);
         this.updatePackageType(selectedPackage);
         this.reloadVisibility();
     }
@@ -87,20 +81,6 @@ export class StatusBar implements vscode.Disposable {
         let tooltip = selectedPackage.path;
         let command = this._context.packageSelectionMode == "auto" ? undefined : 'rock.selectPackage';
         this.updateButton(this._selectPackageButton, text, tooltip, command);
-    }
-
-    private updateBuildButton(selectedPackage: packages.Package)
-    {
-        let text: string = "$(gear)  ";
-        let tooltip: string | undefined;
-
-        if (!selectedPackage.buildTask) {
-            text = '';
-        } else {
-            text += 'Build';
-            tooltip = 'Build package'
-        }
-        this.updateButton(this._buildPackageButton, text, tooltip, 'rock.buildPackage');
     }
 
     private updatePackageType(selectedPackage: packages.Package) {
