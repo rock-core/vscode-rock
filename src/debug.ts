@@ -154,7 +154,7 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
             throw new Error("Could not find the target task within this package");
         }
         let args: string[] = [];
-        const deployAs = config.deployAs || pkg.name;
+        const deployAs = config.deployAs || basename(pkg.path);
         const deploymentBaseName = basename(deploymentInfo.file);
         const deploymentLoggerName = `${deploymentBaseName}_Logger`;
         args.push(`--rename=${deploymentBaseName}:${deployAs}`);
@@ -189,8 +189,8 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
     private async deploymentInfo(pkg: packages.RockPackage,
         taskName: string): Promise<async.IOrogenTask | undefined>
     {
-        const taskModel = `${pkg.name}::${taskName}`;
-        let description = await this._bridge.describeOrogenProject(pkg.path, pkg.name);
+        const taskModel = `${basename(pkg.path)}::${taskName}`;
+        let description = await this._bridge.describeOrogenProject(pkg.path, basename(pkg.path));
         return description.find((task) => task.model_name == taskModel);
     }
     private setupTask(ws: autoproj.Workspace, name: string,

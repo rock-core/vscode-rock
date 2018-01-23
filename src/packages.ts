@@ -446,7 +446,7 @@ export class RockOrogenPackage extends RockPackage
 
     async pickTask(): Promise<async.IOrogenTask | undefined>
     {
-        let description = this._bridge.describeOrogenProject(this.path, this.name);
+        let description = this._bridge.describeOrogenProject(this.path, basename(this.path));
         let tokenSource = new vscode.CancellationTokenSource();
 
         let err;

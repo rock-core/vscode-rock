@@ -508,7 +508,7 @@ describe("RockOrogenPackage", function () {
         it("throws if orogen project loading fails", async function () {
             let error = new Error("test");
             mockBridge.setup(x => x.describeOrogenProject(subject.path,
-                subject.name)).returns(() => Promise.reject(error));
+                basename(subject.path))).returns(() => Promise.reject(error));
             await assertThrowsAsync(async () => {
                 await subject.pickTask();
             }, /test/);
@@ -526,7 +526,7 @@ describe("RockOrogenPackage", function () {
                 task: task
             });
 
-            mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
+            mockBridge.setup(x => x.describeOrogenProject(subject.path, basename(subject.path)))
                 .returns(() => Promise.resolve([ task ]));
 
             let choices;
@@ -545,7 +545,7 @@ describe("RockOrogenPackage", function () {
                 deployment_name: "orogen_task1",
                 file: '/some/bin/deployment/binfile'
             }
-            mockBridge.setup(x => x.describeOrogenProject(subject.path, subject.name))
+            mockBridge.setup(x => x.describeOrogenProject(subject.path, basename(subject.path)))
                 .returns(() => Promise.resolve([ task ]));
             mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
