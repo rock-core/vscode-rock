@@ -8,14 +8,6 @@ import * as packages from './packages'
 import * as fs from 'fs'
 import { join as joinPath } from 'path'
 
-/** Checks that a given filesystem path is registered in a list of workspace folders */
-function exists(folders: vscode.WorkspaceFolder[], fsPath: string)
-{
-    return folders.find((item) => {
-        return (item.uri.fsPath == fsPath);
-    })
-}
-
 export class Context
 {
     private readonly _vscode: wrappers.VSCode;

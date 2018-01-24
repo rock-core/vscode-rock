@@ -8,7 +8,7 @@ import * as autoproj from '../src/autoproj'
 import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../src/packages'
-import { basename } from 'path'
+import { basename, join as joinPath } from 'path'
 import { EnvironmentBridge } from '../src/async';
 
 describe("ConfigurationProvider", function() {
@@ -27,6 +27,17 @@ describe("ConfigurationProvider", function() {
     afterEach(function () {
         helpers.clear();
     });
+    describe("resolveDebugConfiguration", function () {
+        it("returns an unchanged configuration", async function () {
+            const config: vscode.DebugConfiguration = {
+                name: "config",
+                type: "cppdbg",
+                request: "launch"
+            }
+            assert.deepEqual(await subject.resolveDebugConfiguration(undefined,
+                config, undefined), config);
+        })
+    })
     describe("resolvePackage", function() {
         it("returns undefined for an undefined workspace folder", async function() {
             let pkg = await subject.resolvePackage(undefined)
@@ -74,6 +85,244 @@ describe("ConfigurationProvider", function() {
         it("resolves a command using 'which'", async function() {
             let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg, "before:${rock:which:test}:after")
             assert.equal("before:/path/to/test:after", expanded);
+        })
+    })
+})
+
+describe("CXXConfigurationProvider", function() {
+    let subject: debug.CXXConfigurationProvider;
+    let root: string;
+    let s: helpers.TestSetup;
+    let folder: vscode.WorkspaceFolder;
+    beforeEach(function() {
+        root = helpers.init();
+        s = new helpers.TestSetup();
+        subject = new debug.CXXConfigurationProvider(s.context);
+        folder = {
+            name: "folder",
+            uri: vscode.Uri.file("/path/to/folder"),
+            index: 0
+        }
+    })
+    afterEach(function () {
+        helpers.clear();
+    });
+    describe("resolveDebugConfiguration", function () {
+        describe("the package could not be resolved", function () {
+            let mockSubject: TypeMoq.IMock<debug.CXXConfigurationProvider>;
+            beforeEach(function() {
+                mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.resolvePackage(TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(undefined));
+                subject = mockSubject.target;
+            })
+            it("returns an unchanged configuration", async function () {
+                const config: vscode.DebugConfiguration = {
+                    name: "config",
+                    type: "cppdbg",
+                    request: "launch"
+                }
+                assert.deepEqual(await subject.resolveDebugConfiguration(folder,
+                    config, undefined), config);
+            })
+        })
+        describe("the package is resolved to a RockPackage", function () {
+            let mock: TypeMoq.IMock<autoproj.Workspace>;
+            let ws: autoproj.Workspace;
+            let pkg: packages.Package;
+            let config: vscode.DebugConfiguration;
+            let stub: string;
+            beforeEach(async function() {
+                let result = s.createAndRegisterWorkspace('test');
+                ws = result.ws;
+                pkg = await s.registerPackage(ws, ['test'], { type: 'Autobuild::CMake' });
+                folder = {
+                    uri: vscode.Uri.file(pkg.path),
+                    name: "package",
+                    index: 0
+                };
+                config = {
+                    name: "config",
+                    type: "cppdbg",
+                    request: "launch",
+                    miDebuggerPath: "/path/to/gdb",
+                    MIMode: "gdb",
+                    program: "/path/to/target"
+                }
+                stub = joinPath(__dirname, '..', '..', 'stubs', config.MIMode);
+            })
+            it("preserves the given environment", async function () {
+                config.environment = [ { name: "TEST", value: "FOO" }];
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                let envItem = (resolvedConfig.environment as Array<any>).
+                    find((item) => item.name == "TEST");
+                assert.equal(envItem.value, "FOO");
+            })
+            it("replaces miDebuggerPath with the stub script", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+
+                assert.equal(resolvedConfig.miDebuggerPath, stub);
+                let envItem = (resolvedConfig.environment as Array<any>).
+                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_DEBUGGER");
+                assert.equal(envItem.value, "/path/to/gdb");
+            })
+            it("sets miDebuggerPath to the stub script", async function () {
+                config.miDebuggerPath = undefined;
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+
+                assert.equal(resolvedConfig.miDebuggerPath, stub);
+                let envItem = (resolvedConfig.environment as Array<any>).
+                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_DEBUGGER");
+                assert.equal(envItem.value, "gdb");
+            })
+            it("sets autoproj executable path", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                let envItem = (resolvedConfig.environment as Array<any>).
+                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_PATH");
+                assert.equal(envItem.value, ws.autoprojExePath());
+            })
+            it("sets autoproj current root", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                let envItem = (resolvedConfig.environment as Array<any>).
+                    find((item) => item.name == "AUTOPROJ_CURRENT_ROOT");
+                assert.equal(envItem.value, ws.root);
+            })
+            it("expands the 'program' value", async function () {
+                let mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.expandAutoprojPaths(TypeMoq.It.isAny(),
+                    (pkg as packages.RockPackage).info, config.program)).
+                    returns(() => Promise.resolve("expanded"));
+                subject = mockSubject.target;
+
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(config.program, "expanded");
+            })
+            it("expands the 'cwd' value", async function () {
+                let mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.expandAutoprojPaths(TypeMoq.It.isAny(),
+                    (pkg as packages.RockPackage).info, config.cwd)).
+                    returns(() => Promise.resolve("expanded"));
+                subject = mockSubject.target;
+                config.cwd = "/path/to/cwd"
+
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(config.cwd, "expanded");
+            })
+        })
+    })
+})
+
+
+describe("RubyConfigurationProvider", function() {
+    let subject: debug.RubyConfigurationProvider;
+    let root: string;
+    let s: helpers.TestSetup;
+    let folder: vscode.WorkspaceFolder;
+    beforeEach(function() {
+        root = helpers.init();
+        s = new helpers.TestSetup();
+        subject = new debug.RubyConfigurationProvider(s.context);
+        folder = {
+            name: "folder",
+            uri: vscode.Uri.file("/path/to/folder"),
+            index: 0
+        }
+    })
+    afterEach(function () {
+        helpers.clear();
+    });
+    describe("resolveDebugConfiguration", function () {
+        describe("the package could not be resolved", function () {
+            let mockSubject: TypeMoq.IMock<debug.RubyConfigurationProvider>;
+            beforeEach(function() {
+                mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.resolvePackage(TypeMoq.It.isAny())).
+                    returns(() => Promise.resolve(undefined));
+                subject = mockSubject.target;
+            })
+            it("returns an unchanged configuration", async function () {
+                const config: vscode.DebugConfiguration = {
+                    name: "config",
+                    type: "cppdbg",
+                    request: "launch"
+                }
+                assert.deepEqual(await subject.resolveDebugConfiguration(folder,
+                    config, undefined), config);
+            })
+        })
+        describe("the package is resolved to a RockPackage", function () {
+            let mock: TypeMoq.IMock<autoproj.Workspace>;
+            let ws: autoproj.Workspace;
+            let pkg: packages.Package;
+            let config: vscode.DebugConfiguration;
+            beforeEach(async function() {
+                let result = s.createAndRegisterWorkspace('test');
+                ws = result.ws;
+                pkg = await s.registerPackage(ws, ['test'], { type: 'Autobuild::Ruby' });
+                folder = {
+                    uri: vscode.Uri.file(pkg.path),
+                    name: "package",
+                    index: 0
+                };
+                config = {
+                    name: "config",
+                    type: "Ruby",
+                    request: "launch",
+                    useBundler: false,
+                    program: "/path/to/target"
+                }
+            })
+            it("preserves the given environment", async function () {
+                config.env = { TEST: "FOO" };
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(config.env.TEST, "FOO");
+            })
+            it("sets useBundler to true", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(resolvedConfig.useBundler, true);
+            })
+            it("sets pathToBundler to autoproj's executable", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(resolvedConfig.pathToBundler, ws.autoprojExePath());
+            })
+            it("sets autoproj current root", async function () {
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(resolvedConfig.env.AUTOPROJ_CURRENT_ROOT, ws.root);
+            })
+            it("expands the 'program' value", async function () {
+                let mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.expandAutoprojPaths(TypeMoq.It.isAny(),
+                    (pkg as packages.RockPackage).info, config.program)).
+                    returns(() => Promise.resolve("expanded"));
+                subject = mockSubject.target;
+
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(config.program, "expanded");
+            })
+            it("expands the 'cwd' value", async function () {
+                let mockSubject = TypeMoq.Mock.ofInstance(subject);
+                mockSubject.setup(x => x.expandAutoprojPaths(TypeMoq.It.isAny(),
+                    (pkg as packages.RockPackage).info, config.cwd)).
+                    returns(() => Promise.resolve("expanded"));
+                subject = mockSubject.target;
+                config.cwd = "/path/to/cwd"
+
+                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                    config, undefined);
+                assert.equal(config.cwd, "expanded");
+            })
         })
     })
 })

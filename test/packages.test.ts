@@ -207,6 +207,9 @@ describe("ForeignPackage", function () {
     it("returns an undefined workspace", function () {
         assert(!subject.workspace);
     });
+    it("returns the OTHER package type", function () {
+        assert.equal(subject.type.id, packages.TypeList.OTHER.id);
+    });
 })
 
 describe("RockRubyPackage", function () {
@@ -481,6 +484,11 @@ describe("RockOtherPackage", function () {
     it("returns the given workspace", function () {
         assert.strictEqual(subject.workspace, workspace);
     });
+    it("does not allow creating debug configuration", async function () {
+        assertThrowsAsync(async function () {
+            await subject.debugConfiguration();
+        }, /package type unknown/);
+    })
 })
 
 describe("RockOrogenPackage", function () {

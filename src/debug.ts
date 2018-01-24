@@ -16,16 +16,10 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
         this._context = context;
     }
 
-    provideDebugConfigurations(folder : vscode.WorkspaceFolder | undefined, token : vscode.CancellationToken | undefined) : vscode.ProviderResult<vscode.DebugConfiguration[]>
-    {
-        return [];
-    }
-
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
         return config;
     }
-
 
     async resolvePackage(folder: vscode.WorkspaceFolder | undefined) : Promise<packages.RockPackage | undefined>
     {
@@ -70,10 +64,6 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
 
 export class CXXConfigurationProvider extends ConfigurationProvider
 {
-    provideDebugConfigurations(folder : vscode.WorkspaceFolder | undefined, token : vscode.CancellationToken | undefined) : vscode.ProviderResult<vscode.DebugConfiguration[]> {
-        return [];
-    }
-
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
         let pkg = await this.resolvePackage(folder);

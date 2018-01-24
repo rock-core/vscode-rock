@@ -65,10 +65,8 @@ describe("Context tests", function () {
     }
     it ("creates an output channel when instantiated", function () {
         let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        let mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         let mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-        let mockTaskProvider = TypeMoq.Mock.ofType<tasks.Provider>();
         let mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
 
         mockWrapper.setup(x => x.createOutputChannel("Rock")).
@@ -81,4 +79,10 @@ describe("Context tests", function () {
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });
+    it("calls envsh and fires the update event", async function () {
+        const mockWs = TypeMoq.Mock.ofType<autoproj.Workspace>();
+        await testContext.subject.updateWorkspaceInfo(mockWs.object);
+        mockWs.verify(x => x.envsh(), TypeMoq.Times.once());
+        verifyContextUpdated(TypeMoq.Times.once());
+    })
 });
