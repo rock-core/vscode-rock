@@ -1,11 +1,12 @@
-import { basename, relative } from 'path';
+import { basename, relative, dirname } from 'path';
 import * as context from './context';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
 import * as config from './config';
 import * as vscode from 'vscode'
+import * as autoproj from './autoproj';
 
-function assert_workspace_not_empty(vscode)
+function assertWorkspaceNotEmpty(vscode: wrappers.VSCode)
 {
     if (!vscode.workspaceFolders || vscode.workspaceFolders.length == 0)
         throw new Error("Current workspace is empty");
@@ -25,70 +26,88 @@ export class Commands
         this._configManager = configManager;
     }
 
-    async selectPackage()
+    async showPackagePicker(): Promise<packages.Package | undefined>
     {
-        assert_workspace_not_empty(this._vscode);
-        let choices = new Array<{ label: string,
-                                  description: string,
-                                  path: string }>();
-
-        this._context.workspaces.forEachFolder((ws, folder) => {
-            choices.push({ label: relative(ws.root, folder),
-                           description: ws.name,
-                           path: folder });
-        });
-
-        let options = { placeHolder: 'Select the package to work on' }
-
-        const chosen = await this._vscode.showQuickPick(choices, options);
-        if (chosen) {
-            this._context.setSelectedPackage(chosen.path);
+        assertWorkspaceNotEmpty(this._vscode);
+        let choices: { label, description, pkg }[] = [];
+        function addChoice(pkg: packages.Package)
+        {
+            const choice = {
+                label: pkg.name,
+                description: pkg.workspace ? basename(pkg.workspace.root) : '',
+                pkg: pkg
+            }
+            choices.push(choice);
+        }
+        for (const folder of this._vscode.workspaceFolders!) {
+            const pkgPath = folder.uri.fsPath;
+            let pkg = await this._context.getPackageByPath(pkgPath);
+            addChoice(pkg);
+        }
+        if (choices.length == 1) {
+            return choices[0].pkg;
+        }
+        const options: vscode.QuickPickOptions = {
+            placeHolder: 'Select a package'
+        }
+        const pkg = await this._vscode.showQuickPick(choices, options);
+        if (pkg) {
+            return pkg.pkg;
         }
     }
 
-    private handlePromise<T>(promise: Promise<T>)
+    async showWorkspacePicker(): Promise<autoproj.Workspace | undefined>
     {
-        promise.catch(err => {
-            this._vscode.showErrorMessage(err.message);
+        if (this._context.workspaces.workspaces.size == 0) {
+            throw new Error("No Autoproj workspace found")
+        }
+        let choices: { label, description, ws }[] = [];
+        function addChoice(ws: autoproj.Workspace)
+        {
+            const choice = {
+                label: basename(ws.root),
+                description: basename(dirname(ws.root)),
+                ws: ws
+            }
+            choices.push(choice);
+        }
+        if (this._context.workspaces.workspaces.size == 1) {
+            return this._context.workspaces.workspaces.values().next().value;
+        }
+        this._context.workspaces.forEachWorkspace((ws) => {
+            addChoice(ws);
         })
+        const options: vscode.QuickPickOptions = {
+            placeHolder: 'Select a workspace'
+        }
+        const ws = await this._vscode.showQuickPick(choices, options);
+        if (ws) {
+            return ws.ws;
+        }
     }
 
     async updatePackageInfo()
     {
-        this.handlePromise(this._context.updateWorkspaceInfo());
-    }
-
-    async buildPackage()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.build());
-    }
-
-    async selectPackageType()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.pickType());
-    }
-
-    async setDebuggingTarget()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.pickTarget());
-    }
-
-    async debugPackage()
-    {
-        let pkg = await this._context.getSelectedPackage();
-        this.handlePromise(pkg.debug());
+        try {
+            let ws = await this.showWorkspacePicker();
+            if (ws) {
+                await this._context.updateWorkspaceInfo(ws);
+            }
+        }
+        catch (err) {
+            this._vscode.showErrorMessage(err.message);
+        }
     }
 
     async addLaunchConfig()
     {
-        let pkg = await this._context.getSelectedPackage();
         try {
-            let customConfig = await pkg.customDebugConfiguration();
-            if (customConfig)
-                this._configManager.addLaunchConfig(pkg.path, customConfig);
+            let pkg = await this.showPackagePicker();
+            if (pkg) {
+                let customConfig = await pkg.debugConfiguration();
+                if (customConfig)
+                    this._configManager.addLaunchConfig(pkg.path, customConfig);
+            }
         }
         catch (err) {
             this._vscode.showErrorMessage(err.message);
@@ -126,11 +145,6 @@ export class Commands
 
     register()
     {
-        this._vscode.registerAndSubscribeCommand('rock.selectPackage', (...args) => { this.selectPackage(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.buildPackage', (...args) => { this.buildPackage(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.selectPackageType', (...args) => { this.selectPackageType(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.setDebuggingTarget', (...args) => { this.setDebuggingTarget(...args) });
-        this._vscode.registerAndSubscribeCommand('rock.debugPackage', (...args) => { this.debugPackage(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', (...args) => { this.updatePackageInfo(...args) });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', (...args) => { this.addLaunchConfig(...args) });
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', (...args) => { this.updateCodeConfig(...args) });

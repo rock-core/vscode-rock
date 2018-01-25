@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import * as Path from 'path'
 
 /** Shim that provides us an API to the VSCode state we need within the extension
- * 
+ *
  * This helps during testing to mock VSCode itself, something VSCode's test
  * harness is fairly bad at
  */
@@ -37,7 +37,7 @@ export class VSCode {
         return vscode.workspace.getWorkspaceFolder(uri);
     }
 
-    public getConfiguration(section?: string, resource?: vscode.Uri): 
+    public getConfiguration(section?: string, resource?: vscode.Uri):
         vscode.WorkspaceConfiguration
     {
         return vscode.workspace.getConfiguration(section, resource);
@@ -55,22 +55,9 @@ export class VSCode {
         this._extensionContext.subscriptions.push(cmd);
     }
 
-    public executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>
-    {
-        return vscode.commands.executeCommand(command, ...rest);
-    }
-
     public showOpenDialog(options: vscode.OpenDialogOptions): Thenable<vscode.Uri[] | undefined>
     {
         return vscode.window.showOpenDialog(options);
-    }
-
-    public startDebugging(folder: vscode.WorkspaceFolder | string | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Thenable<boolean>
-    {
-        if (typeof folder == 'string') {
-            folder = this.getWorkspaceFolder(folder);
-        }
-        return vscode.debug.startDebugging(folder, nameOrConfiguration);
     }
 
     public showErrorMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
@@ -88,9 +75,7 @@ export class VSCode {
         this._extensionContext.workspaceState.update(key, value);
     }
 
-    public runTask(task : vscode.Task)
-    {
-        vscode.commands.executeCommand("workbench.action.tasks.runTask",
-            task.source + ": " + task.name);
+    public createOutputChannel(name: string) {
+        return vscode.window.createOutputChannel(name);
     }
 }

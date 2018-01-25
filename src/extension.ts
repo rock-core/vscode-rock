@@ -3,7 +3,6 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import * as tasks from './tasks';
-import * as status from './status';
 import * as wrappers from './wrappers';
 import * as context from './context';
 import * as autoproj from './autoproj';
@@ -28,12 +27,9 @@ function initializeWorkspacesFromVSCodeFolders(workspaces: autoproj.Workspaces,
 }
 
 function setupEvents(rockContext: context.Context, extensionContext: vscode.ExtensionContext,
-    workspaces: autoproj.Workspaces, statusBar: status.StatusBar, taskProvider: tasks.Provider,
+    workspaces: autoproj.Workspaces, taskProvider: tasks.Provider,
     configManager: config.ConfigManager)
 {
-    rockContext.onUpdate(() => {
-        statusBar.update();
-    })
     extensionContext.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
@@ -47,7 +43,6 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
                 workspaces.deleteFolder(folder.uri.fsPath);
             });
             taskProvider.reloadTasks();
-            statusBar.update();
         })
     );
 }
@@ -61,32 +56,27 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let bridge = new async.EnvironmentBridge();
 
     let rockContext = new context.Context(vscodeWrapper, workspaces,
-        new packages.PackageFactory(vscodeWrapper, taskProvider, bridge));
+        new packages.PackageFactory(vscodeWrapper, bridge));
 
-    let statusBar = new status.StatusBar(extensionContext, rockContext);
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
-    let preLaunchTaskProvider = new debug.PreLaunchTaskProvider(rockContext, vscodeWrapper);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', taskProvider));
 
-    extensionContext.subscriptions.push(
-        vscode.workspace.registerTaskProvider('rock', preLaunchTaskProvider));
-
     initializeWorkspacesFromVSCodeFolders(workspaces, configManager);
     taskProvider.reloadTasks();
     setupEvents(rockContext, extensionContext, workspaces,
-        statusBar, taskProvider, configManager);
+        taskProvider, configManager);
     rockCommands.register();
 
     let cppDebugProvider = new debug.CXXConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));
     let rubyDebugProvider = new debug.RubyConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('Ruby', rubyDebugProvider));
+    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, bridge, vscodeWrapper);
+    extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('orogen', orogenDebugProvider));
 
-    statusBar.update();
-    extensionContext.subscriptions.push(statusBar);
     extensionContext.subscriptions.push(rockContext);
 }
 

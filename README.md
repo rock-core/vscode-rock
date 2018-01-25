@@ -25,8 +25,7 @@ workspace.
 
 ## Extension Settings
 
-- Package selection mode
-- Debugging configuration
+None so far.
 
 ## Known Issues
 
