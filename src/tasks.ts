@@ -223,7 +223,7 @@ export class SyskitProvider implements vscode.TaskProvider
             let definition = { type: 'rock', workspace: ws.root, bundle: bundlePath }
             let exec = runAutoprojExec(ws, 'syskit', ['run', '--rest'], { cwd: bundlePath });
             let task = new vscode.Task(definition, `syskit run - ${ws.root}`, 'rock', exec, []);
-            let p = this._context.ensureSyskitContextAvailable(ws).
+            let p = ws.ensureSyskitContextAvailable().
                 then(() => task).
                 catch(() => undefined);
             resolvers.push(p);

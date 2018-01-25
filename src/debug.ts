@@ -3,10 +3,10 @@ import * as wrappers from './wrappers'
 import * as vscode from 'vscode'
 import * as fs from 'fs'
 import { basename, dirname, relative, join as joinpath } from 'path'
-import * as async from './async'
 import * as packages from './packages'
 import * as autoproj from './autoproj'
 import * as child_process from 'child_process';
+import * as syskit from './syskit';
 
 export class ConfigurationProvider implements vscode.DebugConfigurationProvider
 {
@@ -121,13 +121,10 @@ export class RubyConfigurationProvider extends ConfigurationProvider
 
 export class OrogenConfigurationProvider extends ConfigurationProvider
 {
-    private readonly _bridge: async.EnvironmentBridge;
     private readonly _vscode: wrappers.VSCode;
-    constructor(context : context.Context, bridge: async.EnvironmentBridge,
-        wrapper: wrappers.VSCode)
+    constructor(context : context.Context, wrapper: wrappers.VSCode)
     {
         super(context);
-        this._bridge = bridge;
         this._vscode = wrapper;
     }
 
@@ -138,24 +135,20 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
             throw new Error("Cannot debug orogen packages not within an Autoproj workspace");
         }
         let ws = pkg.workspace;
-        let deploymentInfo = await this.deploymentInfo(pkg, config.task);
-        if (!deploymentInfo)
-        {
-            throw new Error("Could not find the target task within this package");
-        }
-        let args: string[] = [];
-        const deployAs = config.deployAs || basename(pkg.path);
-        const deploymentBaseName = basename(deploymentInfo.file);
-        const deploymentLoggerName = `${deploymentBaseName}_Logger`;
-        args.push(`--rename=${deploymentBaseName}:${deployAs}`);
-        args.push(`--rename=${deploymentLoggerName}:${deployAs}_Logger`);
+        let deployment = await this.deploymentCreate(
+            pkg, config.orogenModel, config.taskName)
+        let commandLine = await this.deploymentCommandLine(pkg, deployment);
+
+        let env = {};
+        Object.assign(process.env);
+        Object.assign(commandLine.env);
 
         const resolvedConfig: vscode.DebugConfiguration = {
             name: config.name,
             request: config.request,
             type: "cppdbg",
-            program: deploymentInfo.file,
-            args: args,
+            program: commandLine.command,
+            args: commandLine.args,
             cwd: pkg.info.builddir,
             stopAtEntry: false,
             setupCommands: [
@@ -164,24 +157,24 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
                     text: "-enable-pretty-printing",
                     ignoreFailures: false
                 }
-            ]
+            ],
+            env: env
         };
-        if (config.start || config.confDir) {
-            this.setupTask(ws, deployAs, config.start, config.confDir).
-                catch(err => {
-                    this._vscode.showErrorMessage(err.message);
-                    this._context.outputChannel.show();
-                }
-            );
-        }
         return resolvedConfig;
     }
-    private async deploymentInfo(pkg: packages.RockPackage,
-        taskName: string): Promise<async.IOrogenTask | undefined>
+    private async deploymentCreate(pkg: packages.RockPackage,
+        modelName: string, taskName: string)
     {
-        const taskModel = `${basename(pkg.path)}::${taskName}`;
-        let description = await this._bridge.describeOrogenProject(pkg.path, basename(pkg.path));
-        return description.find((task) => task.model_name == taskModel);
+        let syskit = await pkg.workspace.
+            syskitDefaultConnection(this._vscode);
+        await syskit.clear();
+        return syskit.registerDeployment(modelName, taskName)
+    }
+    private async deploymentCommandLine(pkg: packages.RockPackage, deployment : number) : Promise<syskit.CommandLine>
+    {
+        let syskit = await pkg.workspace.
+            syskitDefaultConnection(this._vscode);
+        return syskit.commandLine(deployment);
     }
     private setupTask(ws: autoproj.Workspace, name: string,
         start?: boolean, confDir?: string): Promise<void>

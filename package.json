@@ -63,20 +63,11 @@
                         "properties": {
                             "task": {
                                 "type": "string",
-                                "description": "Task name to debug."
+                                "description": "Name of the task model or deployment to debug."
                             },
                             "deployAs": {
                                 "type": "string",
-                                "description": "Name to be used as the deployment name."
-                            },
-                            "start": {
-                                "type": "boolean",
-                                "description": "Start task on launch.",
-                                "default": false
-                            },
-                            "confDir": {
-                                "type": "string",
-                                "description": "Directory to launch task configuration from."
+                                "description": "Name to be used as the deployment name for task models, and as prefix for deployments."
                             }
                         }
                     }
@@ -213,7 +204,8 @@
     "dependencies": {
         "js-yaml": "latest",
         "fs-temp": "latest",
-        "jsonc-parser": "latest"
+        "jsonc-parser": "latest",
+        "node-rest-client": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",

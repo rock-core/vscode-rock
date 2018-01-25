@@ -12,7 +12,7 @@ import * as Wrappers from '../src/wrappers'
 import * as Context from '../src/context'
 import * as Packages from '../src/packages'
 import * as Tasks from '../src/tasks'
-import * as Async from '../src/async'
+import * as Syskit from '../src/syskit'
 import { writeFileSync } from 'fs';
 
 export function assertThrowsAsync(p, msg: RegExp)
@@ -125,10 +125,22 @@ export function addPackageToManifest(ws, path : string[], partialInfo: { [key: s
     return result;
 }
 
+export function mockSyskitConnection(mockWorkspace : TypeMoq.IMock<Autoproj.Workspace>) {
+    let mock = TypeMoq.Mock.ofType<Syskit.Connection>()
+    mock.setup((x: any) => x.then).returns(() => undefined)
+    mockWorkspace.setup(x => x.syskitDefaultConnection(TypeMoq.It.isAny())).
+        returns(() => Promise.resolve(mock.object));
+    return mock;
+}
+
 export class TestSetup
 {
     mockWrapper : TypeMoq.IMock<Wrappers.VSCode>;
-    mockBridge : TypeMoq.IMock<Async.EnvironmentBridge>;
+    get wrapper()
+    {
+        return this.mockWrapper.object;
+    }
+
     mockOutputChannel : TypeMoq.IMock<vscode.OutputChannel>;
 
     mockWorkspaces: TypeMoq.IMock<Autoproj.Workspaces>;
@@ -162,13 +174,12 @@ export class TestSetup
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
-        this.mockBridge = TypeMoq.Mock.ofType<Async.EnvironmentBridge>();
         this.mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
         this.mockWrapper.setup(x => x.createOutputChannel("Rock")).returns(() => this.mockOutputChannel.object);
 
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
         this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
-        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider, this.mockBridge.target]);
+        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider]);
         this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory]);
     }
 

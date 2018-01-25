@@ -8,7 +8,6 @@ import * as context from './context';
 import * as autoproj from './autoproj';
 import * as commands from './commands';
 import * as packages from './packages';
-import * as async from './async';
 import * as debug from './debug';
 import * as config from './config';
 import * as fs from 'fs';
@@ -35,7 +34,7 @@ function handleNewWorkspaceFolder(
         return;
     }
 
-    rockContext.ensureSyskitContextAvailable(ws).catch(() => {})
+    ws.ensureSyskitContextAvailable().catch(() => {})
     registerNewWorkspaceFolder(path, workspaces, configManager);
 }
 
@@ -74,10 +73,9 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let vscodeWrapper = new wrappers.VSCode(extensionContext);
     let workspaces = new autoproj.Workspaces;
     let autoprojTaskProvider = new tasks.AutoprojProvider(workspaces);
-    let bridge = new async.EnvironmentBridge();
 
     let rockContext = new context.Context(vscodeWrapper, workspaces,
-        new packages.PackageFactory(vscodeWrapper, bridge));
+        new packages.PackageFactory(vscodeWrapper));
 
     let syskitTaskProvider = new tasks.SyskitProvider(rockContext, workspaces);
 
@@ -101,7 +99,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));
     let rubyDebugProvider = new debug.RubyConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('Ruby', rubyDebugProvider));
-    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, bridge, vscodeWrapper);
+    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, vscodeWrapper);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('orogen', orogenDebugProvider));
 
     extensionContext.subscriptions.push(rockContext);

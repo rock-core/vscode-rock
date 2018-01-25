@@ -6,6 +6,8 @@ import * as path from 'path';
 import * as global from 'glob';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import * as syskit from './syskit';
+import * as wrappers from './wrappers';
 
 export function findWorkspaceRoot(rootPath: string): string | null
 {
@@ -102,11 +104,16 @@ export class Workspace
     private _info: Promise<WorkspaceInfo>;
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
 
+    private _pendingWorkspaceInit : Promise<void> | undefined;
+    private _verifiedSyskitContext : boolean;
+
     constructor(root: string, loadInfo: boolean = true)
     {
         this.root = root;
         this.name = path.basename(root);
+        this._verifiedSyskitContext = false;
         this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
+        this._pendingWorkspaceInit = undefined;
         if (loadInfo) {
             this._info = this.createInfoPromise();
         }
@@ -228,6 +235,69 @@ export class Workspace
     async syskitCheckApp(path: string) : Promise<void> {
         let process = this.autoprojExec("syskit", ["check", path]);
         return this.runCommandToCompletion(process, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
+    }
+
+    public defaultBundlePath() : string {
+        return path.join(this.root, '.vscode', 'rock-default-bundle');
+    }
+
+    public hasValidSyskitContext() : Promise<boolean> {
+        // We do the cheap existence check even if the syskit context has been
+        // verified. This would allow the user to "reset" the bundle by deleting
+        // the bundle folder without having to restart VSCode, with a small
+        // performance cost
+        let bundlePath = this.defaultBundlePath();
+        if (!fs.existsSync(bundlePath)) {
+            return Promise.resolve(false);
+        }
+
+        if (this._verifiedSyskitContext) {
+            return Promise.resolve(true);
+        }
+
+        return this.syskitCheckApp(bundlePath).
+            then(() => {
+                this._verifiedSyskitContext = true;
+                return true;
+            }).
+            catch(() => false);
+    }
+
+    public ensureSyskitContextAvailable(): Promise<void>
+    {
+        let pending = this._pendingWorkspaceInit;
+        if (pending) {
+            return pending;
+        }
+
+        let p = this.hasValidSyskitContext().then((result) => {
+            if (result) {
+                this._pendingWorkspaceInit = undefined;
+            }
+            else {
+                let bundlePath = this.defaultBundlePath();
+                return this.syskitGenApp(bundlePath).
+                    then(
+                        ()  => { this._pendingWorkspaceInit = undefined },
+                        (e) => { this._pendingWorkspaceInit = undefined; throw e; }
+                    );
+            }
+        })
+
+        this._pendingWorkspaceInit = p;
+        return p;
+    }
+
+    async syskitDefaultConnection(wrappers : wrappers.VSCode) : Promise<syskit.Connection>
+    {
+        await this.ensureSyskitContextAvailable();
+        let c = new syskit.Connection(this);
+        let tokenSource = new vscode.CancellationTokenSource();
+
+        let start = c.start(this.root, wrappers);
+        return start.then(
+            () => c.connect(tokenSource.token).then(() => c),
+            () => tokenSource.cancel());
     }
 }
 

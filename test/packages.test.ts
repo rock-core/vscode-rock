@@ -9,7 +9,7 @@ import * as context from '../src/context'
 import * as tasks from '../src/tasks'
 import * as wrappers from '../src/wrappers'
 import * as debug from '../src/debug'
-import * as async from '../src/async'
+import * as syskit from '../src/syskit'
 import { dirname, basename, join as joinPath, relative } from 'path'
 import { assertThrowsAsync } from './helpers';
 import * as fs from 'fs';
@@ -213,11 +213,9 @@ describe("RockRubyPackage", function () {
     let subject: packages.RockRubyPackage;
     let mockContext: TypeMoq.IMock<context.Context>;
     let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
-    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     let workspace: autoproj.Workspace;
     beforeEach(function () {
-        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
         mockContext = TypeMoq.Mock.ofType<context.Context>();
         mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
         mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
@@ -487,69 +485,63 @@ describe("RockOtherPackage", function () {
 })
 
 describe("RockOrogenPackage", function () {
-    let subject: packages.RockOrogenPackage;
-    let mockContext: TypeMoq.IMock<context.Context>;
-    let mockTaskProvider: TypeMoq.IMock<tasks.AutoprojProvider>;
-    let mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
-    let mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
-    let workspace: autoproj.Workspace;
+    let s : helpers.TestSetup;
+    let subject : packages.RockOrogenPackage;
+    let workspace : autoproj.Workspace;
+    let mockSyskit : TypeMoq.IMock<syskit.Connection>;
+
     beforeEach(function () {
-        mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
-        mockContext = TypeMoq.Mock.ofType<context.Context>();
-        mockTaskProvider = TypeMoq.Mock.ofType<tasks.AutoprojProvider>();
-        mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        workspace = new autoproj.Workspace("path", false);
+        helpers.init();
+        s = new helpers.TestSetup();
+        let { mock, ws } = s.createAndRegisterWorkspace('ws');
+        mockSyskit = helpers.mockSyskitConnection(mock);
+        workspace = ws;
         subject = new packages.RockOrogenPackage(
-            mockBridge.object, workspace,
+            workspace,
             autoprojMakePackage('package', 'Autobuild::Orogen', "/path/to/package"),
-            mockContext.object, mockWrapper.object);
+            s.context, s.wrapper);
     })
+    afterEach(function () {
+        helpers.clear();
+    });
     it("returns the basename", function () {
         assert.equal(subject.name, subject.info.name);
     })
     describe("pickTask()", function () {
-        it("throws if orogen project loading fails", async function () {
-            let error = new Error("test");
-            mockBridge.setup(x => x.describeOrogenProject(subject.path,
-                basename(subject.path))).returns(() => Promise.reject(error));
-            await assertThrowsAsync(subject.pickTask(),
-                /test/);
-        })
+        let deployments : syskit.AvailableDeployment[] = [
+            {
+                name: 'test_deployment',
+                project_name: 'test',
+                default_deployment_for: 'test::Task',
+                default_logger: undefined,
+                tasks: []
+            }
+        ]
+
         it("shows a quick pick ui and returns the selected task", async function () {
             let expectedChoices = new Array<any>();
-            let task: async.IOrogenTask = {
-                model_name: 'task1',
-                deployment_name: "orogen_task1",
-                file: '/some/bin/deployment/binfile'
-            }
             expectedChoices.push({
-                label: 'task1',
+                label: 'test::Task',
                 description: '',
-                task: task
+                orogen_info: deployments[0]
             });
-
-            mockBridge.setup(x => x.describeOrogenProject(subject.path, basename(subject.path)))
-                .returns(() => Promise.resolve([ task ]));
+            mockSyskit.setup(x => x.availableDeployments()).
+                returns(() => Promise.resolve(deployments));
 
             let choices;
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
+            s.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
                 returns(() => Promise.resolve(expectedChoices[0]));
 
             let selected = await subject.pickTask();
-            assert.deepEqual(choices, expectedChoices);
-            assert.deepEqual(selected, task);
+            assert.deepStrictEqual(choices, expectedChoices);
+            assert.deepStrictEqual(selected, deployments[0]);
         })
         it("shows a quick pick ui and returns undefined if canceled", async function () {
-            let task: async.IOrogenTask = {
-                model_name: 'task1',
-                deployment_name: "orogen_task1",
-                file: '/some/bin/deployment/binfile'
-            }
-            mockBridge.setup(x => x.describeOrogenProject(subject.path, basename(subject.path)))
-                .returns(() => Promise.resolve([ task ]));
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
+            mockSyskit.setup(x => x.availableDeployments()).
+                returns(() => Promise.resolve(deployments));
+            s.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
                 returns(() => Promise.resolve(undefined));
             let selected = await subject.pickTask();
@@ -560,6 +552,22 @@ describe("RockOrogenPackage", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
     })
     describe("debugConfiguration()", function () {
+        let deployments : syskit.AvailableDeployment[] = [
+            {
+                name: 'test_deployment',
+                project_name: 'test',
+                default_deployment_for: 'test::Task',
+                default_logger: undefined,
+                tasks: []
+            },
+            {
+                name: 'test_deployment',
+                project_name: 'test',
+                default_deployment_for: undefined,
+                default_logger: undefined,
+                tasks: []
+            }
+        ]
         let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
         beforeEach(function () {
             mockSubject = TypeMoq.Mock.ofInstance(subject);
@@ -576,19 +584,27 @@ describe("RockOrogenPackage", function () {
             await assertThrowsAsync(subject.debugConfiguration(),
                 /^test$/);
         })
-        it("returns a debug configuration for the selected task", async function () {
-            let task: async.IOrogenTask = {
-                model_name: 'component::Task',
-                deployment_name: "component",
-                file: '/some/bin/deployment/binfile'
-            }
+        it("returns a debug configuration for a selected orogen model", async function () {
             mockSubject.setup(x => x.pickTask()).
-                returns(() => Promise.resolve(task));
+                returns(() => Promise.resolve(deployments[0]));
             const expectedCustomDebugConfig: vscode.DebugConfiguration = {
-                name: "component::Task",
+                name: "orogen - test::Task",
                 type: "orogen",
                 request: "launch",
-                task: "Task"
+                task: "test::Task",
+                deployAs: "task"
+            }
+            const customDebugConfig = await subject.debugConfiguration();
+            assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
+        })
+        it("returns a debug configuration for a selected deployment", async function () {
+            mockSubject.setup(x => x.pickTask()).
+                returns(() => Promise.resolve(deployments[1]));
+            const expectedCustomDebugConfig: vscode.DebugConfiguration = {
+                name: "orogen - test_deployment",
+                type: "orogen",
+                request: "launch",
+                task: "test_deployment"
             }
             const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
