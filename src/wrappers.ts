@@ -24,6 +24,11 @@ export class VSCode {
         return editor.document.uri;
     }
 
+    public get activeTextEditor() : vscode.TextEditor | undefined
+    {
+        return vscode.window.activeTextEditor;
+    }
+
     public get workspaceFolders(): vscode.WorkspaceFolder[] | undefined
     {
         return vscode.workspace.workspaceFolders;
@@ -63,6 +68,11 @@ export class VSCode {
     public showErrorMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
     {
         return vscode.window.showErrorMessage(message, ...items);
+    }
+
+    public showWarningMessage<T extends vscode.MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>
+    {
+        return vscode.window.showWarningMessage(message, ...items);
     }
 
     public getWorkspaceState(key : string) : string | undefined

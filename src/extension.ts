@@ -12,6 +12,7 @@ import * as debug from './debug';
 import * as config from './config';
 import * as fs from 'fs';
 import { join as joinpath } from 'path';
+import * as snippets from './snippets';
 
 function handleNewWorkspaceFolder(
         path: string,
@@ -93,6 +94,12 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('orogen', orogenDebugProvider));
 
     extensionContext.subscriptions.push(rockContext);
+    const launchJsonDocumentSelector: vscode.DocumentSelector = [{
+        language: 'jsonc',
+        pattern: '**/launch.json'
+    }];
+    extensionContext.subscriptions.push(vscode.languages.registerCompletionItemProvider(
+        launchJsonDocumentSelector, new snippets.LaunchSnippetProvider(rockContext, vscodeWrapper)));
 }
 
 // this method is called when your extension is deactivated
