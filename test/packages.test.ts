@@ -232,33 +232,19 @@ describe("RockRubyPackage", function () {
     })
     describe("debugConfiguration()", function () {
         it("returns undefined if canceled", async function () {
-            const options: vscode.OpenDialogOptions = {
-                canSelectMany: false,
-                canSelectFiles: true,
-                canSelectFolders: false,
-                defaultUri: vscode.Uri.file(subject.path),
-                openLabel: "Debug file"
-            };
-            mockWrapper.setup(x => x.showOpenDialog(options)).
+            mockContext.setup(x => x.pickFile(subject.path)).
                 returns(() => Promise.resolve(undefined));
             assert(!await subject.debugConfiguration());
         })
         it("returns a debug configuration for the selected file", async function () {
             const uri = vscode.Uri.file(joinPath(subject.path, "test.rb"));
-            const options: vscode.OpenDialogOptions = {
-                canSelectMany: false,
-                canSelectFiles: true,
-                canSelectFolders: false,
-                defaultUri: vscode.Uri.file(subject.path),
-                openLabel: "Debug file"
-            };
             const expectedCustomDebugConfig: vscode.DebugConfiguration = {
                 type: "Ruby",
                 name: relative(subject.path, uri.fsPath),
                 request: "launch",
                 program: uri.fsPath
             };
-            mockWrapper.setup(x => x.showOpenDialog(options)).
+            mockContext.setup(x => x.pickFile(subject.path)).
                 returns(() => Promise.resolve([uri]));
 
             const customDebugConfig = await subject.debugConfiguration();
@@ -293,104 +279,6 @@ describe("RockCXXPackage", function () {
     it("returns the CXX package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.CXX));
     })
-    describe("listExecutables()", function () {
-        let pkgPath: string;
-        let pkgInfo: autoproj.Package;
-        let files: string[];
-        function createSubject() {
-            subject = new packages.RockCXXPackage(
-                new autoproj.Workspace(pkgPath, false),
-                pkgInfo, mockContext.object,
-                mockWrapper.object);
-        }
-        beforeEach(function () {
-            pkgPath = helpers.init();
-            pkgInfo = autoprojMakePackage('package', 'Autobuild::CMake', pkgPath);
-            createSubject();
-        })
-        afterEach(function () {
-            helpers.clear();
-        })
-        function createDummyExecutables() {
-            helpers.mkdir('.hidden');
-            helpers.mkdir('CMakeFiles');
-            helpers.mkdir('subdir');
-
-            files = [];
-            files.push(helpers.mkfile('', 'suite'));
-            files.push(helpers.mkfile('', '.hidden', 'suite'));
-            files.push(helpers.mkfile('', 'CMakeFiles', 'suite'));
-            files.push(helpers.mkfile('', 'subdir', 'test'));
-            files.push(helpers.mkfile('', 'libtool'));
-            files.push(helpers.mkfile('', 'configure'));
-            files.push(helpers.mkfile('', 'config.status'));
-            files.push(helpers.mkfile('', 'lib.so'));
-            files.push(helpers.mkfile('', 'lib.so.1'));
-            files.push(helpers.mkfile('', 'lib.so.1.2'));
-            files.push(helpers.mkfile('', 'lib.so.1.2.3'));
-            files.push(helpers.mkfile('', 'file.rb'));
-            files.push(helpers.mkfile('', 'file.py'));
-            files.push(helpers.mkfile('', 'file.sh'));
-            for (let file of files)
-                fs.chmodSync(file, 0o755);
-            files.push(helpers.mkfile('', 'test'));
-            pkgInfo.builddir = pkgPath;
-            createSubject();
-        }
-        it("lists executables recursively", async function () {
-            createDummyExecutables();
-            const execs = await subject.listExecutables();
-            assert.equal(execs.length, 2);
-            assert(execs.some(file => file == files[0]));
-            assert(execs.some(file => file == files[3]));
-        });
-        it("throws if builddir does not exist", async function () {
-            pkgInfo.builddir = '/path/not/found';
-            createSubject();
-            await assertThrowsAsync(subject.listExecutables(),
-                /Did you build/);
-        })
-    });
-    describe("pickExecutable()", function () {
-        let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
-        let executables: string[];
-        beforeEach(function () {
-            executables = [];
-            executables.push('/path/to/package/build/test');
-            executables.push('/path/to/package/build/other_test');
-            mockSubject = TypeMoq.Mock.ofInstance(subject);
-            mockSubject.setup(x => x.listExecutables()).
-                returns(() => Promise.resolve(executables));
-            subject = mockSubject.target;
-        })
-        it("shows a picker and returns the selected executable", async function () {
-            let choices: { label: string, description: string, path: string }[] = [];
-            let expectedChoices: { label: string, description: string, path: string }[] = [];
-            for (let choice of executables) {
-                expectedChoices.push({
-                    label: basename(choice),
-                    description: relative(subject.info.builddir, dirname(choice)),
-                    path: choice
-                });
-            }
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
-                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
-                returns(() => Promise.resolve(expectedChoices[0]));
-
-            let chosen = await subject.pickExecutable();
-            assert.deepEqual(choices, expectedChoices);
-            assert.equal(chosen, executables[0]);
-        });
-        it("returns undefined if canceled by the user", async function () {
-            mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
-                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(undefined));
-
-            let chosen = await subject.pickExecutable();
-            assert(!chosen);
-        })
-    })
     describe("debugConfiguration()", function () {
         let mockSubject: TypeMoq.IMock<packages.RockCXXPackage>;
         beforeEach(function () {
@@ -398,19 +286,19 @@ describe("RockCXXPackage", function () {
             subject = mockSubject.target;
         })
         it("returns undefined if canceled", async function () {
-            mockSubject.setup(x => x.pickExecutable()).
+            mockContext.setup(x => x.pickExecutable("/path/to/package/build")).
                 returns(() => Promise.resolve(undefined));
             assert(!await subject.debugConfiguration());
         })
         it("throws if executable picking fails", async function () {
-            mockSubject.setup(x => x.pickExecutable()).
+            mockContext.setup(x => x.pickExecutable("/path/to/package/build")).
                 returns(() => Promise.reject(new Error("test")));
             await assertThrowsAsync(subject.debugConfiguration(),
                 /^test$/);
         })
         it("returns a debug configuration for the selected executable", async function () {
             const executable = joinPath(subject.info.builddir, "test_suite");
-            mockSubject.setup(x => x.pickExecutable()).
+            mockContext.setup(x => x.pickExecutable("/path/to/package/build")).
                 returns(() => Promise.resolve(executable));
             let expandablePath = relative(subject.info.builddir, executable);
             expandablePath = joinPath("${rock:buildDir}", expandablePath);
@@ -487,13 +375,11 @@ describe("RockOrogenPackage", function () {
     let s : helpers.TestSetup;
     let subject : packages.RockOrogenPackage;
     let workspace : autoproj.Workspace;
-    let mockSyskit : TypeMoq.IMock<syskit.Connection>;
 
     beforeEach(function () {
         helpers.init();
         s = new helpers.TestSetup();
         let { mock, ws } = s.createAndRegisterWorkspace('ws');
-        mockSyskit = helpers.mockSyskitConnection(mock);
         workspace = ws;
         subject = new packages.RockOrogenPackage(
             workspace,
@@ -505,48 +391,6 @@ describe("RockOrogenPackage", function () {
     });
     it("returns the basename", function () {
         assert.equal(subject.name, subject.info.name);
-    })
-    describe("pickTask()", function () {
-        let deployments : syskit.AvailableDeployment[] = [
-            {
-                name: 'test_deployment',
-                project_name: 'test',
-                default_deployment_for: 'test::Task',
-                default_logger: undefined,
-                tasks: []
-            }
-        ]
-
-        it("shows a quick pick ui and returns the selected task", async function () {
-            let expectedChoices = new Array<any>();
-            expectedChoices.push({
-                label: 'test::Task',
-                description: '',
-                orogen_info: deployments[0]
-            });
-            mockSyskit.setup(x => x.availableDeployments()).
-                returns(() => Promise.resolve(deployments));
-
-            let choicesP;
-            s.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
-                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                callback((promisedChoices, ...ignored) => { choicesP = promisedChoices }).
-                returns(() => Promise.resolve(expectedChoices[0]));
-
-            let selected = await subject.pickTask();
-            let choices = await choicesP;
-            assert.deepStrictEqual(choices, expectedChoices);
-            assert.deepStrictEqual(selected, deployments[0]);
-        })
-        it("shows a quick pick ui and returns undefined if canceled", async function () {
-            mockSyskit.setup(x => x.availableDeployments()).
-                returns(() => Promise.resolve(deployments));
-            s.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
-                TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                returns(() => Promise.resolve(undefined));
-            let selected = await subject.pickTask();
-            assert.deepEqual(selected, undefined);
-        })
     })
     it("returns the OROGEN package type", function () {
         assert.deepEqual(subject.type, packages.Type.fromType(packages.TypeList.OROGEN));
@@ -569,24 +413,27 @@ describe("RockOrogenPackage", function () {
             }
         ]
         let mockSubject: TypeMoq.IMock<packages.RockOrogenPackage>;
-        beforeEach(function () {
+        function setupSubject() {
             mockSubject = TypeMoq.Mock.ofInstance(subject);
             subject = mockSubject.target;
-        })
+        }
         it("returns undefined if canceled", async function () {
-            mockSubject.setup(x => x.pickTask()).
+            s.mockContext.setup(x => x.pickTask(subject.workspace)).
                 returns(() => Promise.resolve(undefined));
+            setupSubject();
             assert(!await subject.debugConfiguration());
         })
         it("throws if task picking fails", async function () {
-            mockSubject.setup(x => x.pickTask()).
+            s.mockContext.setup(x => x.pickTask(subject.workspace)).
                 returns(() => Promise.reject(new Error("test")));
+            setupSubject();
             await assertThrowsAsync(subject.debugConfiguration(),
                 /^test$/);
         })
         it("returns a debug configuration for a selected orogen model", async function () {
-            mockSubject.setup(x => x.pickTask()).
+            s.mockContext.setup(x => x.pickTask(subject.workspace)).
                 returns(() => Promise.resolve(deployments[0]));
+            setupSubject();
             const expectedCustomDebugConfig: vscode.DebugConfiguration = {
                 name: "orogen - test::Task",
                 type: "orogen",
@@ -601,8 +448,9 @@ describe("RockOrogenPackage", function () {
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
         })
         it("returns a debug configuration for a selected deployment", async function () {
-            mockSubject.setup(x => x.pickTask()).
+            s.mockContext.setup(x => x.pickTask(subject.workspace)).
                 returns(() => Promise.resolve(deployments[1]));
+            setupSubject();   
             const expectedCustomDebugConfig: vscode.DebugConfiguration = {
                 name: "orogen - test_deployment",
                 type: "orogen",

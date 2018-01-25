@@ -305,14 +305,7 @@ export class RockRubyPackage extends RockPackage
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        const options: vscode.OpenDialogOptions = {
-            canSelectMany: false,
-            canSelectFiles: true,
-            canSelectFolders: false,
-            defaultUri: vscode.Uri.file(this.path),
-            openLabel: "Debug file"
-        };
-        const targetUri = await this._vscode.showOpenDialog(options);
+        const targetUri = await this._context.pickFile(this.path);
         if (targetUri) {
             const debugConfig: vscode.DebugConfiguration = {
                 type: "Ruby",
@@ -328,86 +321,9 @@ export class RockRubyPackage extends RockPackage
 
 export class RockCXXPackage extends RockPackage
 {
-    async listExecutables(path?: string): Promise<string[]> {
-        let executables: string[] = [];
-        const EXCLUDED_DIRS = [/^\./,
-                               /^CMakeFiles$/];
-
-        const EXCLUDED_FILES = [/^libtool$/,
-                                /^config.status$/,
-                                /^configure$/,
-                                /(\.so\.)+(\d+\.)?(\d+\.)?(\d+)$/,
-                                /\.so$/,
-                                /\.sh$/,
-                                /\.rb$/,
-                                /\.py$/];
-
-        if (!path) path = this.info.builddir;
-        if (!fs.existsSync(path))
-            throw new Error("Build directory does not exist. Did you build the package first?");
-
-        const files = fs.readdirSync(path);
-        for (let file of files) {
-            const fullPath = joinpath(path, file);
-            let stat: fs.Stats;
-            try {
-                stat = fs.statSync(fullPath);
-            }
-            catch (e) {
-                continue; // ignore files that can't be stat'ed (i.e broken symlinks)
-            }
-            if (stat.isDirectory()) {
-                if (!EXCLUDED_DIRS.some(filter => filter.test(file))) {
-                    executables = executables.concat(await this.listExecutables(fullPath));
-                }
-            } else if (stat.isFile()) {
-                if (!EXCLUDED_FILES.some(filter => filter.test(file))) {
-                    if (stat.mode & fs.constants.S_IXUSR) {
-                        executables.push(fullPath);
-                    }
-                }
-            }
-        }
-        return executables;
-    }
-    private async pickerChoices(): Promise<{ label: string, description: string, path: string }[]>
-    {
-        let choices: { label: string, description: string, path: string }[] = [];
-        for (let choice of await this.listExecutables()) {
-            choices.push({
-                label: basename(choice),
-                description: relative(this.info.builddir, dirname(choice)),
-                path: choice
-            });
-        }
-        return choices;
-    }
-    async pickExecutable(): Promise<string | undefined>
-    {
-        const tokenSource = new vscode.CancellationTokenSource();
-        const choices = this.pickerChoices();
-        let err;
-        choices.catch((_err) => {
-            err = _err;
-            tokenSource.cancel();
-        })
-
-        const options: vscode.QuickPickOptions = {
-            placeHolder: "Select an executable target to debug"
-        }
-        const selected = await this._vscode.showQuickPick(choices, options, tokenSource.token);
-        tokenSource.dispose();
-
-        if (selected) {
-            return selected.path;
-        } else if (err) {
-            throw err;
-        }
-    }
-
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        const executable = await this.pickExecutable();
+        const executable = await this._context.pickExecutable(this.info.builddir);
         if (executable) {
             let expandablePath = relative(this.info.builddir, executable);
             expandablePath = joinpath("${rock:buildDir}", expandablePath);
@@ -434,55 +350,9 @@ export class RockCXXPackage extends RockPackage
 
 export class RockOrogenPackage extends RockPackage
 {
-    private async pickChoices()
-    {
-        let syskitConnection = await this.workspace.syskitDefaultConnection();
-        let deployments = await syskitConnection.availableDeployments();
-
-        let choices: any[] = [];
-        deployments.forEach((deployment) => {
-            if (deployment.default_deployment_for) {
-                choices.push({
-                    label: deployment.default_deployment_for,
-                    description: '',
-                    orogen_info: deployment
-                });
-            }
-            else {
-                choices.push({
-                    label: deployment.name,
-                    description: '',
-                    orogen_info: deployment
-                });
-            }
-        });
-        return choices;
-    }
-    async pickTask(): Promise<syskit.AvailableDeployment | undefined>
-    {
-        let err = null;
-        let choices = this.pickChoices();
-        let tokenSource = new vscode.CancellationTokenSource();
-        choices.catch((e) => err = e);
-
-        let task = await this._vscode.showQuickPick(choices,
-            { placeHolder: 'Select a task or deployment model' },
-            tokenSource.token);
-        tokenSource.dispose();
-        // Note: we know the promise is resolved at this point thanks to the
-        // await on the target picker
-        if (err) {
-            throw err;
-        }
-        else if (task)
-        {
-            return task.orogen_info;
-        }
-    }
-
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        const deployment = await this.pickTask();
+        const deployment = await this._context.pickTask(this.workspace);
         if (!deployment) {
             return;
         }
