@@ -175,12 +175,12 @@ export class TestSetup
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
         this.mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        this.mockWrapper.setup(x => x.createOutputChannel("Rock")).returns(() => this.mockOutputChannel.object);
+        this.mockOutputChannel.setup(x => x.dispose()).returns(() => undefined);
 
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
         this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
         this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider]);
-        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory]);
+        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory, this.outputChannel]);
     }
 
     setupWrapper(fn) {

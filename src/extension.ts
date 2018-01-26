@@ -62,11 +62,13 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
     let vscodeWrapper = new wrappers.VSCode(extensionContext);
-    let workspaces = new autoproj.Workspaces;
-    let autoprojTaskProvider = new tasks.AutoprojProvider(workspaces);
 
+    let outputChannel = vscode.window.createOutputChannel('Rock');
+    let workspaces = new autoproj.Workspaces(null, outputChannel);
+    let autoprojTaskProvider = new tasks.AutoprojProvider(workspaces);
     let rockContext = new context.Context(vscodeWrapper, workspaces,
-        new packages.PackageFactory(vscodeWrapper));
+        new packages.PackageFactory(vscodeWrapper),
+        outputChannel);
 
     let syskitTaskProvider = new tasks.SyskitProvider(rockContext, workspaces);
 

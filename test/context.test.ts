@@ -32,11 +32,14 @@ class TestContext
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
         this.mockPackageFactory.callBase = true;
         this.workspaces = new autoproj.Workspaces;
+        let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
+        mockOutputChannel.setup(x => x.dispose()).returns(() => undefined)
 
         this.subject = new context.Context(
             this.mockWrapper.object,
             this.workspaces,
-            this.mockPackageFactory.object);
+            this.mockPackageFactory.object,
+            mockOutputChannel.object);
     }
 
     clear(): void
@@ -60,19 +63,6 @@ describe("Context tests", function () {
         testContext.subject.onUpdate(mock);
         mock.verify(x => x(), times);
     }
-    it ("creates an output channel when instantiated", function () {
-        let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        let mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-        let mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
-
-        mockWrapper.setup(x => x.createOutputChannel("Rock")).
-            returns(() => mockOutputChannel.object);
-        let subject = new context.Context(mockWrapper.object, mockWorkspaces.object,
-            mockPackageFactory.object);
-        mockWrapper.verify(x => x.createOutputChannel("Rock"), TypeMoq.Times.once());
-        assert.strictEqual(subject.outputChannel, mockOutputChannel.object);
-    });
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });

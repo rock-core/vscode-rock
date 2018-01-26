@@ -143,10 +143,16 @@ export class Commands
         }
     }
 
+    showOutputChannel()
+    {
+        this._context.outputChannel.show();
+    }
+
     register()
     {
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', () => { this.updatePackageInfo() });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', () => { this.addLaunchConfig() });
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', () => { this.updateCodeConfig() });
+        this._vscode.registerAndSubscribeCommand('rock.showOutputChannel', () => { this.showOutputChannel() });
     }
 }

@@ -86,9 +86,29 @@ export class WorkspaceInfo
     }
 }
 
+class ConsoleOutputChannel implements vscode.OutputChannel
+{
+    readonly name = "ConsoleOutputChannel";
+
+    append(value: string)
+    {
+        console.log(value);
+    }
+
+    appendLine(value: string)
+    {
+        console.log(value);
+    }
+
+    clear() {}
+    show(...args) {}
+    hide() {}
+    dispose() {}
+}
+
 export class Workspace
 {
-    static fromDir(path: string, loadInfo: boolean = true)
+    static fromDir(path: string, loadInfo: boolean = true, outputChannel: vscode.OutputChannel = new ConsoleOutputChannel())
     {
         let root = findWorkspaceRoot(path);
         if (!root)
@@ -96,22 +116,24 @@ export class Workspace
             return null;
         }
 
-        return new Workspace(root, loadInfo);
+        return new Workspace(root, loadInfo, outputChannel);
     }
 
     name: string;
     readonly root: string;
     private _info: Promise<WorkspaceInfo>;
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
+    private _outputChannel : vscode.OutputChannel;
 
     private _syskitDefaultRun : { process: any, promise: Promise<void> } | undefined;
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
 
-    constructor(root: string, loadInfo: boolean = true)
+    constructor(root: string, loadInfo: boolean = true, outputChannel: vscode.OutputChannel = new ConsoleOutputChannel())
     {
         this.root = root;
         this.name = path.basename(root);
+        this._outputChannel = outputChannel;
         this._verifiedSyskitContext = false;
         this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
         this._pendingWorkspaceInit = undefined;
@@ -129,7 +151,7 @@ export class Workspace
     {
         return child_process.spawn(
             this.autoprojExePath(), ['exec', command, ...args],
-            { cwd: this.root, stdio: 'ignore', ...options }
+            { cwd: this.root, stdio: 'pipe', ...options }
         );
     }
 
@@ -175,8 +197,9 @@ export class Workspace
         const process = child_process.spawn(
             this.autoprojExePath(),
             ['envsh', '--color'],
-            { cwd: this.root, stdio: 'ignore' }
+            { cwd: this.root, stdio: 'pipe' }
         );
+        this.redirectProcessToChannel('autoproj envsh', 'envsh', process);
         return new Promise<WorkspaceInfo>((resolve, reject) => {
             process.on('exit', (code, status) => {
                 if (code === 0) {
@@ -196,6 +219,7 @@ export class Workspace
         Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: this.root });
         let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
         let path = '';
+        this.redirectProcessToChannel(`autoproj which ${cmd}`, `which ${cmd}`, process);
         subprocess.stdout.on('data', (buffer) => {
             path = path.concat(buffer.toString());
         })
@@ -231,11 +255,13 @@ export class Workspace
 
     syskitGenApp(path: string) : Promise<void> {
         let process = this.autoprojExec("syskit", ["gen", "app", path]);
+        this.redirectProcessToChannel(`syskit gen ${path}`, "gen", process);
         return this.runCommandToCompletion(process, `failed to run \`syskit gen app ${path}\``);
     }
 
     async syskitCheckApp(path: string) : Promise<void> {
         let process = this.autoprojExec("syskit", ["check", path]);
+        this.redirectProcessToChannel(`syskit check ${path}`, "check", process);
         return this.runCommandToCompletion(process, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
     }
 
@@ -290,6 +316,23 @@ export class Workspace
         return p;
     }
 
+    private redirectProcessToChannel(name, shortname, process)
+    {
+        this._outputChannel.appendLine(`-- starting ${name} (output will be prefixed with ${shortname})`)
+        process.stderr.on('data', (buffer) => {
+            let lines = buffer.toString().split("\n");
+            lines.forEach((l) => {
+                this._outputChannel.appendLine(`${shortname}: ${l}`)
+            })
+        })
+        process.stdout.on('data', (buffer) => {
+            let lines = buffer.toString().split("\n");
+            lines.forEach((l) => {
+                this._outputChannel.appendLine(`${shortname}: ${l}`)
+            })
+        })
+    }
+
     async syskitDefaultStart() : Promise<void>
     {
         if (this._syskitDefaultRun) {
@@ -298,13 +341,8 @@ export class Workspace
 
         await this.ensureSyskitContextAvailable();
         let process = this.autoprojExec('syskit', ['run', '--rest'],
-            { cwd: this.syskitDefaultBundle(), stdio: 'pipe' });
-        process.stderr.on('data', (buffer) => {
-            console.log(buffer.toString());
-        })
-        process.stdout.on('data', (buffer) => {
-            console.log(buffer.toString());
-        })
+            { cwd: this.syskitDefaultBundle() });
+        this.redirectProcessToChannel('syskit background process', 'syskit run', process);
         let p = new Promise<void>((resolve, reject) => {
             process.on('exit', (code, status) => {
                 reject(new Error());
@@ -327,6 +365,7 @@ export class Workspace
 
         let process = this.autoprojExec('syskit', ['quit'],
             { cwd: this.syskitDefaultBundle() });
+        this.redirectProcessToChannel('syskit quit', 'syskit quit', process);
         return new Promise<void>((resolve, reject) => {
             process.on('exit', (code, status) => {
                 if (this._syskitDefaultRun) {
@@ -394,12 +433,14 @@ export class Workspaces
     devFolder : string | null;
     workspaces = new Map<string, Workspace>();
     folderToWorkspace = new Map<string, Workspace>();
+    private _outputChannel : vscode.OutputChannel;
     private _workspaceInfoEvent = new vscode.EventEmitter<WorkspaceInfo>();
     private _folderInfoEvent = new vscode.EventEmitter<Package | PackageSet>();
     private _folderInfoDisposables = new Map<string, vscode.Disposable>();
 
-    constructor(devFolder = null) {
+    constructor(devFolder = null, outputChannel : vscode.OutputChannel = new ConsoleOutputChannel()) {
         this.devFolder = devFolder;
+        this._outputChannel = outputChannel;
     }
 
     dispose() {
@@ -434,7 +475,7 @@ export class Workspaces
             return { added: false, workspace: this.workspaces.get(wsRoot) };
         }
         else {
-            let ws = new Workspace(wsRoot, loadInfo);
+            let ws = new Workspace(wsRoot, loadInfo, this._outputChannel);
             this.add(ws);
             ws.onInfoUpdated((info) => {
                 this._workspaceInfoEvent.fire(info);

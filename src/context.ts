@@ -20,13 +20,14 @@ export class Context
 
     public constructor(vscodeWrapper: wrappers.VSCode,
                        workspaces: autoproj.Workspaces,
-                       packageFactory : packages.PackageFactory)
+                       packageFactory : packages.PackageFactory,
+                       outputChannel : vscode.OutputChannel)
     {
         this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._packageFactory = packageFactory;
-        this._outputChannel = vscodeWrapper.createOutputChannel('Rock');
+        this._outputChannel = outputChannel;
     }
 
     get outputChannel(): vscode.OutputChannel
@@ -36,6 +37,7 @@ export class Context
 
     public dispose() {
         this._contextUpdatedEvent.dispose();
+        this._outputChannel.dispose();
     }
 
     public onUpdate(callback)
