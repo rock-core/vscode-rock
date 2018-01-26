@@ -21,11 +21,6 @@ export class AvailableDeployment
     default_logger: string | undefined;
 }
 
-class DeploymentsAvailableResponse
-{
-    deployments: AvailableDeployment[];
-};
-
 export class RegisteredDeploymentInfo
 {
     id : number;
@@ -64,15 +59,32 @@ export class Connection
         this._port      = port;
     }
 
-    private call<T>(method : string, path : string) : Promise<T>
+    private callBase(method : string, expectedStatus : number, path : string) : Promise<any>
     {
         return new Promise((resolve, reject) => {
-            this._client[method](`http://${this._host}:${this._port}/api/syskit/${path}`, function (data, response) {
-                resolve(data);
+            let url = `http://${this._host}:${this._port}/api/syskit/${path}`;
+            this._client[method](url, function (data, response) {
+                if (response.statusCode != expectedStatus) {
+                    let msg = data.error || data;
+                    reject(new Error(`${method} ${url} error: ${msg}`));
+                }
+                else {
+                    resolve(data);
+                }
             }).on('error', function(err) {
                 reject(err);
             })
         })
+    }
+
+    private callWithoutReturn(method : string, expectedStatus : number, path : string) : Promise<void>
+    {
+        return this.callBase(method, expectedStatus, path).then(() => {})
+    }
+
+    private call<T>(method : string, expectedStatus : number, path : string) : Promise<T>
+    {
+        return this.callBase(method, expectedStatus, path).then((data) => data as T);
     }
 
     /** Starts a Syskit instance and connects to it
@@ -108,22 +120,23 @@ export class Connection
 
     public availableDeployments() : Promise<AvailableDeployment[]>
     {
-        return this.call<DeploymentsAvailableResponse>('get', "deployments/available").
+        return this.call<{ deployments: AvailableDeployment[] }>('get', 200, "deployments/available").
             then((response) => response.deployments);
     }
 
     public registerDeployment(modelName: string, taskName: string) : Promise<number>
     {
-        return this.call<number>('post', `deployments?name=${modelName}&as=${taskName}`)
+        return this.call<{ registered_deployment: number }>('post', 201, `deployments?name=${modelName}&as=${taskName}`).
+            then((response) => response.registered_deployment);
     }
 
     public commandLine(deployment : number) : Promise<CommandLine>
     {
-        return this.call<CommandLine>('get', `deployments/${deployment}/command_line`)
+        return this.call<CommandLine>('get', 200, `deployments/${deployment}/command_line`)
     }
 
     public clear()
     {
-        return this.call<CommandLine>('delete', `deployments`)
+        return this.callWithoutReturn('delete', 204, `deployments`)
     }
 };
