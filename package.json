@@ -118,22 +118,22 @@
         "commands": [
             {
                 "title": "Update package info",
-                "category": "rock",
+                "category": "Rock",
                 "command": "rock.updatePackageInfo"
             },
             {
                 "title": "Add launch config",
-                "category": "rock",
+                "category": "Rock",
                 "command": "rock.addLaunchConfig"
             },
             {
                 "title": "Update VS Code configuration",
-                "category": "rock",
+                "category": "Rock",
                 "command": "rock.updateCodeConfig"
             },
             {
                 "title": "Show Output",
-                "category": "rock",
+                "category": "Rock",
                 "command": "rock.showOutputChannel"
             }
         ],
