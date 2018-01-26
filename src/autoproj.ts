@@ -104,6 +104,7 @@ export class Workspace
     private _info: Promise<WorkspaceInfo>;
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
 
+    private _syskitDefaultRun : { process: any, promise: Promise<void> } | undefined;
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
 
@@ -150,6 +151,7 @@ export class Workspace
 
     dispose() {
         this._infoUpdatedEvent.dispose();
+        this.syskitDefaultStop();
     }
 
     onInfoUpdated(callback: (info: WorkspaceInfo) => any) : vscode.Disposable {
@@ -288,16 +290,63 @@ export class Workspace
         return p;
     }
 
+    async syskitDefaultStart() : Promise<void>
+    {
+        if (this._syskitDefaultRun) {
+            return this._syskitDefaultRun.promise;
+        }
+
+        await this.ensureSyskitContextAvailable();
+        let process = this.autoprojExec('syskit', ['run', '--rest'],
+            { cwd: this.syskitDefaultBundle(), stdio: 'pipe' });
+        process.stderr.on('data', (buffer) => {
+            console.log(buffer.toString());
+        })
+        process.stdout.on('data', (buffer) => {
+            console.log(buffer.toString());
+        })
+        let p = new Promise<void>((resolve, reject) => {
+            process.on('exit', (code, status) => {
+                reject(new Error());
+            })
+        });
+        p.then(() => this._syskitDefaultRun = undefined,
+               () => this._syskitDefaultRun = undefined);
+        this._syskitDefaultRun = {
+            promise: p,
+            process: process
+        };
+        return p;
+    }
+
+    syskitDefaultStop() : Promise<void>
+    {
+        if (!this._syskitDefaultRun) {
+            return Promise.resolve();
+        }
+
+        let process = this.autoprojExec('syskit', ['quit'],
+            { cwd: this.syskitDefaultBundle() });
+        return new Promise<void>((resolve, reject) => {
+            process.on('exit', (code, status) => {
+                if (this._syskitDefaultRun) {
+                    process.kill("INT");
+                }
+            })
+        });
+    }
+
     async syskitDefaultConnection(wrappers : wrappers.VSCode) : Promise<syskit.Connection>
     {
         await this.ensureSyskitContextAvailable();
         let c = new syskit.Connection(this);
         let tokenSource = new vscode.CancellationTokenSource();
 
-        let start = c.start(this.root, wrappers);
-        return start.then(
-            () => c.connect(tokenSource.token).then(() => c),
+        let start = this.syskitDefaultStart();
+        start.then(
+            () => {},
             () => tokenSource.cancel());
+        return c.connect(tokenSource.token).then(() => c);
     }
 }
 

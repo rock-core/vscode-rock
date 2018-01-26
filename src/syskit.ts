@@ -64,10 +64,6 @@ export class Connection
         this._port      = port;
     }
 
-    public start(bundlePath : string, vscode : wrappers.VSCode) {
-        return vscode.runTask(`rock: syskit run - ${bundlePath}`);
-    }
-
     private call<T>(method : string, path : string) : Promise<T>
     {
         return new Promise((resolve, reject) => {
@@ -83,12 +79,20 @@ export class Connection
      */
     public async connect(token : CancellationToken)
     {
-        while(!token.isCancellationRequested) {
-            if (await this.attemptConnection()) {
-                return;
-            }
-        }
-        return Promise.reject(new Error("Cancelled connection to Syskit"));
+        let attempt = () => this.attemptConnection();
+        return new Promise((resolve, reject) => {
+            (async function poll() {
+                if (await attempt()) {
+                    resolve();
+                }
+                else if (token.isCancellationRequested) {
+                    reject(new Error("Syskit connection interrupted"));
+                }
+                else {
+                    setTimeout(poll, 100);
+                }
+            })()
+        })
     }
 
     public attemptConnection()

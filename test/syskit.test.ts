@@ -37,17 +37,18 @@ describe("SyskitConnection", function() {
         })
         it("attempts connection until the connection attempt succeeds", async function() {
             let syskit_run_resolve;
-            let syskit_run = new Promise((resolve, reject) => syskit_run_resolve = resolve);
-            s.mockWrapper.setup(x => x.runTask(`rock - syskit run ${workspace.root}`)).
+            let syskit_run = new Promise<void>((resolve, reject) => syskit_run_resolve = resolve);
+            mockWorkspace.setup(x => x.syskitDefaultStart()).
                 returns(() => syskit_run)
             mockSyskit.setup(x => x.attemptConnection()).
                 returns(() => Promise.resolve(true));
             await syskit.connect(tokenSource.token);
+            syskit_run_resolve();
         })
         it("fails if cancellation is requested", async function () {
             let p = syskit.connect(tokenSource.token);
             tokenSource.cancel();
-            await helpers.assertThrowsAsync(p, /Cancelled connection to Syskit/);
+            await helpers.assertThrowsAsync(p, /Syskit connection interrupted/);
         })
     })
 })
