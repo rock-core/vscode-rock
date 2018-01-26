@@ -13,29 +13,20 @@ import * as config from './config';
 import * as fs from 'fs';
 import { join as joinpath } from 'path';
 
-function registerNewWorkspaceFolder(
-        path: string, workspaces: autoproj.Workspaces,
-        configManager: config.ConfigManager) : void {
-
-    workspaces.addFolder(path);
-    configManager.setupPackage(path).catch((reason) => {
-        vscode.window.showErrorMessage(reason.message);
-    });
-}
-
 function handleNewWorkspaceFolder(
         path: string,
         rockContext : context.Context,
         workspaces: autoproj.Workspaces,
         configManager: config.ConfigManager) : void {
 
-    let ws = autoproj.Workspace.fromDir(path, false);
-    if (!ws) {
-        return;
-    }
+    let { added, workspace } = workspaces.addFolder(path);
+    if (added && workspace) {
+        workspace.ensureSyskitContextAvailable().catch(() => {})
 
-    ws.ensureSyskitContextAvailable().catch(() => {})
-    registerNewWorkspaceFolder(path, workspaces, configManager);
+    }
+    configManager.setupPackage(path).catch((reason) => {
+        vscode.window.showErrorMessage(reason.message);
+    });
 }
 
 function initializeWorkspacesFromVSCodeFolders(

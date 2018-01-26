@@ -328,13 +328,15 @@ describe("Autoproj helpers tests", function () {
             it("does not add a folder that is not within an Autoproj workspace", function() {
                 let dir = helpers.mkdir('a', 'b');
                 let workspace = workspaces.addFolder(dir);
-                assert(!workspace);
+                assert(!workspace.added);
+                assert(!workspace.workspace);
             })
             it("adds folders that are within a workspace", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(dir);
+                workspace = workspace as autoproj.Workspace;
                 assert.equal(workspace.root, root);
                 assert.equal(1, workspaces.useCount(workspace));
             })
@@ -344,27 +346,31 @@ describe("Autoproj helpers tests", function () {
                 let a = helpers.mkdir('a');
                 let wsA = workspaces.addFolder(a)
                 let b = helpers.mkdir('a', 'b');
-                let wsB = workspaces.addFolder(b) as autoproj.Workspace;
-                assert.equal(wsA, wsB);
-                assert.equal(2, workspaces.useCount(wsB));
+                let wsB = workspaces.addFolder(b);
+                assert(wsA.added);
+                assert(!wsB.added);
+                assert.equal(wsA.workspace, wsB.workspace);
+                assert.equal(2, workspaces.useCount(wsB.workspace as autoproj.Workspace));
             })
-            it("forwards the info updated event", async function() {
+            it("forwards the workspace info updated event", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(dir);
                 let called = false;
                 workspaces.onWorkspaceInfo((info) => called = true);
-                await workspace.info();
+                workspace = workspace as autoproj.Workspace;
+                await workspace.reload();
                 assert(called);
             })
             it("does not fire the package info event if the manifest has no data for it", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(dir);
                 let called = false;
                 workspaces.onFolderInfo((info) => called = true);
+                workspace = workspace as autoproj.Workspace;
                 await workspace.info();
                 assert(!called);
             })
@@ -372,10 +378,11 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(dir);
                 helpers.addPackageToManifest(workspace, ['a', 'b']);
                 let received;
                 workspaces.onFolderInfo((info) => received = info);
+                workspace = workspace as autoproj.Workspace;
                 await workspace.reload();
                 assert(received);
                 assert.equal(dir, received.srcdir);
@@ -391,21 +398,21 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let dir = helpers.mkdir('a', 'b');
-                let workspace = workspaces.addFolder(dir) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(dir);
                 assert(workspaces.deleteFolder(dir));
-                assert.equal(0, workspaces.useCount(workspace));
+                assert.equal(0, workspaces.useCount(workspace as autoproj.Workspace));
             })
             it("keeps a workspace until all the corresponding folders have been removed", function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
                 let a = helpers.mkdir('a');
-                let ws = workspaces.addFolder(a) as autoproj.Workspace;
+                let { added, workspace } = workspaces.addFolder(a);
                 let b = helpers.mkdir('a', 'b');
                 workspaces.addFolder(b)
                 workspaces.deleteFolder(b)
-                assert.equal(1, workspaces.useCount(ws));
+                assert.equal(1, workspaces.useCount(workspace as autoproj.Workspace));
                 workspaces.deleteFolder(a)
-                assert.equal(0, workspaces.useCount(ws));
+                assert.equal(0, workspaces.useCount(workspace as autoproj.Workspace));
             })
         })
         describe("isConfig", function () {

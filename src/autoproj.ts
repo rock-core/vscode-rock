@@ -426,21 +426,19 @@ export class Workspaces
         // Workspaces are often duplicates (multiple packages from the same ws).
         // Make sure we don't start the info resolution promise until we're sure
         // it is new
-        let ws = Workspace.fromDir(path, false);
-        if (!ws) {
+        let wsRoot = findWorkspaceRoot(path);
+        if (!wsRoot) {
             return { added: false, workspace: null };
         }
-        else if (this.workspaces.has(ws.root)) {
-            return { added: false, workspace: this.workspaces.get(ws.root) };
+        else if (this.workspaces.has(wsRoot)) {
+            return { added: false, workspace: this.workspaces.get(wsRoot) };
         }
         else {
+            let ws = new Workspace(wsRoot, loadInfo);
             this.add(ws);
             ws.onInfoUpdated((info) => {
                 this._workspaceInfoEvent.fire(info);
             })
-            if (loadInfo) {
-                ws.info();
-            }
             return { added: true, workspace: ws };
         }
     }
@@ -469,7 +467,7 @@ export class Workspaces
             })
             this._folderInfoDisposables.set(path, event);
         }
-        return workspace;
+        return { added, workspace };
     }
 
     /** De-registers a folder
