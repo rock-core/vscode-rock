@@ -119,7 +119,7 @@ export class RubyConfigurationProvider extends ConfigurationProvider
     }
 }
 
-export class OrogenConfigurationProvider extends ConfigurationProvider
+export class OrogenConfigurationProvider extends CXXConfigurationProvider
 {
     private readonly _vscode: wrappers.VSCode;
     constructor(context : context.Context, wrapper: wrappers.VSCode)
@@ -160,7 +160,7 @@ export class OrogenConfigurationProvider extends ConfigurationProvider
             ],
             env: env
         };
-        return resolvedConfig;
+        return super.resolveDebugConfiguration(folder, resolvedConfig, token);
     }
     private async deploymentCreate(pkg: packages.RockPackage,
         modelName: string, taskName: string)
