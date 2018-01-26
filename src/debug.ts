@@ -134,33 +134,31 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         if (!pkg) {
             throw new Error("Cannot debug orogen packages not within an Autoproj workspace");
         }
+
         let ws = pkg.workspace;
         let deployment = await this.deploymentCreate(
-            pkg, config.orogenModel, config.taskName)
+            pkg, config.deploy, config.deployAs)
         let commandLine = await this.deploymentCommandLine(pkg, deployment);
 
-        let env = {};
-        Object.assign(process.env);
-        Object.assign(commandLine.env);
-
-        const resolvedConfig: vscode.DebugConfiguration = {
-            name: config.name,
-            request: config.request,
-            type: "cppdbg",
-            program: commandLine.command,
-            args: commandLine.args,
-            cwd: pkg.info.builddir,
-            stopAtEntry: false,
-            setupCommands: [
-                {
-                    description: "Enable pretty-printing for gdb",
-                    text: "-enable-pretty-printing",
-                    ignoreFailures: false
+        config.type    = "cppdbg";
+        config.program = commandLine.command;
+        config.args    = commandLine.args;
+        if (!config.environment) {
+            config.environment = []
+        }
+        for(let key in commandLine.env) {
+            config.environment.push({ name: key, value: commandLine.env[key] })
+        }
+        
+        if (config.start || config.confDir) {
+            this.setupTask(ws, config.deployAs, config.start, config.confDir).
+                catch(err => {
+                    this._vscode.showErrorMessage(err.message);
+                    this._context.outputChannel.show();
                 }
-            ],
-            env: env
-        };
-        return super.resolveDebugConfiguration(folder, resolvedConfig, token);
+            );
+        }
+        return super.resolveDebugConfiguration(folder, config, token);
     }
     private async deploymentCreate(pkg: packages.RockPackage,
         modelName: string, taskName: string)

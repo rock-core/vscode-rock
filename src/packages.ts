@@ -496,8 +496,11 @@ export class RockOrogenPackage extends RockPackage
                 name: `orogen - ${task_model_name}`,
                 type: "orogen",
                 request: "launch",
-                task: task_model_name,
-                deployAs: 'task'
+                deploy: task_model_name,
+                deployAs: 'task',
+                cwd: '${workspaceRoot}',
+                externalConsole: true,
+                stopAtEntry: false
             };
             return debugConfig;
         }
@@ -506,7 +509,10 @@ export class RockOrogenPackage extends RockPackage
                 name: `orogen - ${deployment.name}`,
                 type: "orogen",
                 request: "launch",
-                task: deployment.name
+                deploy: deployment.name,
+                cwd: '${workspaceRoot}',
+                externalConsole: true,
+                stopAtEntry: false
             };
             return debugConfig;
         }

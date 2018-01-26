@@ -591,8 +591,11 @@ describe("RockOrogenPackage", function () {
                 name: "orogen - test::Task",
                 type: "orogen",
                 request: "launch",
-                task: "test::Task",
-                deployAs: "task"
+                deploy: "test::Task",
+                deployAs: "task",
+                externalConsole: true,
+                stopAtEntry: false,
+                cwd: '${workspaceRoot}'
             }
             const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
@@ -604,7 +607,10 @@ describe("RockOrogenPackage", function () {
                 name: "orogen - test_deployment",
                 type: "orogen",
                 request: "launch",
-                task: "test_deployment"
+                deploy: "test_deployment",
+                externalConsole: true,
+                stopAtEntry: false,
+                cwd: '${workspaceRoot}'
             }
             const customDebugConfig = await subject.debugConfiguration();
             assert.deepEqual(customDebugConfig, expectedCustomDebugConfig);
