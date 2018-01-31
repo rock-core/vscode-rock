@@ -373,7 +373,7 @@ export class Workspace
         return new Promise<void>((resolve, reject) => {
             subprocess.on('exit', (code, status) => {
                 if (this._syskitDefaultRun) {
-                    subprocess.kill("INT");
+                    this._syskitDefaultRun.subprocess.kill("SIGINT");
                 }
             })
         });
