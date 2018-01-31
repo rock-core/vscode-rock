@@ -58,7 +58,7 @@
                 "configurationAttributes": {
                     "launch": {
                         "required": [
-                            "task"
+                            "deploy"
                         ],
                         "properties": {
                             "deploy": {
@@ -84,6 +84,10 @@
                             "environment": {
                                 "type": "array",
                                 "description": "Environment variables that should be set as { \"name\": \"name_of_var\", \"value\": \"value_of_var\" }" 
+                            },
+                            "MIMode": {
+                                "type": "string",
+                                "description": "Debugger mode"
                             }
                         }
                     }

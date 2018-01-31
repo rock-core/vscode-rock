@@ -143,6 +143,12 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         config.type    = "cppdbg";
         config.program = commandLine.command;
         config.args    = commandLine.args;
+        if (!config.cwd) {
+            config.cwd     = commandLine.working_directory;
+        }
+        if (!config.MIMode) {
+            config.MIMode = 'gdb';
+        }
         if (!config.environment) {
             config.environment = []
         }
