@@ -147,12 +147,20 @@ export class Workspace
     }
 
     autoprojExec(command: string, args: string[],
-        options?: child_process.SpawnOptions) : child_process.ChildProcess
+        options: child_process.SpawnOptions = {}) : child_process.ChildProcess
     {
         return child_process.spawn(
             this.autoprojExePath(), ['exec', command, ...args],
-            { cwd: this.root, stdio: 'pipe', ...options }
+            { cwd: this.root, stdio: 'pipe', env: process.env, ...options }
         );
+    }
+
+    syskitExec(args: string[],
+        options: child_process.SpawnOptions = {}) : child_process.ChildProcess
+    {
+        let env = options.env || process.env;
+        delete env.ROCK_BUNDLE;
+        return this.autoprojExec('syskit', args, { ...options, env: env });
     }
 
     private createInfoPromise()
@@ -254,13 +262,13 @@ export class Workspace
     }
 
     syskitGenApp(path: string) : Promise<void> {
-        let subprocess = this.autoprojExec("syskit", ["gen", "app", path]);
+        let subprocess = this.syskitExec(["gen", "app", path]);
         this.redirectProcessToChannel(`syskit gen ${path}`, "gen", subprocess);
         return this.runCommandToCompletion(subprocess, `failed to run \`syskit gen app ${path}\``);
     }
 
     async syskitCheckApp(path: string) : Promise<void> {
-        let subprocess = this.autoprojExec("syskit", ["check"], { cwd: this.defaultBundlePath() });
+        let subprocess = this.syskitExec(["check"], { cwd: this.defaultBundlePath() });
         this.redirectProcessToChannel(`syskit check ${path}`, "check", subprocess);
         return this.runCommandToCompletion(subprocess, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
     }
@@ -344,7 +352,7 @@ export class Workspace
         }
 
         await this.ensureSyskitContextAvailable();
-        let subprocess = this.autoprojExec('syskit', ['run', '--rest'],
+        let subprocess = this.syskitExec(['run', '--rest'],
             { cwd: this.syskitDefaultBundle() });
         this.redirectProcessToChannel('syskit background process', 'syskit run', subprocess);
         let p = new Promise<void>((resolve, reject) => {
@@ -367,7 +375,7 @@ export class Workspace
             return Promise.resolve();
         }
 
-        let subprocess = this.autoprojExec('syskit', ['quit'],
+        let subprocess = this.syskitExec(['quit'],
             { cwd: this.syskitDefaultBundle() });
         this.redirectProcessToChannel('syskit quit', 'syskit quit', subprocess);
         return new Promise<void>((resolve, reject) => {
