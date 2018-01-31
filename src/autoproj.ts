@@ -260,7 +260,7 @@ export class Workspace
     }
 
     async syskitCheckApp(path: string) : Promise<void> {
-        let process = this.autoprojExec("syskit", ["check", path]);
+        let process = this.autoprojExec("syskit", ["check"], { cwd: this.defaultBundlePath() });
         this.redirectProcessToChannel(`syskit check ${path}`, "check", process);
         return this.runCommandToCompletion(process, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
     }
