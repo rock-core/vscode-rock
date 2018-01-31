@@ -9,12 +9,14 @@ import * as TypeMoq from 'typemoq'
 import * as events from 'events';
 
 describe("Autoproj helpers tests", function () {
+    let originalSpawn = require('child_process').spawn;
     let root: string;
     beforeEach(function () {
         root = helpers.init();
     })
     afterEach(function () {
         helpers.clear();
+        require('child_process').spawn = originalSpawn;
     })
 
     describe("findWorkspaceRoot", function() {
@@ -203,15 +205,13 @@ describe("Autoproj helpers tests", function () {
         })
 
         describe("envsh", function() {
-            let processMock   = new events.EventEmitter();
-            let originalSpawn = require('child_process').spawn;
+            const processMock   = helpers.createProcessMock();
             let subjectMock;
             let subject;
             let originalInfo;
 
             beforeEach(async function() {
-                let spawn = function (...args) { return processMock };
-                require('child_process').spawn = spawn;
+                require('child_process').spawn = function (...args) { return processMock };
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
@@ -220,9 +220,6 @@ describe("Autoproj helpers tests", function () {
                 subjectMock = TypeMoq.Mock.ofInstance(ws);
                 subjectMock.callBase = true;
                 subject = subjectMock.object;
-            })
-            afterEach(function() {
-                require('child_process').spawn = originalSpawn;
             })
 
             it("reloads the information on success", async function() {
@@ -251,15 +248,12 @@ describe("Autoproj helpers tests", function () {
         })
 
         describe("which", function() {
-            let stdoutMock   = new events.EventEmitter();
-            let processMock: { [key: string]: any } = new events.EventEmitter();
-            let originalSpawn = require('child_process').spawn;
+            let processMock = helpers.createProcessMock();
             let subjectMock;
             let subject;
             let originalInfo;
 
             beforeEach(async function() {
-                processMock.stdout = stdoutMock;
                 let spawn = function (...args) { return processMock };
                 require('child_process').spawn = spawn;
 
@@ -270,21 +264,18 @@ describe("Autoproj helpers tests", function () {
                 subjectMock.callBase = true;
                 subject = subjectMock.object;
             })
-            afterEach(function() {
-                require('child_process').spawn = originalSpawn;
-            })
 
             it("returns the path displayed by autoproj on success", async function() {
                 let p = subject.which('cmd');
-                stdoutMock.emit('data', '/test/cmd\n');
+                processMock.stdout.emit('data', '/test/cmd\n');
                 processMock.emit('exit', 0, null);
                 assert.equal("/test/cmd", await p);
             })
 
             it("concatenates the data if received in chunks", async function() {
                 let p = subject.which('cmd');
-                stdoutMock.emit('data', '/te');
-                stdoutMock.emit('data', 'st/cmd\n');
+                processMock.stdout.emit('data', '/te');
+                processMock.stdout.emit('data', 'st/cmd\n');
                 processMock.emit('exit', 0, null);
                 assert.equal("/test/cmd", await p);
             })
@@ -448,8 +439,7 @@ describe("Autoproj helpers tests", function () {
             })
         })
         describe("syskitCheckApp", function() {
-            let originalSpawn;
-            let processMock = new events.EventEmitter();
+            let processMock = helpers.createProcessMock();
             let subject;
 
             beforeEach(async function() {
@@ -461,9 +451,6 @@ describe("Autoproj helpers tests", function () {
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-            })
-            afterEach(function() {
-                require('child_process').spawn = originalSpawn;
             })
             it("resolves the promise if the subcommand succeeds", async function() {
                 let p = subject.syskitCheckApp("path/to/bundle");
@@ -477,22 +464,17 @@ describe("Autoproj helpers tests", function () {
             })
         })
         describe("syskitGenApp", function() {
-            let originalSpawn;
-            let processMock = new events.EventEmitter();
+            let processMock = helpers.createProcessMock();
             let subject;
 
             beforeEach(async function() {
-                let spawn = function(...args) {
+                require('child_process').spawn = function(...args) {
                     return processMock
                 };
-                require('child_process').spawn = spawn;
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
                 subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-            })
-            afterEach(function() {
-                require('child_process').spawn = originalSpawn;
             })
 
             it("resolves the promise if the subcommand succeeds", async function() {

@@ -125,7 +125,7 @@ export class Workspace
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
     private _outputChannel : vscode.OutputChannel;
 
-    private _syskitDefaultRun : { process: any, promise: Promise<void> } | undefined;
+    private _syskitDefaultRun : { subprocess: child_process.ChildProcess, promise: Promise<void> } | undefined;
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
 
@@ -194,14 +194,14 @@ export class Workspace
 
     async envsh(): Promise<WorkspaceInfo>
     {
-        const process = child_process.spawn(
+        const subprocess = child_process.spawn(
             this.autoprojExePath(),
             ['envsh', '--color'],
             { cwd: this.root, stdio: 'pipe' }
         );
-        this.redirectProcessToChannel('autoproj envsh', 'envsh', process);
+        this.redirectProcessToChannel('autoproj envsh', 'envsh', subprocess);
         return new Promise<WorkspaceInfo>((resolve, reject) => {
-            process.on('exit', (code, status) => {
+            subprocess.on('exit', (code, status) => {
                 if (code === 0) {
                     resolve(this.reload());
                 }
@@ -219,7 +219,7 @@ export class Workspace
         Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: this.root });
         let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
         let path = '';
-        this.redirectProcessToChannel(`autoproj which ${cmd}`, `which ${cmd}`, process);
+        this.redirectProcessToChannel(`autoproj which ${cmd}`, `which ${cmd}`, subprocess);
         subprocess.stdout.on('data', (buffer) => {
             path = path.concat(buffer.toString());
         })
@@ -236,9 +236,9 @@ export class Workspace
         })
     }
 
-    private runCommandToCompletion(process, error?: string) : Promise<void> {
+    private runCommandToCompletion(subprocess, error?: string) : Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            process.on('exit', (code, signal) => {
+            subprocess.on('exit', (code, signal) => {
                 if (code == 0) {
                     resolve();
                 }
@@ -254,15 +254,15 @@ export class Workspace
     }
 
     syskitGenApp(path: string) : Promise<void> {
-        let process = this.autoprojExec("syskit", ["gen", "app", path]);
-        this.redirectProcessToChannel(`syskit gen ${path}`, "gen", process);
-        return this.runCommandToCompletion(process, `failed to run \`syskit gen app ${path}\``);
+        let subprocess = this.autoprojExec("syskit", ["gen", "app", path]);
+        this.redirectProcessToChannel(`syskit gen ${path}`, "gen", subprocess);
+        return this.runCommandToCompletion(subprocess, `failed to run \`syskit gen app ${path}\``);
     }
 
     async syskitCheckApp(path: string) : Promise<void> {
-        let process = this.autoprojExec("syskit", ["check"], { cwd: this.defaultBundlePath() });
-        this.redirectProcessToChannel(`syskit check ${path}`, "check", process);
-        return this.runCommandToCompletion(process, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
+        let subprocess = this.autoprojExec("syskit", ["check"], { cwd: this.defaultBundlePath() });
+        this.redirectProcessToChannel(`syskit check ${path}`, "check", subprocess);
+        return this.runCommandToCompletion(subprocess, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
     }
 
     public defaultBundlePath() : string {
@@ -316,22 +316,23 @@ export class Workspace
         return p;
     }
 
-    private redirectProcessToChannel(name, shortname, process)
+    // Private API, made public only for testing reasons
+    private redirectProcessToChannel(name, shortname, subprocess : child_process.ChildProcess)
     {
         this._outputChannel.appendLine(`${shortname}: starting ${name}`)
-        process.stderr.on('data', (buffer) => {
+        subprocess.stderr.on('data', (buffer) => {
             let lines = buffer.toString().split("\n");
             lines.forEach((l) => {
                 this._outputChannel.appendLine(`${shortname}: ${l}`)
             })
         })
-        process.stdout.on('data', (buffer) => {
+        subprocess.stdout.on('data', (buffer) => {
             let lines = buffer.toString().split("\n");
             lines.forEach((l) => {
                 this._outputChannel.appendLine(`${shortname}: ${l}`)
             })
         })
-        process.on('exit', () => {
+        subprocess.on('exit', () => {
             this._outputChannel.appendLine(`${shortname}: ${name} quit`)
         })
     }
@@ -343,11 +344,11 @@ export class Workspace
         }
 
         await this.ensureSyskitContextAvailable();
-        let process = this.autoprojExec('syskit', ['run', '--rest'],
+        let subprocess = this.autoprojExec('syskit', ['run', '--rest'],
             { cwd: this.syskitDefaultBundle() });
-        this.redirectProcessToChannel('syskit background process', 'syskit run', process);
+        this.redirectProcessToChannel('syskit background process', 'syskit run', subprocess);
         let p = new Promise<void>((resolve, reject) => {
-            process.on('exit', (code, status) => {
+            subprocess.on('exit', (code, status) => {
                 reject(new Error());
             })
         });
@@ -355,7 +356,7 @@ export class Workspace
                () => this._syskitDefaultRun = undefined);
         this._syskitDefaultRun = {
             promise: p,
-            process: process
+            subprocess: subprocess
         };
         return p;
     }
@@ -366,13 +367,13 @@ export class Workspace
             return Promise.resolve();
         }
 
-        let process = this.autoprojExec('syskit', ['quit'],
+        let subprocess = this.autoprojExec('syskit', ['quit'],
             { cwd: this.syskitDefaultBundle() });
-        this.redirectProcessToChannel('syskit quit', 'syskit quit', process);
+        this.redirectProcessToChannel('syskit quit', 'syskit quit', subprocess);
         return new Promise<void>((resolve, reject) => {
-            process.on('exit', (code, status) => {
+            subprocess.on('exit', (code, status) => {
                 if (this._syskitDefaultRun) {
-                    process.kill("INT");
+                    subprocess.kill("INT");
                 }
             })
         });

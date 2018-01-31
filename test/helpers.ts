@@ -13,6 +13,7 @@ import * as Context from '../src/context'
 import * as Packages from '../src/packages'
 import * as Tasks from '../src/tasks'
 import * as Syskit from '../src/syskit'
+import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 
 export function assertThrowsAsync(p, msg: RegExp)
@@ -131,6 +132,14 @@ export function mockSyskitConnection(mockWorkspace : TypeMoq.IMock<Autoproj.Work
     mockWorkspace.setup(x => x.syskitDefaultConnection(TypeMoq.It.isAny())).
         returns(() => Promise.resolve(mock.object));
     return mock;
+}
+
+export function createProcessMock() : { [key: string]: any }
+{
+    let result : { [key: string]: any } = new EventEmitter();
+    result.stdout = new EventEmitter();
+    result.stderr = new EventEmitter();
+    return result;
 }
 
 export class TestSetup
