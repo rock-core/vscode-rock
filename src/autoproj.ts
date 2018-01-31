@@ -318,7 +318,7 @@ export class Workspace
 
     private redirectProcessToChannel(name, shortname, process)
     {
-        this._outputChannel.appendLine(`-- starting ${name} (output will be prefixed with ${shortname})`)
+        this._outputChannel.appendLine(`${shortname}: starting ${name}`)
         process.stderr.on('data', (buffer) => {
             let lines = buffer.toString().split("\n");
             lines.forEach((l) => {
@@ -330,6 +330,9 @@ export class Workspace
             lines.forEach((l) => {
                 this._outputChannel.appendLine(`${shortname}: ${l}`)
             })
+        })
+        process.on('exit', () => {
+            this._outputChannel.appendLine(`${shortname}: ${name} quit`)
         })
     }
 
