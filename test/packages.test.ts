@@ -528,13 +528,14 @@ describe("RockOrogenPackage", function () {
             mockSyskit.setup(x => x.availableDeployments()).
                 returns(() => Promise.resolve(deployments));
 
-            let choices;
+            let choicesP;
             s.mockWrapper.setup(x => x.showQuickPick(TypeMoq.It.isAny(),
                 TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                callback(async (promisedChoices, ...ignored) => { choices = await promisedChoices }).
+                callback((promisedChoices, ...ignored) => { choicesP = promisedChoices }).
                 returns(() => Promise.resolve(expectedChoices[0]));
 
             let selected = await subject.pickTask();
+            let choices = await choicesP;
             assert.deepStrictEqual(choices, expectedChoices);
             assert.deepStrictEqual(selected, deployments[0]);
         })

@@ -434,43 +434,40 @@ export class RockCXXPackage extends RockPackage
 
 export class RockOrogenPackage extends RockPackage
 {
+    private async pickChoices()
+    {
+        let syskitConnection = await this.workspace.syskitDefaultConnection(this._vscode);
+        let deployments = await syskitConnection.availableDeployments();
+
+        let choices: any[] = [];
+        deployments.forEach((deployment) => {
+            if (deployment.default_deployment_for) {
+                choices.push({
+                    label: deployment.default_deployment_for,
+                    description: '',
+                    orogen_info: deployment
+                });
+            }
+            else {
+                choices.push({
+                    label: deployment.name,
+                    description: '',
+                    orogen_info: deployment
+                });
+            }
+        });
+        return choices;
+    }
     async pickTask(): Promise<syskit.AvailableDeployment | undefined>
     {
-        let syskitConnection = await this.workspace.
-            syskitDefaultConnection(this._vscode);
-        let deployments = syskitConnection.availableDeployments();
+        let err = null;
+        let choices = this.pickChoices();
         let tokenSource = new vscode.CancellationTokenSource();
+        choices.catch((e) => err = e);
 
-        let err;
-        deployments.catch((_err) => {
-            err = _err;
-            tokenSource.cancel();
-        })
-        let promise = deployments.then((result) => {
-            let choices: any[] = [];
-
-            result.forEach((deployment) => {
-                if (deployment.default_deployment_for) {
-                    choices.push({
-                        label: deployment.default_deployment_for,
-                        description: '',
-                        orogen_info: deployment
-                    });
-                }
-                else {
-                    choices.push({
-                        label: deployment.name,
-                        description: '',
-                        orogen_info: deployment
-                    });
-                }
-            });
-            return choices;
-        })
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select a task or deployment model' }
-
-        let task = await this._vscode.showQuickPick(promise, options, tokenSource.token);
+        let task = await this._vscode.showQuickPick(choices,
+            { placeHolder: 'Select a task or deployment model' },
+            tokenSource.token);
         tokenSource.dispose();
         // Note: we know the promise is resolved at this point thanks to the
         // await on the target picker
