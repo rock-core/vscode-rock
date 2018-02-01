@@ -140,11 +140,12 @@ describe("Autoproj helpers tests", function () {
 
     describe("Workspace", function() {
         describe("constructor", function() {
-            it("starts the info loading by default", function() {
+            it("starts the info loading by default", async function() {
                 helpers.mkdir('.autoproj');
                 helpers.createInstallationManifest([]);
-                let ws = new autoproj.Workspace("path");
+                let ws = new autoproj.Workspace(root);
                 assert(ws.loadingInfo());
+                await ws.info();
             })
             it("does not start the info loading if the loadInfo flag is false", function() {
                 let ws = new autoproj.Workspace("path", false);
@@ -256,6 +257,10 @@ describe("Autoproj helpers tests", function () {
                 originalInfo = await subject.info();
             })
 
+            afterEach(async function() {
+                await subject.info();
+            })
+
             it("reloads the information on success", async function() {
                 let p = subject.envsh();
                 processMock.emit('exit', 0, null);
@@ -321,7 +326,7 @@ describe("Autoproj helpers tests", function () {
             it("redirects its output to the rock channel", async function() {
                 let p = subject.which("cmd");
                 await assertProcessIsShown("which cmd", "autoproj which cmd", p, processMock, outputChannel);
-        })
+            })
         })
 
         describe("syskitCheckApp", function() {
@@ -654,11 +659,11 @@ describe("Autoproj helpers tests", function () {
         describe("syskitDefaultStarted", function() {
             // NOTE: the "positive" side of this method is used within the rest of the tests
             // NOTE: don't replicate here
-            it ("rejects if Syskit has not been started", function() {
+            it ("rejects if Syskit has not been started", async function() {
                 let setup = new helpers.TestSetup();
                 let { mock, ws } = setup.createAndRegisterWorkspace('ws');
-                helpers.assertThrowsAsync(ws.syskitDefaultStarted(),
-                    /syskit background process for ${ws.root} has not been started/)
+                await helpers.assertThrowsAsync(ws.syskitDefaultStarted(),
+                    new RegExp(`^Syskit background process for ${ws.root} has not been started`))
             })
         })
     })

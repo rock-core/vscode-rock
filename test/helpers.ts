@@ -31,19 +31,18 @@ export class OutputChannel implements Autoproj.OutputChannel
 
 };
 
-export function assertThrowsAsync(p, msg: RegExp)
+export async function assertThrowsAsync(p, msg: RegExp)
 {
-    return new Promise((resolve, reject) => {
-        p.then(() => { reject(new Error("expected promise failure but it succeeded")) })
-        p.catch((e) => {
-            if (msg.test(e.message)) {
-                resolve();
-            }
-            else {
-                reject(`expected message "${e.message}" to match "${msg}"`)
-            }
-        })
-    })
+    try {
+        await p;
+    }
+    catch(e) {
+        if (!msg.test(e.message)) {
+            throw new Error(`expected message "${e.message}" to match "${msg}"`);
+        }
+        return;
+    }
+    throw new Error("expected promise failure but it succeeded") 
 }
 
 let root;

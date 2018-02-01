@@ -112,7 +112,13 @@ export class Connection
     {
         let attempt = () => this.attemptConnection();
         let attempting = false;
-        return new Promise((resolve, reject) => {
+        let pollId : NodeJS.Timer | undefined;
+        let cancelTimer = () => {
+            if (pollId) {
+                clearTimeout(pollId);
+            }
+        }
+        let p = new Promise((resolve, reject) => {
             (function poll() {
                 if (!attempting) {
                     attempt().then((success) => {
@@ -120,7 +126,7 @@ export class Connection
                         if (success) {
                             resolve()
                         }
-                    })
+                    }).catch(() => {})
                     attempting = true;
                 }
 
@@ -128,10 +134,12 @@ export class Connection
                     reject(new Error("Syskit connection interrupted"));
                 }
                 else {
-                    setTimeout(poll, 100);
+                    pollId = setTimeout(poll, 100);
                 }
             })()
         })
+        p.then(cancelTimer, cancelTimer);
+        return p;
     }
 
     public attemptConnection()

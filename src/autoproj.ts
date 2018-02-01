@@ -403,7 +403,8 @@ export class Workspace
 
         let tokenSource = new vscode.CancellationTokenSource();
         let c = new syskit.Connection(this);
-        c.connect(tokenSource.token).then(() => c.quit());
+        c.connect(tokenSource.token).then(() => c.quit()).
+            catch(() => {})
 
         let running = this._syskitDefaultRun.running as Promise<void>;
         return running.
