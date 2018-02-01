@@ -51,10 +51,11 @@ export class Connection
 
     constructor(workspace : autoproj.Workspace,
         host : string = 'localhost',
-        port : number = 20202)
+        port : number = 20202,
+        client : rest.Client = new rest.Client())
     {
         this._workspace = workspace;
-        this._client    = new rest.Client();
+        this._client    = client;
         this._host      = host;
         this._port      = port;
     }
@@ -62,9 +63,9 @@ export class Connection
     private callBase(method : string, expectedStatus : number, path : string) : Promise<any>
     {
         return new Promise((resolve, reject) => {
-            let url = `http://${this._host}:${this._port}/api/syskit/${path}`;
+            let url = `http://${this._host}:${this._port}/api/${path}`;
             this._client[method](url, function (data, response) {
-                if (response.statusCode != expectedStatus) {
+                if (response.statusCode !== expectedStatus) {
                     let msg = data.error || data;
                     reject(new Error(`${method} ${url} error: ${msg}`));
                 }
@@ -109,34 +110,30 @@ export class Connection
 
     public attemptConnection()
     {
-        return new Promise((resolve, reject) => {
-            this._client.get(`http://${this._host}:${this._port}/api/ping?value=42`, function (data, response) {
-                resolve(true);
-            }).on('error', function(err) {
-                resolve(false);
-            })
-        })
+        return this.callWithoutReturn('get', 200, 'ping?value=42').
+            then(() => true).
+            catch(() => false);
     }
 
     public availableDeployments() : Promise<AvailableDeployment[]>
     {
-        return this.call<{ deployments: AvailableDeployment[] }>('get', 200, "deployments/available").
+        return this.call<{ deployments: AvailableDeployment[] }>('get', 200, "syskit/deployments/available").
             then((response) => response.deployments);
     }
 
     public registerDeployment(modelName: string, taskName: string) : Promise<number>
     {
-        return this.call<{ registered_deployment: number }>('post', 201, `deployments?name=${modelName}&as=${taskName}`).
+        return this.call<{ registered_deployment: number }>('post', 201, `syskit/deployments?name=${modelName}&as=${taskName}`).
             then((response) => response.registered_deployment);
     }
 
     public commandLine(deployment : number) : Promise<CommandLine>
     {
-        return this.call<CommandLine>('get', 200, `deployments/${deployment}/command_line`)
+        return this.call<CommandLine>('get', 200, `syskit/deployments/${deployment}/command_line`)
     }
 
     public clear()
     {
-        return this.callWithoutReturn('delete', 204, `deployments`)
+        return this.callWithoutReturn('delete', 204, `syskit/deployments`)
     }
 };
