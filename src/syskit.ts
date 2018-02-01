@@ -108,12 +108,12 @@ export class Connection
 
     /** Starts a Syskit instance and connects to it
      */
-    public async connect(token : CancellationToken)
+    public connect(token : CancellationToken)
     {
         let attempt = () => this.attemptConnection();
         let attempting = false;
         return new Promise((resolve, reject) => {
-            (async function poll() {
+            (function poll() {
                 if (!attempting) {
                     attempt().then((success) => {
                         attempting = false;

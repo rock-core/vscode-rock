@@ -173,7 +173,7 @@ export class Workspace
         return this._info !== undefined;
     }
 
-    async reload()
+    reload()
     {
         this._info = this.createInfoPromise()
         this._info.then((info) => { this._infoUpdatedEvent.fire(info) });
@@ -189,7 +189,7 @@ export class Workspace
         return this._infoUpdatedEvent.event(callback);
     }
 
-    async info(): Promise<WorkspaceInfo>
+    info(): Promise<WorkspaceInfo>
     {
         if (this._info)
         {
@@ -201,7 +201,7 @@ export class Workspace
         }
     }
 
-    async envsh(): Promise<WorkspaceInfo>
+    envsh(): Promise<WorkspaceInfo>
     {
         const subprocess = child_process.spawn(
             this.autoprojExePath(),
@@ -221,7 +221,7 @@ export class Workspace
         })
     }
 
-    async which(cmd: string)
+    which(cmd: string)
     {
         let options: child_process.SpawnOptions = { env: {} };
         Object.assign(options.env, process.env);
@@ -262,13 +262,13 @@ export class Workspace
         return path.join(this.root, '.vscode', 'rock-default-bundle');
     }
 
-    syskitGenApp(path: string) : Promise<void> {
+    public syskitGenApp(path: string) : Promise<void> {
         let subprocess = this.syskitExec(["gen", "app", path]);
         this.redirectProcessToChannel(`syskit gen ${path}`, "gen", subprocess);
         return this.runCommandToCompletion(subprocess, `failed to run \`syskit gen app ${path}\``);
     }
 
-    async syskitCheckApp(path: string) : Promise<void> {
+    public syskitCheckApp(path: string) : Promise<void> {
         let subprocess = this.syskitExec(["check"], { cwd: this.defaultBundlePath() });
         this.redirectProcessToChannel(`syskit check ${path}`, "check", subprocess);
         return this.runCommandToCompletion(subprocess, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);

@@ -55,7 +55,7 @@ export class Context
         return this.workspaces.folderToWorkspace.get(path);
     }
 
-    public async getPackageByPath(path : string) : Promise<packages.Package>
+    public getPackageByPath(path : string) : Promise<packages.Package>
     {
         return this._packageFactory.createPackage(path, this);
     }
