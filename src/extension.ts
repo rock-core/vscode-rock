@@ -70,15 +70,11 @@ export function activate(extensionContext: vscode.ExtensionContext) {
         new packages.PackageFactory(vscodeWrapper),
         outputChannel);
 
-    let syskitTaskProvider = new tasks.SyskitProvider(rockContext, workspaces);
-
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));
-    extensionContext.subscriptions.push(
-        vscode.workspace.registerTaskProvider('syskit', syskitTaskProvider));
 
     initializeWorkspacesFromVSCodeFolders(rockContext, workspaces, configManager);
     autoprojTaskProvider.reloadTasks();
