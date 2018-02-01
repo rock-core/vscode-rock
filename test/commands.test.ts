@@ -211,10 +211,10 @@ describe("Commands", function () {
             workspaceFolders = [];
         })
         it("throws if workspace is empty", async function () {
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
-            helpers.assertThrowsAsync(async () => {
-                await subject.showPackagePicker();
-            }, /workspace is empty/)
+            let s = new helpers.TestSetup();
+            let subject = new commands.Commands(s.context, s.wrapper, s.configManager);
+            await helpers.assertThrowsAsync(subject.showPackagePicker(),
+                /workspace is empty/)
         })
         function addFolderToWorkspace(path: string)
         {
@@ -287,9 +287,8 @@ describe("Commands", function () {
         })
         it("throws if there are no autoproj workspaces", async function () {
             mockWorkspaces.setup(x => x.workspaces).returns(() => new Map());
-            helpers.assertThrowsAsync(async () => {
-                await subject.showWorkspacePicker();
-            }, /No Autoproj workspace/)
+            await helpers.assertThrowsAsync(subject.showWorkspacePicker(),
+                /No Autoproj workspace/)
         })
         it("skip picker if there is only one workspace", async function () {
             let tempWs: Map<string, autoproj.Workspace> = new Map();

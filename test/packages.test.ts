@@ -478,9 +478,8 @@ describe("RockOtherPackage", function () {
         assert.strictEqual(subject.workspace, workspace);
     });
     it("does not allow creating debug configuration", async function () {
-        assertThrowsAsync(async function () {
-            await subject.debugConfiguration();
-        }, /package type unknown/);
+        await assertThrowsAsync(subject.debugConfiguration(),
+            /package type unknown/);
     })
 })
 

@@ -13,6 +13,7 @@ import * as Context from '../src/context'
 import * as Packages from '../src/packages'
 import * as Tasks from '../src/tasks'
 import * as Syskit from '../src/syskit'
+import * as Config from '../src/config'
 import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 
@@ -202,6 +203,12 @@ export class TestSetup
         return this.mockOutputChannel.target;
     }
 
+    mockConfigManager : TypeMoq.IMock<Config.ConfigManager>;
+    get configManager() : Config.ConfigManager
+    {
+        return this.mockConfigManager.target;
+    }
+
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
@@ -209,8 +216,9 @@ export class TestSetup
         this.mockOutputChannel = TypeMoq.Mock.ofType2(OutputChannel, []);
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, [undefined, this.outputChannel]);
         this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
-        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider]);
-        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory, this.outputChannel]);
+        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.wrapper, this.taskProvider]);
+        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.wrapper, this.workspaces, this.packageFactory, this.outputChannel]);
+        this.mockConfigManager = TypeMoq.Mock.ofType2(Config.ConfigManager, [this.workspaces, this.wrapper])
     }
 
     setupWrapper(fn) {
