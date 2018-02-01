@@ -346,46 +346,63 @@ export class Workspace
         })
     }
 
-    async syskitDefaultStart() : Promise<void>
+    syskitDefaultStart() : Promise<void>
     {
-        if (this._syskitDefaultRun) {
-            return this._syskitDefaultRun.promise;
+        if (this._syskitDefaultRun.running) {
+            return this._syskitDefaultRun.running;
         }
 
-        await this.ensureSyskitContextAvailable();
-        let subprocess = this.syskitExec(['run', '--rest'],
-            { cwd: this.syskitDefaultBundle() });
-        this.redirectProcessToChannel('syskit background process', 'syskit run', subprocess);
-        let p = new Promise<void>((resolve, reject) => {
-            subprocess.on('exit', (code, status) => {
-                reject(new Error());
-            })
+        let available = this.ensureSyskitContextAvailable();
+        let started = available.then(() => {
+            let subprocess = this.syskitExec(['run', '--rest'],
+                { cwd: this.syskitDefaultBundle() });
+            this.redirectProcessToChannel(`syskit background process for ${this.root}`, 'syskit run', subprocess);
+            return subprocess;
         });
-        p.then(() => this._syskitDefaultRun = undefined,
-               () => this._syskitDefaultRun = undefined);
-        this._syskitDefaultRun = {
-            promise: p,
-            subprocess: subprocess
-        };
-        return p;
+        let running = started.then((subprocess) => {
+            let p = new Promise<void>((resolve, reject) => {
+                subprocess.on('exit', (code, status) => {
+                    reject(new Error(`syskit background process for ${this.root} quit`));
+                })
+            });
+            p.then(
+                () => this._syskitDefaultRun = { },
+                () => this._syskitDefaultRun = { });
+            this._syskitDefaultRun.subprocess = subprocess;
+            return p;
+        })
+        this._syskitDefaultRun.started = started.then((subprocess) => {});
+        this._syskitDefaultRun.running = running;
+        return running;
+    }
+
+    syskitDefaultStarted() : Promise<void> {
+        if (this._syskitDefaultRun.started) {
+            return this._syskitDefaultRun.started;
+        }
+        else {
+            return Promise.reject(new Error(`Syskit background process for ${this.root} has not been started`));
+        }
     }
 
     syskitDefaultStop() : Promise<void>
     {
-        if (!this._syskitDefaultRun) {
+        if (!this._syskitDefaultRun.started) {
             return Promise.resolve();
         }
 
-        let subprocess = this.syskitExec(['quit'],
-            { cwd: this.syskitDefaultBundle() });
-        this.redirectProcessToChannel('syskit quit', 'syskit quit', subprocess);
-        return new Promise<void>((resolve, reject) => {
+        return this._syskitDefaultRun.started.then(() => {
+            let subprocess = this.syskitExec(['quit', '--retry=5'],
+                { cwd: this.syskitDefaultBundle() });
+            this.redirectProcessToChannel('syskit quit', 'syskit quit', subprocess);
             subprocess.on('exit', (code, status) => {
-                if (this._syskitDefaultRun) {
+                if (this._syskitDefaultRun.subprocess) {
                     this._syskitDefaultRun.subprocess.kill("SIGINT");
                 }
             })
-        });
+            let running = this._syskitDefaultRun.running as Promise<void>;
+            return running.catch(() => {});
+        })
     }
 
     async syskitDefaultConnection(wrappers : wrappers.VSCode) : Promise<syskit.Connection>

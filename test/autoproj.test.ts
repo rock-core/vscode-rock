@@ -26,6 +26,22 @@ async function assertProcessIsShown(shortname, cmd, promise, subprocess, channel
     assert.deepStrictEqual(channel.receivedLines, expected);
 }
 
+function startSyskit(workspace, workspaceMock)
+{
+    workspaceMock.setup(x => x.ensureSyskitContextAvailable()).
+        returns(() => Promise.resolve());
+    return workspace.syskitDefaultStart();
+}
+
+async function terminateSyskit(workspace : autoproj.Workspace, processMock) {
+    let running = workspace.syskitDefaultStart();
+    await workspace.syskitDefaultStarted();
+    processMock.emit('exit', 0, undefined)
+    await helpers.assertThrowsAsync(running,
+        new RegExp(`^syskit background process for ${workspace.root} quit`));
+}
+
+
 describe("Autoproj helpers tests", function () {
     let originalSpawn = require('child_process').spawn;
     let root: string;
@@ -511,6 +527,149 @@ describe("Autoproj helpers tests", function () {
                 pReject(new Error("test"));
                 await helpers.assertThrowsAsync(firstP, /test/);
                 assert.notStrictEqual(firstP, ws.ensureSyskitContextAvailable());
+            })
+        })
+
+        describe("syskitDefaultStart", function() {
+            let processMock = helpers.createProcessMock();
+            let subject : autoproj.Workspace;
+            let subjectMock : TypeMoq.IMock<autoproj.Workspace>;
+
+            let s : helpers.TestSetup;
+            beforeEach(function() {
+                s = new helpers.TestSetup();
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                subject = ws;
+                subjectMock = mock;
+                require('child_process').spawn = function(...args) {
+                    return processMock
+                };
+            })
+
+            it("rejects if the syskit context is not available", async function() {
+                subjectMock.setup(x => x.ensureSyskitContextAvailable()).
+                    returns(() => Promise.reject(new Error("FAILED")));
+                await helpers.assertThrowsAsync(subject.syskitDefaultStart(), /FAILED/);
+            })
+
+            it("rejects if the syskit run process exits", async function() {
+                let ready = Promise.resolve();
+                subjectMock.setup(x => x.ensureSyskitContextAvailable()).
+                    returns(() => ready);
+                let p = subject.syskitDefaultStart();
+                await ready;
+                processMock.emit('exit', 0, undefined)
+                await helpers.assertThrowsAsync(p,
+                    new RegExp(`^syskit background process for ${subject.root} quit`));
+            })
+
+            it("redirects its output to the channel", async function() {
+                subjectMock.setup(x => x.ensureSyskitContextAvailable()).
+                    returns(() => Promise.resolve());
+                let p = subject.syskitDefaultStart();
+                await subject.syskitDefaultStarted();
+                await assertProcessIsShown("syskit run", `syskit background process for ${subject.root}`, p, processMock, s.outputChannel);
+            })
+
+            it("does not restart a process if the existing one is available", async function() {
+                let ready = Promise.resolve();
+                subjectMock.setup(x => x.ensureSyskitContextAvailable()).
+                    returns(() => ready);
+                let p = subject.syskitDefaultStart();
+                assert.strictEqual(subject.syskitDefaultStart(), p);
+                await terminateSyskit(subject, processMock);
+            })
+
+            it("starts a new instance if the previous one quit", async function() {
+                subjectMock.setup(x => x.ensureSyskitContextAvailable()).
+                    returns(() => Promise.resolve());
+                let p = subject.syskitDefaultStart();
+                await subject.syskitDefaultStarted();
+                processMock.emit('exit', 0, undefined)
+                await helpers.assertThrowsAsync(p,
+                    new RegExp(`^syskit background process for ${subject.root} quit`));
+                let newP = subject.syskitDefaultStart();
+                assert.notStrictEqual(newP, p);
+                await terminateSyskit(subject, processMock);
+            })
+        })
+
+        describe("syskitDefaultStop", function() {
+            let processMock = helpers.createProcessMock();
+            let subject : autoproj.Workspace;
+            let subjectMock : TypeMoq.IMock<autoproj.Workspace>;
+
+            let s : helpers.TestSetup;
+            beforeEach(async function() {
+                s = new helpers.TestSetup();
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                subject = ws;
+                subjectMock = mock;
+                require('child_process').spawn = function(...args) {
+                    return processMock
+                };
+            })
+            afterEach(function() {
+                subjectMock.verifyAll();
+            })
+
+            it("does nothing if there are no syskit running", async function() {
+                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                    verifiable(TypeMoq.Times.never());
+                await subject.syskitDefaultStop();
+            })
+
+            it("redirects its output to the rock channel", async function() {
+                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                    verifiable(TypeMoq.Times.never());
+                await subject.syskitDefaultStop();
+            })
+
+            it("does nothing if the underlying syskit process has terminated already", async function() {
+                startSyskit(subject, subjectMock);
+                await terminateSyskit(subject, processMock);
+                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                    verifiable(TypeMoq.Times.never());
+                await subject.syskitDefaultStop();
+            })
+
+            it("resolves when the run process quits", async function() {
+                startSyskit(subject, subjectMock);
+                await subject.syskitDefaultStarted();
+                // Now mock syskitExec to get a different process object for 'quit'
+                let quitProcessMock = helpers.createProcessMock(); 
+                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                    returns(() => quitProcessMock)
+                let p = subject.syskitDefaultStop();
+                await terminateSyskit(subject, processMock);
+                quitProcessMock.emit('exit', 0, undefined)
+                await p;
+            })
+
+            it("attempts to kill the syskit process if it has not exited when `syskit quit` has", async function() {
+                let syskitRunning = startSyskit(subject, subjectMock);
+                await subject.syskitDefaultStarted();
+                // Now mock syskitExec to get a different process object for 'quit'
+                let quitProcessMock = helpers.createProcessMock(); 
+                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
+                    returns(() => quitProcessMock)
+                let p = subject.syskitDefaultStop();
+                await subject.syskitDefaultStarted();
+                quitProcessMock.emit('exit', 0, undefined)
+                // Note: the processMock's kill method does emit 'exit'
+                await p;
+                assert.equal(processMock.killSignal, 'SIGINT');
+            })
+        })
+
+        describe("syskitDefaultStarted", function() {
+            // NOTE: the "positive" side of this method is used within the rest of the tests
+            // NOTE: don't replicate here
+            it ("rejects if Syskit has not been started", function() {
+                let setup = new helpers.TestSetup();
+                let { mock, ws } = setup.createAndRegisterWorkspace('ws');
+                helpers.assertThrowsAsync(ws.syskitDefaultStarted(),
+                    /syskit background process for ${ws.root} has not been started/)
             })
         })
     })
