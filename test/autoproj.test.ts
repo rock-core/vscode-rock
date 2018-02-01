@@ -541,6 +541,29 @@ describe("Autoproj helpers tests", function () {
             })
         })
 
+        describe("useCount", function () {
+            // useCount nominal behavior is tested in addFolder/deleteFolder
+            it ("ignores folders that are not part of the given workspace", function() {
+                let s = new helpers.TestSetup();
+                let ws1 = s.createAndRegisterWorkspace("ws1");
+                let ws2 = s.createAndRegisterWorkspace("ws2");
+
+                let a = s.workspaces.addFolder(path.join(ws1.ws.root, 'pkg'));
+                let b = s.workspaces.addFolder(path.join(ws2.ws.root, 'pkg'));
+                assert.equal(s.workspaces.useCount(ws1.ws), 1);
+            })
+        })
+
+        describe("delete", function () {
+            // delete's nominal behavior is tested in deleteFolder
+            it ("throws if the workspace is in use", function() {
+                let s = new helpers.TestSetup();
+                let ws1 = s.createAndRegisterWorkspace("ws1");
+                s.workspaces.addFolder(path.join(ws1.ws.root, 'pkg'));
+                assert.throws(() => { s.workspaces.delete(ws1.ws) }, /cannot remove a workspace that is in-use/);
+            })
+        })
+
         describe("addFolder", function () {
             it("does not add a folder that is not within an Autoproj workspace", function() {
                 let dir = helpers.mkdir('a', 'b');
