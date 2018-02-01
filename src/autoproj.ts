@@ -262,6 +262,14 @@ export class Workspace
         return path.join(this.root, '.vscode', 'rock-default-bundle');
     }
 
+    private syskitDefaultSocketPath() : string {
+        return path.join(this.root, '.vscode', `syskit-socket-${process.pid}`);
+    }
+
+    private syskitDefaultURIBase() : string {
+        return `http://unix:${this.syskitDefaultSocketPath()}:`;
+    }
+
     public syskitGenApp(path: string) : Promise<void> {
         let subprocess = this.syskitExec(["gen", "app", path]);
         this.redirectProcessToChannel(`syskit gen ${path}`, "gen", subprocess);
@@ -354,7 +362,7 @@ export class Workspace
 
         let available = this.ensureSyskitContextAvailable();
         let started = available.then(() => {
-            let subprocess = this.syskitExec(['run', '--no-interface', '--rest'],
+            let subprocess = this.syskitExec(['run', '--no-interface', '--no-logs', `--rest=${this.syskitDefaultSocketPath()}`],
                 { cwd: this.syskitDefaultBundle() });
             this.redirectProcessToChannel(`syskit background process for ${this.root}`, 'syskit run', subprocess);
             return subprocess;
@@ -402,7 +410,7 @@ export class Workspace
         }, timeout);
 
         let tokenSource = new vscode.CancellationTokenSource();
-        let c = new syskit.Connection(this);
+        let c = new syskit.Connection(this, this.syskitDefaultURIBase());
         c.connect(tokenSource.token).then(() => c.quit()).
             catch(() => {})
 
@@ -417,7 +425,7 @@ export class Workspace
     async syskitDefaultConnection() : Promise<syskit.Connection>
     {
         await this.ensureSyskitContextAvailable();
-        let c = new syskit.Connection(this);
+        let c = new syskit.Connection(this, this.syskitDefaultURIBase());
         let tokenSource = new vscode.CancellationTokenSource();
 
         let start = this.syskitDefaultStart();

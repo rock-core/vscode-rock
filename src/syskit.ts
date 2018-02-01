@@ -66,23 +66,20 @@ export class Connection
     private _workspace : autoproj.Workspace;
     private _client : Client;
 
-    private _host : string;
-    private _port : number;
+    private _uriBase : string;
 
     constructor(workspace : autoproj.Workspace,
-        host : string = 'localhost',
-        port : number = 20202,
+        uriBase : string = 'http://localhost:20202',
         client : Client = new RequestPromiseClient())
     {
         this._workspace = workspace;
         this._client    = client;
-        this._host      = host;
-        this._port      = port;
+        this._uriBase   = uriBase;
     }
 
     private callBase(method : REST_METHODS, expectedStatus : number, path : string) : Promise<any>
     {
-        let uri = `http://${this._host}:${this._port}/api/${path}`;
+        let uri = `${this._uriBase}/api/${path}`;
         return this._client.call(method, uri).
             then((response) => {
                 let data = JSON.parse(response.body);

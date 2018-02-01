@@ -25,7 +25,7 @@ describe("SyskitConnection", function() {
         workspace = ws;
         clientMock = typemoq.Mock.ofType<syskit.Client>(undefined, typemoq.MockBehavior.Strict);
         client = clientMock.object;
-        mockSyskit = typemoq.Mock.ofType2(syskit.Connection, [workspace, 'host', 4242, client]);
+        mockSyskit = typemoq.Mock.ofType2(syskit.Connection, [workspace, 'http://host:4242', client]);
         syskitConnection = mockSyskit.target;
     })
 
