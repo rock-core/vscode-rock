@@ -83,6 +83,7 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     rockCommands.register();
 
     extensionContext.subscriptions.push(workspaces);
+    extensionContext.subscriptions.push(outputChannel);
 
     let cppDebugProvider = new debug.CXXConfigurationProvider(rockContext);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));

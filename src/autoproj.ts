@@ -491,8 +491,10 @@ export class Workspaces
     }
 
     dispose() {
+        this.workspaces.forEach((ws) => ws.dispose());
         this._workspaceInfoEvent.dispose();
         this._folderInfoEvent.dispose();
+        this._folderInfoDisposables.forEach((d) => d.dispose());
     }
 
     onWorkspaceInfo(callback : (info: WorkspaceInfo) => any) : vscode.Disposable {

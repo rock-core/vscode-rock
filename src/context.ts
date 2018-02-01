@@ -37,7 +37,6 @@ export class Context
 
     public dispose() {
         this._contextUpdatedEvent.dispose();
-        this._outputChannel.dispose();
     }
 
     public onUpdate(callback)
