@@ -287,6 +287,199 @@ describe("Autoproj helpers tests", function () {
                     /cannot find cmd in the workspace/)
             })
         })
+
+        describe("syskitCheckApp", function() {
+            let processMock = helpers.createProcessMock();
+            let subject;
+
+            beforeEach(async function() {
+                let spawn = function(...args) {
+                    return processMock
+                };
+                require('child_process').spawn = spawn;
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+            })
+            it("resolves the promise if the subcommand succeeds", async function() {
+                let p = subject.syskitCheckApp("path/to/bundle");
+                processMock.emit("exit", 0, undefined);
+                await p;
+            })
+            it("rejects the promise if the subcommand fails", async function() {
+                let p = subject.syskitCheckApp("path/to/bundle");
+                processMock.emit("exit", 1, undefined);
+                await helpers.assertThrowsAsync(p, new RegExp("^bundle in path/to/bundle seem invalid, or syskit cannot be executed in this workspace$"));
+            })
+        })
+        describe("syskitGenApp", function() {
+            let processMock = helpers.createProcessMock();
+            let subject;
+
+            beforeEach(async function() {
+                require('child_process').spawn = function(...args) {
+                    return processMock
+                };
+
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+            })
+
+            it("resolves the promise if the subcommand succeeds", async function() {
+                let p = subject.syskitGenApp("path/to/bundle");
+                processMock.emit("exit", 0, undefined);
+                await p;
+            })
+            it("rejects the promise if the subcommand fails", async function() {
+                let p = subject.syskitGenApp("path/to/bundle");
+                processMock.emit("exit", 1, undefined);
+                await helpers.assertThrowsAsync(p, new RegExp("^failed to run `syskit gen app path/to/bundle`$"));
+            })
+        })
+
+        describe("hasValidSyskitContext", function() {
+            let s : helpers.TestSetup;
+            beforeEach(function() {
+                s = new helpers.TestSetup();
+            })
+
+            it ("returns false if the default bundle does not exist", async function() {
+                let { ws } = s.createAndRegisterWorkspace('ws');
+                let isValid = await ws.hasValidSyskitContext();
+                assert(!isValid);
+            })
+            it ("returns false if syskit check fails within the default bundle", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
+                mock.setup(x => x.syskitCheckApp(bundlePath)).
+                    returns(() => Promise.reject(new Error("not valid")));
+                let isValid = await ws.hasValidSyskitContext();
+                assert(!isValid);
+            })
+            it ("returns true if the default bundle exists and is validated by syskit check", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
+                mock.setup(x => x.syskitCheckApp(bundlePath)).
+                    returns(() => Promise.resolve());
+                let isValid = await ws.hasValidSyskitContext();
+                assert(isValid);
+            })
+            it ("does not run an explicit check if the bundle has been verified and the folder exists", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
+                let count = 0;
+                mock.setup(x => x.syskitCheckApp(bundlePath)).
+                    returns(() => { count += 1; return Promise.resolve() });
+                await ws.hasValidSyskitContext();
+                await ws.hasValidSyskitContext();
+                assert.equal(1, count);
+            })
+            it ("returns false if the bundle does not exist even after a successful check", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
+                mock.setup(x => x.syskitCheckApp(bundlePath)).
+                    returns(() => Promise.resolve());
+                await ws.hasValidSyskitContext();
+                helpers.rmdir('ws', '.vscode', 'rock-default-bundle');
+                let isValid = await ws.hasValidSyskitContext();
+                assert(!isValid);
+            })
+            it ("does not cache negative results", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
+                let count = 0;
+                mock.setup(x => x.syskitCheckApp(bundlePath)).
+                    returns(() => { count += 1; return Promise.reject(new Error("test")) });
+                await ws.hasValidSyskitContext();
+                await ws.hasValidSyskitContext();
+                assert.equal(2, count);
+            })
+        })
+
+        describe("ensureSyskitContextAvailable", function() {
+            let s : helpers.TestSetup;
+            beforeEach(function() {
+                s = new helpers.TestSetup();
+            })
+
+            it("does not attempt to re-generate the bundle if the syskit context is already available", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(true))
+                let count = 0;
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => { count += 1; return Promise.reject("test"); })
+                await ws.ensureSyskitContextAvailable();
+                assert.equal(0, count);
+            })
+
+            it("generates the bundle if the syskit context is not available", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(false))
+                let count = 0;
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => { count += 1; return Promise.resolve(); })
+                await ws.ensureSyskitContextAvailable();
+                assert.equal(1, count);
+            })
+
+            it("rejects if the generation fails", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(false))
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => Promise.reject(new Error("generation failed")));
+                await helpers.assertThrowsAsync(
+                    ws.ensureSyskitContextAvailable(),
+                    /generation failed/);
+            })
+
+            it("returns the same promise until it is resolved or rejected", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(false))
+
+                let pResolve;
+                let p = new Promise<void>((resolve, reject) => { pResolve = resolve; });
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => p);
+                let firstP  = ws.ensureSyskitContextAvailable();
+                assert.strictEqual(firstP, ws.ensureSyskitContextAvailable());
+            })
+
+            it("re-runs a new promise after the previous one was resolved", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(false))
+
+                let pResolve;
+                let p = new Promise<void>((resolve, reject) => { pResolve = resolve; })
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => p);
+                let firstP = ws.ensureSyskitContextAvailable();
+                pResolve();
+                await firstP;
+                assert.notStrictEqual(firstP, ws.ensureSyskitContextAvailable());
+            })
+
+            it("re-runs a new promise after the previous one was rejected", async function() {
+                let { mock, ws } = s.createAndRegisterWorkspace('ws');
+                mock.setup(x => x.hasValidSyskitContext()).
+                    returns(() => Promise.resolve(false))
+
+                let pReject;
+                let p = new Promise<void>((resolve, reject) => { pReject = reject; });
+                mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
+                    returns(() => { return p });
+                let firstP = ws.ensureSyskitContextAvailable();
+                p.catch(() => {});
+                pReject(new Error("test"));
+                await helpers.assertThrowsAsync(firstP, /test/);
+                assert.notStrictEqual(firstP, ws.ensureSyskitContextAvailable());
+            })
+        })
     })
     describe("Workspaces", function () {
         let workspaces: autoproj.Workspaces;
@@ -437,199 +630,6 @@ describe("Autoproj helpers tests", function () {
                 assert.equal(workspaces.isConfig(b), false);
                 assert.equal(workspaces.isConfig(c), false);
             })
-        })
-        describe("syskitCheckApp", function() {
-            let processMock = helpers.createProcessMock();
-            let subject;
-
-            beforeEach(async function() {
-                let spawn = function(...args) {
-                    return processMock
-                };
-                require('child_process').spawn = spawn;
-
-                helpers.mkdir('.autoproj');
-                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-            })
-            it("resolves the promise if the subcommand succeeds", async function() {
-                let p = subject.syskitCheckApp("path/to/bundle");
-                processMock.emit("exit", 0, undefined);
-                await p;
-            })
-            it("rejects the promise if the subcommand fails", async function() {
-                let p = subject.syskitCheckApp("path/to/bundle");
-                processMock.emit("exit", 1, undefined);
-                await helpers.assertThrowsAsync(p, new RegExp("^bundle in path/to/bundle seem invalid, or syskit cannot be executed in this workspace$"));
-            })
-        })
-        describe("syskitGenApp", function() {
-            let processMock = helpers.createProcessMock();
-            let subject;
-
-            beforeEach(async function() {
-                require('child_process').spawn = function(...args) {
-                    return processMock
-                };
-
-                helpers.mkdir('.autoproj');
-                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-            })
-
-            it("resolves the promise if the subcommand succeeds", async function() {
-                let p = subject.syskitGenApp("path/to/bundle");
-                processMock.emit("exit", 0, undefined);
-                await p;
-            })
-            it("rejects the promise if the subcommand fails", async function() {
-                let p = subject.syskitGenApp("path/to/bundle");
-                processMock.emit("exit", 1, undefined);
-                await helpers.assertThrowsAsync(p, new RegExp("^failed to run `syskit gen app path/to/bundle`$"));
-            })
-        })
-    })
-
-    describe("hasValidSyskitContext", function() {
-        let s : helpers.TestSetup;
-        beforeEach(function() {
-            s = new helpers.TestSetup();
-        })
-
-        it ("returns false if the default bundle does not exist", async function() {
-            let { ws } = s.createAndRegisterWorkspace('ws');
-            let isValid = await ws.hasValidSyskitContext();
-            assert(!isValid);
-        })
-        it ("returns false if syskit check fails within the default bundle", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
-            mock.setup(x => x.syskitCheckApp(bundlePath)).
-                returns(() => Promise.reject(new Error("not valid")));
-            let isValid = await ws.hasValidSyskitContext();
-            assert(!isValid);
-        })
-        it ("returns true if the default bundle exists and is validated by syskit check", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
-            mock.setup(x => x.syskitCheckApp(bundlePath)).
-                returns(() => Promise.resolve());
-            let isValid = await ws.hasValidSyskitContext();
-            assert(isValid);
-        })
-        it ("does not run an explicit check if the bundle has been verified and the folder exists", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
-            let count = 0;
-            mock.setup(x => x.syskitCheckApp(bundlePath)).
-                returns(() => { count += 1; return Promise.resolve() });
-            await ws.hasValidSyskitContext();
-            await ws.hasValidSyskitContext();
-            assert.equal(1, count);
-        })
-        it ("returns false if the bundle does not exist even after a successful check", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
-            mock.setup(x => x.syskitCheckApp(bundlePath)).
-                returns(() => Promise.resolve());
-            await ws.hasValidSyskitContext();
-            helpers.rmdir('ws', '.vscode', 'rock-default-bundle');
-            let isValid = await ws.hasValidSyskitContext();
-            assert(!isValid);
-        })
-        it ("does not cache negative results", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            let bundlePath = helpers.mkdir('ws', '.vscode', 'rock-default-bundle');
-            let count = 0;
-            mock.setup(x => x.syskitCheckApp(bundlePath)).
-                returns(() => { count += 1; return Promise.reject(new Error("test")) });
-            await ws.hasValidSyskitContext();
-            await ws.hasValidSyskitContext();
-            assert.equal(2, count);
-        })
-    })
-
-    describe("ensureSyskitContextAvailable", function() {
-        let s : helpers.TestSetup;
-        beforeEach(function() {
-            s = new helpers.TestSetup();
-        })
-
-        it("does not attempt to re-generate the bundle if the syskit context is already available", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(true))
-            let count = 0;
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => { count += 1; return Promise.reject("test"); })
-            await ws.ensureSyskitContextAvailable();
-            assert.equal(0, count);
-        })
-
-        it("generates the bundle if the syskit context is not available", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(false))
-            let count = 0;
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => { count += 1; return Promise.resolve(); })
-            await ws.ensureSyskitContextAvailable();
-            assert.equal(1, count);
-        })
-
-        it("rejects if the generation fails", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(false))
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => Promise.reject(new Error("generation failed")));
-            await helpers.assertThrowsAsync(
-                ws.ensureSyskitContextAvailable(),
-                /generation failed/);
-        })
-
-        it("returns the same promise until it is resolved or rejected", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(false))
-
-            let pResolve;
-            let p = new Promise<void>((resolve, reject) => { pResolve = resolve; });
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => p);
-            let firstP  = ws.ensureSyskitContextAvailable();
-            assert.strictEqual(firstP, ws.ensureSyskitContextAvailable());
-        })
-
-        it("re-runs a new promise after the previous one was resolved", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(false))
-
-            let pResolve;
-            let p = new Promise<void>((resolve, reject) => { pResolve = resolve; })
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => p);
-            let firstP = ws.ensureSyskitContextAvailable();
-            pResolve();
-            await firstP;
-            assert.notStrictEqual(firstP, ws.ensureSyskitContextAvailable());
-        })
-
-        it("re-runs a new promise after the previous one was rejected", async function() {
-            let { mock, ws } = s.createAndRegisterWorkspace('ws');
-            mock.setup(x => x.hasValidSyskitContext()).
-                returns(() => Promise.resolve(false))
-
-            let pReject;
-            let p = new Promise<void>((resolve, reject) => { pReject = reject; });
-            mock.setup(x => x.syskitGenApp(TypeMoq.It.isAny())).
-                returns(() => { return p });
-            let firstP = ws.ensureSyskitContextAvailable();
-            p.catch(() => {});
-            pReject(new Error("test"));
-            await helpers.assertThrowsAsync(firstP, /test/);
-            assert.notStrictEqual(firstP, ws.ensureSyskitContextAvailable());
         })
     })
 });
