@@ -16,6 +16,20 @@ import * as Syskit from '../src/syskit'
 import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 
+export class OutputChannel implements Autoproj.OutputChannel
+{
+    receivedLines : string[] = [];
+
+    appendLine(msg: string) : void {
+        this.receivedLines.push(msg);
+    }
+
+    clear() {
+        this.receivedLines = [];
+    }
+
+};
+
 export function assertThrowsAsync(p, msg: RegExp)
 {
     return new Promise((resolve, reject) => {
@@ -134,12 +148,20 @@ export function mockSyskitConnection(mockWorkspace : TypeMoq.IMock<Autoproj.Work
     return mock;
 }
 
-export function createProcessMock() : { [key: string]: any }
+class ProcessMock extends EventEmitter implements Autoproj.Process
 {
-    let result : { [key: string]: any } = new EventEmitter();
-    result.stdout = new EventEmitter();
-    result.stderr = new EventEmitter();
-    return result;
+    stdout = new EventEmitter();
+    stderr = new EventEmitter();
+    killSignal: string | undefined;
+    kill(string) {
+        this.killSignal = string;
+        this.emit('exit', undefined, 2);
+    }
+};
+
+export function createProcessMock() : ProcessMock
+{
+    return new ProcessMock();
 }
 
 export class TestSetup
@@ -149,8 +171,6 @@ export class TestSetup
     {
         return this.mockWrapper.object;
     }
-
-    mockOutputChannel : TypeMoq.IMock<vscode.OutputChannel>;
 
     mockWorkspaces: TypeMoq.IMock<Autoproj.Workspaces>;
     get workspaces()
@@ -176,17 +196,18 @@ export class TestSetup
         return this.mockContext.target;
     }
 
-    get outputChannel() : vscode.OutputChannel
+    mockOutputChannel : TypeMoq.IMock<OutputChannel>;
+    get outputChannel() : OutputChannel
     {
-        return this.mockOutputChannel.object;
+        return this.mockOutputChannel.target;
     }
+
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
-        this.mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        this.mockOutputChannel.setup(x => x.dispose()).returns(() => undefined);
 
-        this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
+        this.mockOutputChannel = TypeMoq.Mock.ofType2(OutputChannel, []);
+        this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, [undefined, this.outputChannel]);
         this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
         this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider]);
         this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory, this.outputChannel]);
@@ -204,7 +225,7 @@ export class TestSetup
 
     createAndRegisterWorkspace(...path: string[]) {
         let wsPath = this.createWorkspace(...path);
-        let mock = TypeMoq.Mock.ofType2(Autoproj.Workspace, [wsPath, false]);
+        let mock = TypeMoq.Mock.ofType2(Autoproj.Workspace, [wsPath, false, this.outputChannel]);
         this.workspaces.add(mock.target);
         return { mock: mock, ws: mock.target };
     }

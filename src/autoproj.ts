@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as syskit from './syskit';
 import * as wrappers from './wrappers';
+import { EventEmitter } from 'events';
 
 export function findWorkspaceRoot(rootPath: string): string | null
 {
@@ -86,29 +87,29 @@ export class WorkspaceInfo
     }
 }
 
-class ConsoleOutputChannel implements vscode.OutputChannel
+export interface Process extends EventEmitter
 {
-    readonly name = "ConsoleOutputChannel";
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: (string) => void;
+}
 
-    append(value: string)
-    {
-        console.log(value);
-    }
+export interface OutputChannel
+{
+    appendLine(string) : void;
+}
 
+class ConsoleOutputChannel implements OutputChannel
+{
     appendLine(value: string)
     {
         console.log(value);
     }
-
-    clear() {}
-    show(...args) {}
-    hide() {}
-    dispose() {}
 }
 
 export class Workspace
 {
-    static fromDir(path: string, loadInfo: boolean = true, outputChannel: vscode.OutputChannel = new ConsoleOutputChannel())
+    static fromDir(path: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
         let root = findWorkspaceRoot(path);
         if (!root)
@@ -123,13 +124,13 @@ export class Workspace
     readonly root: string;
     private _info: Promise<WorkspaceInfo>;
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
-    private _outputChannel : vscode.OutputChannel;
+    private _outputChannel : OutputChannel;
 
-    private _syskitDefaultRun : { subprocess: child_process.ChildProcess, promise: Promise<void> } | undefined;
+    private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void> } = {};
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
 
-    constructor(root: string, loadInfo: boolean = true, outputChannel: vscode.OutputChannel = new ConsoleOutputChannel())
+    constructor(root: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
         this.root = root;
         this.name = path.basename(root);
@@ -147,7 +148,7 @@ export class Workspace
     }
 
     autoprojExec(command: string, args: string[],
-        options: child_process.SpawnOptions = {}) : child_process.ChildProcess
+        options: child_process.SpawnOptions = {}) : Process
     {
         return child_process.spawn(
             this.autoprojExePath(), ['exec', command, ...args],
@@ -156,7 +157,7 @@ export class Workspace
     }
 
     syskitExec(args: string[],
-        options: child_process.SpawnOptions = {}) : child_process.ChildProcess
+        options: child_process.SpawnOptions = {}) : Process
     {
         let env = options.env || process.env;
         delete env.ROCK_BUNDLE;
@@ -325,7 +326,7 @@ export class Workspace
     }
 
     // Private API, made public only for testing reasons
-    private redirectProcessToChannel(name, shortname, subprocess : child_process.ChildProcess)
+    private redirectProcessToChannel(name, shortname, subprocess : Process)
     {
         this._outputChannel.appendLine(`${shortname}: starting ${name}`)
         subprocess.stderr.on('data', (buffer) => {
@@ -445,12 +446,12 @@ export class Workspaces
     devFolder : string | null;
     workspaces = new Map<string, Workspace>();
     folderToWorkspace = new Map<string, Workspace>();
-    private _outputChannel : vscode.OutputChannel;
+    private _outputChannel : { appendLine: (string) => void };
     private _workspaceInfoEvent = new vscode.EventEmitter<WorkspaceInfo>();
     private _folderInfoEvent = new vscode.EventEmitter<Package | PackageSet>();
     private _folderInfoDisposables = new Map<string, vscode.Disposable>();
 
-    constructor(devFolder = null, outputChannel : vscode.OutputChannel = new ConsoleOutputChannel()) {
+    constructor(devFolder = null, outputChannel : OutputChannel = new ConsoleOutputChannel()) {
         this.devFolder = devFolder;
         this._outputChannel = outputChannel;
     }

@@ -8,6 +8,24 @@ import * as helpers from './helpers';
 import * as TypeMoq from 'typemoq'
 import * as events from 'events';
 
+async function assertProcessIsShown(shortname, cmd, promise, subprocess, channel)
+{
+    subprocess.stdout.emit('data', "STDOUT")
+    subprocess.stderr.emit('data', "STDERR")
+    subprocess.emit('exit', 0, undefined);
+    try {
+        await promise;
+    }
+    catch(e) { }
+    let expected = [
+        `${shortname}: starting ${cmd}`,
+        `${shortname}: STDOUT`,
+        `${shortname}: STDERR`,
+        `${shortname}: ${cmd} quit`
+    ]
+    assert.deepStrictEqual(channel.receivedLines, expected);
+}
+
 describe("Autoproj helpers tests", function () {
     let originalSpawn = require('child_process').spawn;
     let root: string;
@@ -206,6 +224,7 @@ describe("Autoproj helpers tests", function () {
 
         describe("envsh", function() {
             const processMock   = helpers.createProcessMock();
+            let outputChannel : helpers.OutputChannel;
             let subjectMock;
             let subject;
             let originalInfo;
@@ -215,41 +234,39 @@ describe("Autoproj helpers tests", function () {
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-                originalInfo = await ws.info();
-                subjectMock = TypeMoq.Mock.ofInstance(ws);
-                subjectMock.callBase = true;
-                subject = subjectMock.object;
+                outputChannel = new helpers.OutputChannel();
+                subjectMock = TypeMoq.Mock.ofType2(autoproj.Workspace, [root, false, outputChannel]);
+                subject = subjectMock.target;
+                originalInfo = await subject.info();
             })
 
             it("reloads the information on success", async function() {
                 let p = subject.envsh();
                 processMock.emit('exit', 0, null);
-                let resolvedInfo = await p;
-                subjectMock.verify(x => x.reload(), TypeMoq.Times.once());
-                assert.notEqual(resolvedInfo, originalInfo);
+                assert.notEqual(await p, originalInfo);
             })
 
             it("returns the known information on failure", async function() {
                 let p = subject.envsh();
                 processMock.emit('exit', 1, null);
-                let resolvedInfo = await p;
-                subjectMock.verify(x => x.info(), TypeMoq.Times.once());
-                assert.equal(resolvedInfo, originalInfo);
+                assert.equal(await p, originalInfo);
             })
 
             it("returns the known information on signal", async function() {
                 let p = subject.envsh();
                 processMock.emit('exit', null, 5);
-                let resolvedInfo = await p;
-                subjectMock.verify(x => x.info(), TypeMoq.Times.once());
-                assert.equal(resolvedInfo, originalInfo);
+                assert.equal(await p, originalInfo);
+            })
+
+            it("redirects its output to the rock channel", async function() {
+                let p = subject.envsh();
+                await assertProcessIsShown("envsh", "autoproj envsh", p, processMock, outputChannel);
             })
         })
 
         describe("which", function() {
             let processMock = helpers.createProcessMock();
-            let subjectMock;
+            let outputChannel : helpers.OutputChannel;
             let subject;
             let originalInfo;
 
@@ -259,10 +276,8 @@ describe("Autoproj helpers tests", function () {
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
-                subjectMock = TypeMoq.Mock.ofInstance(ws);
-                subjectMock.callBase = true;
-                subject = subjectMock.object;
+                outputChannel = new helpers.OutputChannel();
+                subject = autoproj.Workspace.fromDir(root, false, outputChannel) as autoproj.Workspace;
             })
 
             it("returns the path displayed by autoproj on success", async function() {
@@ -286,10 +301,16 @@ describe("Autoproj helpers tests", function () {
                 await helpers.assertThrowsAsync(p,
                     /cannot find cmd in the workspace/)
             })
+
+            it("redirects its output to the rock channel", async function() {
+                let p = subject.which("cmd");
+                await assertProcessIsShown("which cmd", "autoproj which cmd", p, processMock, outputChannel);
+        })
         })
 
         describe("syskitCheckApp", function() {
             let processMock = helpers.createProcessMock();
+            let outputChannel : helpers.OutputChannel;
             let subject;
 
             beforeEach(async function() {
@@ -300,6 +321,8 @@ describe("Autoproj helpers tests", function () {
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                outputChannel = new helpers.OutputChannel();
+                subject = autoproj.Workspace.fromDir(root, false, outputChannel) as autoproj.Workspace;
             })
             it("resolves the promise if the subcommand succeeds", async function() {
                 let p = subject.syskitCheckApp("path/to/bundle");
@@ -311,9 +334,14 @@ describe("Autoproj helpers tests", function () {
                 processMock.emit("exit", 1, undefined);
                 await helpers.assertThrowsAsync(p, new RegExp("^bundle in path/to/bundle seem invalid, or syskit cannot be executed in this workspace$"));
             })
+            it("redirects its output to the channel", async function() {
+                let p = subject.syskitCheckApp("path/to/bundle");
+                await assertProcessIsShown("check", "syskit check path/to/bundle", p, processMock, outputChannel);
+            })
         })
         describe("syskitGenApp", function() {
             let processMock = helpers.createProcessMock();
+            let outputChannel : helpers.OutputChannel;
             let subject;
 
             beforeEach(async function() {
@@ -323,7 +351,8 @@ describe("Autoproj helpers tests", function () {
 
                 helpers.mkdir('.autoproj');
                 helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
-                subject = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+                outputChannel = new helpers.OutputChannel();
+                subject = autoproj.Workspace.fromDir(root, false, outputChannel) as autoproj.Workspace;
             })
 
             it("resolves the promise if the subcommand succeeds", async function() {
@@ -335,6 +364,10 @@ describe("Autoproj helpers tests", function () {
                 let p = subject.syskitGenApp("path/to/bundle");
                 processMock.emit("exit", 1, undefined);
                 await helpers.assertThrowsAsync(p, new RegExp("^failed to run `syskit gen app path/to/bundle`$"));
+            })
+            it("redirects its output to the channel", async function() {
+                let p = subject.syskitGenApp("path/to/bundle");
+                await assertProcessIsShown("gen", "syskit gen path/to/bundle", p, processMock, outputChannel);
             })
         })
 
