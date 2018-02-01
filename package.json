@@ -234,7 +234,7 @@
         "js-yaml": "latest",
         "fs-temp": "latest",
         "jsonc-parser": "latest",
-        "node-rest-client": "latest"
+        "request-promise-native": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",

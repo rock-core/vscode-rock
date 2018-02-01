@@ -3,8 +3,8 @@
 import * as autoproj from './autoproj';
 import * as context from './context';
 import * as wrappers from './wrappers';
-import * as rest from 'node-rest-client';
 import { CancellationToken } from 'vscode'
+import * as request from 'request-promise-native';
 
 export class DeployedTask
 {
@@ -40,11 +40,31 @@ export class CommandLine
     working_directory: string;
 };
 
+type REST_METHODS = "GET" | "POST" | "PATCH" | "DELETE";
+
+export interface Client
+{
+    call(method: REST_METHODS, uri: string) : Promise<any>;
+};
+
+export class RequestPromiseClient implements Client
+{
+    call(method: REST_METHODS, uri: string) : Promise<any> {
+        let options = {
+            method: method,
+            uri: uri,
+            resolveWithFullResponse: true,
+            simple: false
+        }
+        return request(options);
+    }
+}
+
 
 export class Connection
 {
     private _workspace : autoproj.Workspace;
-    private _client : rest.Client;
+    private _client : Client;
 
     private _host : string;
     private _port : number;
@@ -52,7 +72,7 @@ export class Connection
     constructor(workspace : autoproj.Workspace,
         host : string = 'localhost',
         port : number = 20202,
-        client : rest.Client = new rest.Client())
+        client : Client = new RequestPromiseClient())
     {
         this._workspace = workspace;
         this._client    = client;
@@ -60,30 +80,28 @@ export class Connection
         this._port      = port;
     }
 
-    private callBase(method : string, expectedStatus : number, path : string) : Promise<any>
+    private callBase(method : REST_METHODS, expectedStatus : number, path : string) : Promise<any>
     {
-        return new Promise((resolve, reject) => {
-            let url = `http://${this._host}:${this._port}/api/${path}`;
-            this._client[method](url, function (data, response) {
+        let uri = `http://${this._host}:${this._port}/api/${path}`;
+        return this._client.call(method, uri).
+            then((response) => {
+                let data = JSON.parse(response.body);
                 if (response.statusCode !== expectedStatus) {
                     let msg = data.error || data;
-                    reject(new Error(`${method} ${url} error: ${msg}`));
+                    throw new Error(`${method} ${uri} error: ${msg}`);
                 }
                 else {
-                    resolve(data);
+                    return data;
                 }
-            }).on('error', function(err) {
-                reject(err);
             })
-        })
     }
 
-    private callWithoutReturn(method : string, expectedStatus : number, path : string) : Promise<void>
+    private callWithoutReturn(method : REST_METHODS, expectedStatus : number, path : string) : Promise<void>
     {
         return this.callBase(method, expectedStatus, path).then(() => {})
     }
 
-    private call<T>(method : string, expectedStatus : number, path : string) : Promise<T>
+    private call<T>(method : REST_METHODS, expectedStatus : number, path : string) : Promise<T>
     {
         return this.callBase(method, expectedStatus, path).then((data) => data as T);
     }
@@ -93,12 +111,20 @@ export class Connection
     public async connect(token : CancellationToken)
     {
         let attempt = () => this.attemptConnection();
+        let attempting = false;
         return new Promise((resolve, reject) => {
             (async function poll() {
-                if (await attempt()) {
-                    resolve();
+                if (!attempting) {
+                    attempt().then((success) => {
+                        attempting = false;
+                        if (success) {
+                            resolve()
+                        }
+                    })
+                    attempting = true;
                 }
-                else if (token.isCancellationRequested) {
+
+                if (token.isCancellationRequested) {
                     reject(new Error("Syskit connection interrupted"));
                 }
                 else {
@@ -110,35 +136,35 @@ export class Connection
 
     public attemptConnection()
     {
-        return this.callWithoutReturn('get', 200, 'ping?value=42').
+        return this.callWithoutReturn('GET', 200, 'ping?value=42').
             then(() => true).
             catch(() => false);
     }
 
     public availableDeployments() : Promise<AvailableDeployment[]>
     {
-        return this.call<{ deployments: AvailableDeployment[] }>('get', 200, "syskit/deployments/available").
+        return this.call<{ deployments: AvailableDeployment[] }>('GET', 200, "syskit/deployments/available").
             then((response) => response.deployments);
     }
 
     public registerDeployment(modelName: string, taskName: string) : Promise<number>
     {
-        return this.call<{ registered_deployment: number }>('post', 201, `syskit/deployments?name=${modelName}&as=${taskName}`).
+        return this.call<{ registered_deployment: number }>('POST', 201, `syskit/deployments?name=${modelName}&as=${taskName}`).
             then((response) => response.registered_deployment);
     }
 
     public commandLine(deployment : number) : Promise<CommandLine>
     {
-        return this.call<CommandLine>('get', 200, `syskit/deployments/${deployment}/command_line`)
+        return this.call<CommandLine>('GET', 200, `syskit/deployments/${deployment}/command_line`)
     }
 
     public clear()
     {
-        return this.callWithoutReturn('delete', 204, 'syskit/deployments')
+        return this.callWithoutReturn('DELETE', 204, 'syskit/deployments')
     }
 
     public quit()
     {
-        return this.callWithoutReturn('post', 201, 'quit')
+        return this.callWithoutReturn('POST', 201, 'quit')
     }
 };
