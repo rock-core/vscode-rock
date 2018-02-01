@@ -143,7 +143,7 @@ export function addPackageToManifest(ws, path : string[], partialInfo: { [key: s
 export function mockSyskitConnection(mockWorkspace : TypeMoq.IMock<Autoproj.Workspace>) {
     let mock = TypeMoq.Mock.ofType<Syskit.Connection>()
     mock.setup((x: any) => x.then).returns(() => undefined)
-    mockWorkspace.setup(x => x.syskitDefaultConnection(TypeMoq.It.isAny())).
+    mockWorkspace.setup(x => x.syskitDefaultConnection()).
         returns(() => Promise.resolve(mock.object));
     return mock;
 }

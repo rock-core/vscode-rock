@@ -170,14 +170,14 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         modelName: string, taskName: string)
     {
         let syskit = await pkg.workspace.
-            syskitDefaultConnection(this._vscode);
+            syskitDefaultConnection();
         await syskit.clear();
         return syskit.registerDeployment(modelName, taskName)
     }
     private async deploymentCommandLine(pkg: packages.RockPackage, deployment : number) : Promise<syskit.CommandLine>
     {
         let syskit = await pkg.workspace.
-            syskitDefaultConnection(this._vscode);
+            syskitDefaultConnection();
         return syskit.commandLine(deployment);
     }
     private setupTask(ws: autoproj.Workspace, name: string,

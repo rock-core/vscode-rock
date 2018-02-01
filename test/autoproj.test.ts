@@ -637,25 +637,14 @@ describe("Autoproj helpers tests", function () {
                 startSyskit(subject, subjectMock);
                 await subject.syskitDefaultStarted();
                 // Now mock syskitExec to get a different process object for 'quit'
-                let quitProcessMock = helpers.createProcessMock(); 
-                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                    returns(() => quitProcessMock)
                 let p = subject.syskitDefaultStop();
                 await terminateSyskit(subject, processMock);
-                quitProcessMock.emit('exit', 0, undefined)
                 await p;
             })
 
-            it("attempts to kill the syskit process if it has not exited when `syskit quit` has", async function() {
+            it("attempts to kill the syskit process after a timeout if it has not quit", async function() {
                 let syskitRunning = startSyskit(subject, subjectMock);
-                await subject.syskitDefaultStarted();
-                // Now mock syskitExec to get a different process object for 'quit'
-                let quitProcessMock = helpers.createProcessMock(); 
-                subjectMock.setup(x => x.syskitExec(TypeMoq.It.isAny(), TypeMoq.It.isAny())).
-                    returns(() => quitProcessMock)
-                let p = subject.syskitDefaultStop();
-                await subject.syskitDefaultStarted();
-                quitProcessMock.emit('exit', 0, undefined)
+                let p = subject.syskitDefaultStop(100);
                 // Note: the processMock's kill method does emit 'exit'
                 await p;
                 assert.equal(processMock.killSignal, 'SIGINT');

@@ -126,7 +126,7 @@ export class Workspace
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
     private _outputChannel : OutputChannel;
 
-    private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void> } = {};
+    private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void>, interrupt?: any } = {};
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
 
@@ -354,20 +354,24 @@ export class Workspace
 
         let available = this.ensureSyskitContextAvailable();
         let started = available.then(() => {
-            let subprocess = this.syskitExec(['run', '--rest'],
+            let subprocess = this.syskitExec(['run', '--no-interface', '--rest'],
                 { cwd: this.syskitDefaultBundle() });
             this.redirectProcessToChannel(`syskit background process for ${this.root}`, 'syskit run', subprocess);
             return subprocess;
         });
         let running = started.then((subprocess) => {
+            let cleanup = () => {
+                if (this._syskitDefaultRun.interrupt) {
+                    clearTimeout(this._syskitDefaultRun.interrupt);
+                }
+                this._syskitDefaultRun = {}
+            }
             let p = new Promise<void>((resolve, reject) => {
                 subprocess.on('exit', (code, status) => {
                     reject(new Error(`syskit background process for ${this.root} quit`));
                 })
             });
-            p.then(
-                () => this._syskitDefaultRun = { },
-                () => this._syskitDefaultRun = { });
+            p.then(cleanup, cleanup);
             this._syskitDefaultRun.subprocess = subprocess;
             return p;
         })
@@ -385,27 +389,31 @@ export class Workspace
         }
     }
 
-    syskitDefaultStop() : Promise<void>
+    syskitDefaultStop(timeout = 2000) : Promise<void>
     {
         if (!this._syskitDefaultRun.started) {
             return Promise.resolve();
         }
 
-        return this._syskitDefaultRun.started.then(() => {
-            let subprocess = this.syskitExec(['quit', '--retry=5'],
-                { cwd: this.syskitDefaultBundle() });
-            this.redirectProcessToChannel('syskit quit', 'syskit quit', subprocess);
-            subprocess.on('exit', (code, status) => {
-                if (this._syskitDefaultRun.subprocess) {
-                    this._syskitDefaultRun.subprocess.kill("SIGINT");
-                }
-            })
-            let running = this._syskitDefaultRun.running as Promise<void>;
-            return running.catch(() => {});
-        })
+        this._syskitDefaultRun.interrupt = setTimeout(() => {
+            if (this._syskitDefaultRun.subprocess) {
+                this._syskitDefaultRun.subprocess.kill("SIGINT");
+            }
+        }, timeout);
+
+        let tokenSource = new vscode.CancellationTokenSource();
+        let c = new syskit.Connection(this);
+        c.connect(tokenSource.token).then(() => c.quit());
+
+        let running = this._syskitDefaultRun.running as Promise<void>;
+        return running.
+            catch(() => {
+                tokenSource.cancel();
+
+            });
     }
 
-    async syskitDefaultConnection(wrappers : wrappers.VSCode) : Promise<syskit.Connection>
+    async syskitDefaultConnection() : Promise<syskit.Connection>
     {
         await this.ensureSyskitContextAvailable();
         let c = new syskit.Connection(this);

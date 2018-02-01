@@ -134,6 +134,11 @@ export class Connection
 
     public clear()
     {
-        return this.callWithoutReturn('delete', 204, `syskit/deployments`)
+        return this.callWithoutReturn('delete', 204, 'syskit/deployments')
+    }
+
+    public quit()
+    {
+        return this.callWithoutReturn('post', 201, 'quit')
     }
 };

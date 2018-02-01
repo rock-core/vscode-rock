@@ -436,7 +436,7 @@ export class RockOrogenPackage extends RockPackage
 {
     private async pickChoices()
     {
-        let syskitConnection = await this.workspace.syskitDefaultConnection(this._vscode);
+        let syskitConnection = await this.workspace.syskitDefaultConnection();
         let deployments = await syskitConnection.availableDeployments();
 
         let choices: any[] = [];
