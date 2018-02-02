@@ -136,8 +136,17 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         }
 
         let ws = pkg.workspace;
-        let deployment = await this.deploymentCreate(
-            pkg, config.deploy, config.deployAs)
+        let deployment;
+        try {
+            deployment = await this.deploymentCreate(
+                pkg, config.deploy, config.deployAs)
+        }
+        catch(e) {
+            if (e.name === "TaskNameRequired") {
+                e.message = `${config.deploy} is a task model, the deployAs field is required`
+            }
+            throw e;
+        }
         let commandLine = await this.deploymentCommandLine(pkg, deployment);
 
         config.type    = "cppdbg";
