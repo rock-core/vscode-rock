@@ -1,5 +1,5 @@
 {
-    "enabled": true,
+    "enabled": false,
     "relativeSourcePath": "../src/",
     "relativeCoverageDir": "../../coverage",
     "ignorePatterns": ["**/test/**"],
