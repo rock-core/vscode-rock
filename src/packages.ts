@@ -4,7 +4,7 @@ import * as debug from './debug'
 import * as tasks from './tasks'
 import * as wrappers from './wrappers'
 import * as autoproj from './autoproj'
-import * as async from './async'
+import * as syskit from './syskit'
 import * as fs from 'fs'
 import * as child_process from 'child_process'
 import { relative, basename, dirname, join as joinpath } from 'path'
@@ -87,11 +87,9 @@ export class Type
 export class PackageFactory
 {
     private readonly _vscode: wrappers.VSCode;
-    private readonly _bridge: async.EnvironmentBridge;
-    constructor(vscode: wrappers.VSCode, bridge: async.EnvironmentBridge)
+    constructor(vscode: wrappers.VSCode)
     {
         this._vscode = vscode;
-        this._bridge = bridge;
     }
 
     async createPackage(path: string, context: context.Context): Promise<Package>
@@ -120,7 +118,7 @@ export class PackageFactory
                 case TypeList.RUBY.id:
                     return new RockRubyPackage(ws, info, context, this._vscode);
                 case TypeList.OROGEN.id:
-                    return new RockOrogenPackage(this._bridge, ws, info, context, this._vscode);
+                    return new RockOrogenPackage(ws, info, context, this._vscode);
                 default:
                     return new RockOtherPackage(ws, info, context, this._vscode);
             }
@@ -248,7 +246,7 @@ export class InvalidPackage implements Package
     get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Select a valid package before trying to create a debug configuration");
+        return Promise.reject(new Error("Select a valid package before trying to create a debug configuration"));
     }
 
     get type()
@@ -270,7 +268,7 @@ export class ConfigPackage implements Package
     get name() { return basename(this.path); }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Debug configurations are not available for configuration packages");
+        return Promise.reject(new Error("Debug configurations are not available for configuration packages"));
     }
 
     get type()
@@ -293,7 +291,7 @@ export class ForeignPackage extends GenericPackage
     get workspace() { return undefined; }
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        throw new Error("Debug configurations are not available for external packages");
+        return Promise.reject(new Error("Debug configurations are not available for external packages"));
     }
     get name() { return basename(this.path); }
 }
@@ -436,62 +434,82 @@ export class RockCXXPackage extends RockPackage
 
 export class RockOrogenPackage extends RockPackage
 {
-    private _bridge: async.EnvironmentBridge;
-
-    constructor(bridge: async.EnvironmentBridge, ws: autoproj.Workspace, info: autoproj.Package, context: context.Context, vscode: wrappers.VSCode)
+    private async pickChoices()
     {
-        super(ws, info, context, vscode);
-        this._bridge = bridge;
-    }
+        let syskitConnection = await this.workspace.syskitDefaultConnection();
+        let deployments = await syskitConnection.availableDeployments();
 
-    async pickTask(): Promise<async.IOrogenTask | undefined>
-    {
-        let description = this._bridge.describeOrogenProject(this.path, basename(this.path));
-        let tokenSource = new vscode.CancellationTokenSource();
-
-        let err;
-        description.catch((_err) => {
-            err = _err;
-            tokenSource.cancel();
-        })
-        let promise = description.then(
-            (result) => {
-                let choices: { label: string, description: string, task: async.IOrogenTask }[] = [];
-                result.forEach((task) => {
-                    choices.push({
-                        label: task.model_name,
-                        description: '',
-                        task: task
-                    });
+        let choices: any[] = [];
+        deployments.forEach((deployment) => {
+            if (deployment.default_deployment_for) {
+                choices.push({
+                    label: deployment.default_deployment_for,
+                    description: '',
+                    orogen_info: deployment
                 });
-                return choices;
             }
-        )
-        let options: vscode.QuickPickOptions = {
-            placeHolder: 'Select a task' }
+            else {
+                choices.push({
+                    label: deployment.name,
+                    description: '',
+                    orogen_info: deployment
+                });
+            }
+        });
+        return choices;
+    }
+    async pickTask(): Promise<syskit.AvailableDeployment | undefined>
+    {
+        let err = null;
+        let choices = this.pickChoices();
+        let tokenSource = new vscode.CancellationTokenSource();
+        choices.catch((e) => err = e);
 
-        let task = await this._vscode.showQuickPick(promise, options, tokenSource.token);
+        let task = await this._vscode.showQuickPick(choices,
+            { placeHolder: 'Select a task or deployment model' },
+            tokenSource.token);
         tokenSource.dispose();
         // Note: we know the promise is resolved at this point thanks to the
         // await on the target picker
         if (err) {
             throw err;
         }
-        if (task)
+        else if (task)
         {
-            return task.task;
+            return task.orogen_info;
         }
     }
 
     async debugConfiguration(): Promise<vscode.DebugConfiguration | undefined>
     {
-        const task = await this.pickTask();
-        if (task) {
+        const deployment = await this.pickTask();
+        if (!deployment) {
+            return;
+        }
+
+        if (deployment.default_deployment_for) {
+            let task_model_name = deployment.default_deployment_for
             const debugConfig: vscode.DebugConfiguration = {
-                name: task.model_name,
+                name: `orogen - ${task_model_name}`,
                 type: "orogen",
                 request: "launch",
-                task: (task.model_name.split("::"))[1]
+                deploy: task_model_name,
+                deployAs: 'task',
+                cwd: '${workspaceRoot}',
+                externalConsole: true,
+                stopAtEntry: false
+            };
+            return debugConfig;
+        }
+        else {
+            const debugConfig: vscode.DebugConfiguration = {
+                name: `orogen - ${deployment.name}`,
+                type: "orogen",
+                request: "launch",
+                deploy: deployment.name,
+                cwd: '${workspaceRoot}',
+                externalConsole: true,
+                stopAtEntry: false
             };
             return debugConfig;
         }

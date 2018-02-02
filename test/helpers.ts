@@ -12,23 +12,37 @@ import * as Wrappers from '../src/wrappers'
 import * as Context from '../src/context'
 import * as Packages from '../src/packages'
 import * as Tasks from '../src/tasks'
-import * as Async from '../src/async'
+import * as Syskit from '../src/syskit'
+import * as Config from '../src/config'
+import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 
-export async function assertThrowsAsync(fn, msg: RegExp)
+export class OutputChannel implements Autoproj.OutputChannel
 {
-    let f = () => {};
+    receivedLines : string[] = [];
+
+    appendLine(msg: string) : void {
+        this.receivedLines.push(msg);
+    }
+
+    clear() {
+        this.receivedLines = [];
+    }
+
+};
+
+export async function assertThrowsAsync(p, msg: RegExp) : Promise<Error>
+{
     try {
-        await fn();
+        await p;
     }
-    catch (e)
-    {
-        f = () => {throw e};
+    catch(e) {
+        if (!msg.test(e.message)) {
+            throw new Error(`expected message "${e.message}" to match "${msg}"`);
+        }
+        return e;
     }
-    finally
-    {
-        assert.throws(f, msg);
-    }
+    throw new Error("expected promise failure but it succeeded") 
 }
 
 let root;
@@ -53,6 +67,10 @@ export function mkdir(...path): string {
         }
     })
     return joinedPath;
+}
+export function rmdir(...path) {
+    let joinedPath = fullPath(...path);
+    FS.rmdirSync(joinedPath);
 }
 export function mkfile(data: string, ...path): string {
     let joinedPath = fullPath(...path);
@@ -97,11 +115,62 @@ export function clear() {
     root = null
 }
 
+export function addPackageToManifest(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Autoproj.Package {
+    let partialVCS: { [key: string]: any } = partialInfo.vcs || {};
+    let result: Autoproj.Package = {
+        name: partialInfo.name || 'Unknown',
+        srcdir: fullPath(...path),
+        builddir: partialInfo.builddir || "Unknown",
+        prefix: partialInfo.prefix || "Unknown",
+        vcs: {
+            url: partialVCS.url || "Unknown",
+            type: partialVCS.type || "Unknown",
+            repository_id: partialVCS.repository_id || "Unknown"
+        },
+        type: partialInfo.type || "Unknown",
+        logdir: partialInfo.logdir || "Unknown",
+        dependencies: partialInfo.dependencies || "Unknown"
+    };
+
+    let manifestPath = Autoproj.installationManifestPath(ws.root)
+    let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString());
+    manifest.push(result);
+    FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
+    ws.reload();
+    return result;
+}
+
+export function mockSyskitConnection(mockWorkspace : TypeMoq.IMock<Autoproj.Workspace>) {
+    let mock = TypeMoq.Mock.ofType<Syskit.Connection>()
+    mock.setup((x: any) => x.then).returns(() => undefined)
+    mockWorkspace.setup(x => x.syskitDefaultConnection()).
+        returns(() => Promise.resolve(mock.object));
+    return mock;
+}
+
+class ProcessMock extends EventEmitter implements Autoproj.Process
+{
+    stdout = new EventEmitter();
+    stderr = new EventEmitter();
+    killSignal: string | undefined;
+    kill(string) {
+        this.killSignal = string;
+        this.emit('exit', undefined, 2);
+    }
+};
+
+export function createProcessMock() : ProcessMock
+{
+    return new ProcessMock();
+}
+
 export class TestSetup
 {
     mockWrapper : TypeMoq.IMock<Wrappers.VSCode>;
-    mockBridge : TypeMoq.IMock<Async.EnvironmentBridge>;
-    mockOutputChannel : TypeMoq.IMock<vscode.OutputChannel>;
+    get wrapper()
+    {
+        return this.mockWrapper.object;
+    }
 
     mockWorkspaces: TypeMoq.IMock<Autoproj.Workspaces>;
     get workspaces()
@@ -109,7 +178,7 @@ export class TestSetup
         return this.mockWorkspaces.target;
     }
 
-    mockTaskProvider : TypeMoq.IMock<Tasks.Provider>;
+    mockTaskProvider : TypeMoq.IMock<Tasks.AutoprojProvider>;
     get taskProvider()
     {
         return this.mockTaskProvider.target;
@@ -127,21 +196,28 @@ export class TestSetup
         return this.mockContext.target;
     }
 
-    get outputChannel() : vscode.OutputChannel
+    mockOutputChannel : TypeMoq.IMock<OutputChannel>;
+    get outputChannel() : OutputChannel
     {
-        return this.mockOutputChannel.object;
+        return this.mockOutputChannel.target;
     }
+
+    mockConfigManager : TypeMoq.IMock<Config.ConfigManager>;
+    get configManager() : Config.ConfigManager
+    {
+        return this.mockConfigManager.target;
+    }
+
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
-        this.mockBridge = TypeMoq.Mock.ofType<Async.EnvironmentBridge>();
-        this.mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        this.mockWrapper.setup(x => x.createOutputChannel("Rock")).returns(() => this.mockOutputChannel.object);
 
-        this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, []);
-        this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.Provider, [this.workspaces]);
-        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.mockWrapper.target, this.taskProvider, this.mockBridge.target]);
-        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.mockWrapper.target, this.workspaces, this.packageFactory]);
+        this.mockOutputChannel = TypeMoq.Mock.ofType2(OutputChannel, []);
+        this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, [undefined, this.outputChannel]);
+        this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
+        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.wrapper, this.taskProvider]);
+        this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.wrapper, this.workspaces, this.packageFactory, this.outputChannel]);
+        this.mockConfigManager = TypeMoq.Mock.ofType2(Config.ConfigManager, [this.workspaces, this.wrapper])
     }
 
     setupWrapper(fn) {
@@ -156,34 +232,13 @@ export class TestSetup
 
     createAndRegisterWorkspace(...path: string[]) {
         let wsPath = this.createWorkspace(...path);
-        let mock = TypeMoq.Mock.ofType2(Autoproj.Workspace, [wsPath, false]);
+        let mock = TypeMoq.Mock.ofType2(Autoproj.Workspace, [wsPath, false, this.outputChannel]);
         this.workspaces.add(mock.target);
         return { mock: mock, ws: mock.target };
     }
 
     addPackageToManifest(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Autoproj.Package {
-        let partialVCS: { [key: string]: any } = partialInfo.vcs || {};
-        let result: Autoproj.Package = {
-            name: partialInfo.name || 'Unknown',
-            srcdir: fullPath(...path),
-            builddir: partialInfo.builddir || "Unknown",
-            prefix: partialInfo.prefix || "Unknown",
-            vcs: {
-                url: partialVCS.url || "Unknown",
-                type: partialVCS.type || "Unknown",
-                repository_id: partialVCS.repository_id || "Unknown"
-            },
-            type: partialInfo.type || "Unknown",
-            logdir: partialInfo.logdir || "Unknown",
-            dependencies: partialInfo.dependencies || "Unknown"
-        };
-
-        let manifestPath = Autoproj.installationManifestPath(ws.root)
-        let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString());
-        manifest.push(result);
-        FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
-        ws.reload();
-        return result;
+        return addPackageToManifest(ws, path, partialInfo);
     }
 
     async registerPackage(ws, path : string[], partialInfo: { [key: string]: any } = {}) : Promise<Packages.Package>

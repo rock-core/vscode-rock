@@ -15,16 +15,19 @@ export class Context
     private readonly _packageFactory: packages.PackageFactory;
     private readonly _contextUpdatedEvent: vscode.EventEmitter<void>;
     private readonly _outputChannel: vscode.OutputChannel;
+    private _pendingWorkspaceInit = new Map<autoproj.Workspace, Promise<void>>();
+    private _verifiedSyskitContext = new Map<autoproj.Workspace, boolean>();
 
     public constructor(vscodeWrapper: wrappers.VSCode,
                        workspaces: autoproj.Workspaces,
-                       packageFactory : packages.PackageFactory)
+                       packageFactory : packages.PackageFactory,
+                       outputChannel : vscode.OutputChannel)
     {
         this._vscode = vscodeWrapper;
         this._workspaces = workspaces;
         this._contextUpdatedEvent = new vscode.EventEmitter<void>();
         this._packageFactory = packageFactory;
-        this._outputChannel = vscodeWrapper.createOutputChannel('Rock');
+        this._outputChannel = outputChannel;
     }
 
     get outputChannel(): vscode.OutputChannel
@@ -41,12 +44,17 @@ export class Context
         return this._contextUpdatedEvent.event(callback);
     }
 
+    public isWorkspaceEmpty() : boolean {
+        let folders = this._vscode.workspaceFolders;
+        return (!folders || folders.length == 0);
+    }
+
     public getWorkspaceByPath(path : string) : autoproj.Workspace | undefined
     {
         return this.workspaces.folderToWorkspace.get(path);
     }
 
-    public async getPackageByPath(path : string) : Promise<packages.Package>
+    public getPackageByPath(path : string) : Promise<packages.Package>
     {
         return this._packageFactory.createPackage(path, this);
     }

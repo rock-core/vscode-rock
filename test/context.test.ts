@@ -8,7 +8,6 @@ import * as context from '../src/context';
 import * as autoproj from '../src/autoproj';
 import * as helpers from './helpers';
 import * as packages from '../src/packages';
-import * as async from '../src/async';
 import { basename, join } from 'path';
 import * as fs from 'fs'
 import * as debug from '../src/debug'
@@ -18,7 +17,6 @@ class TestContext
     root: string;
     mockWrapper: TypeMoq.IMock<wrappers.VSCode>;
     mockPackageFactory: TypeMoq.IMock<packages.PackageFactory>;
-    mockBridge: TypeMoq.IMock<async.EnvironmentBridge>;
     workspaces: autoproj.Workspaces;
 
     workspaceFolders: vscode.WorkspaceFolder[];
@@ -30,16 +28,18 @@ class TestContext
         this.mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
         this.mockWrapper.setup(x => x.workspaceFolders)
             .returns(() => this.workspaceFolders);
-        this.mockBridge = TypeMoq.Mock.ofType<async.EnvironmentBridge>();
-        let packageFactory = new packages.PackageFactory(this.mockWrapper.object, this.mockBridge.object);
+        let packageFactory = new packages.PackageFactory(this.mockWrapper.object);
         this.mockPackageFactory = TypeMoq.Mock.ofInstance(packageFactory);
         this.mockPackageFactory.callBase = true;
         this.workspaces = new autoproj.Workspaces;
+        let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
+        mockOutputChannel.setup(x => x.dispose()).returns(() => undefined)
 
         this.subject = new context.Context(
             this.mockWrapper.object,
             this.workspaces,
-            this.mockPackageFactory.object);
+            this.mockPackageFactory.object,
+            mockOutputChannel.object);
     }
 
     clear(): void
@@ -63,19 +63,6 @@ describe("Context tests", function () {
         testContext.subject.onUpdate(mock);
         mock.verify(x => x(), times);
     }
-    it ("creates an output channel when instantiated", function () {
-        let mockOutputChannel = TypeMoq.Mock.ofType<vscode.OutputChannel>();
-        let mockWrapper = TypeMoq.Mock.ofType<wrappers.VSCode>();
-        let mockWorkspaces = TypeMoq.Mock.ofType<autoproj.Workspaces>();
-        let mockPackageFactory = TypeMoq.Mock.ofType<packages.PackageFactory>();
-
-        mockWrapper.setup(x => x.createOutputChannel("Rock")).
-            returns(() => mockOutputChannel.object);
-        let subject = new context.Context(mockWrapper.object, mockWorkspaces.object,
-            mockPackageFactory.object);
-        mockWrapper.verify(x => x.createOutputChannel("Rock"), TypeMoq.Times.once());
-        assert.strictEqual(subject.outputChannel, mockOutputChannel.object);
-    });
     it("returns the given workspaces", function () {
         assert.strictEqual(testContext.workspaces, testContext.subject.workspaces);
     });
@@ -85,4 +72,5 @@ describe("Context tests", function () {
         mockWs.verify(x => x.envsh(), TypeMoq.Times.once());
         verifyContextUpdated(TypeMoq.Times.once());
     })
+
 });

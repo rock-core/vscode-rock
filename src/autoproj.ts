@@ -5,6 +5,10 @@ import * as yaml from 'js-yaml';
 import * as path from 'path';
 import * as global from 'glob';
 import * as fs from 'fs';
+import * as vscode from 'vscode';
+import * as syskit from './syskit';
+import * as wrappers from './wrappers';
+import { EventEmitter } from 'events';
 
 export function findWorkspaceRoot(rootPath: string): string | null
 {
@@ -61,16 +65,51 @@ export class WorkspaceInfo
     packages: Map<string, Package>;
     packageSets: Map<string, PackageSet>;
 
-    constructor(path: string) {
+    constructor(
+            path: string,
+            packages: Map<string, Package> = new Map<string, Package>(),
+            packageSets: Map<string, PackageSet> = new Map<string, PackageSet>()) {
         this.path = path;
-        this.packages = new Map<string, Package>();
-        this.packageSets = new Map<string, PackageSet>();
+        this.packages = packages;
+        this.packageSets = packageSets;
+    }
+
+    findPackage(path: string): Package | undefined {
+        return this.packages.get(path);
+    }
+
+    findPackageSet(path: string): PackageSet | undefined {
+        return this.packageSets.get(path);
+    }
+
+    find(path: string): Package | PackageSet | undefined {
+        return this.findPackage(path) || this.findPackageSet(path);
+    }
+}
+
+export interface Process extends EventEmitter
+{
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: (string) => void;
+}
+
+export interface OutputChannel
+{
+    appendLine(string) : void;
+}
+
+class ConsoleOutputChannel implements OutputChannel
+{
+    appendLine(value: string)
+    {
+        console.log(value);
     }
 }
 
 export class Workspace
 {
-    static fromDir(path: string, loadInfo: boolean = true)
+    static fromDir(path: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
         let root = findWorkspaceRoot(path);
         if (!root)
@@ -78,17 +117,27 @@ export class Workspace
             return null;
         }
 
-        return new Workspace(root, loadInfo);
+        return new Workspace(root, loadInfo, outputChannel);
     }
 
     name: string;
     readonly root: string;
     private _info: Promise<WorkspaceInfo>;
+    private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
+    private _outputChannel : OutputChannel;
 
-    constructor(root: string, loadInfo: boolean = true)
+    private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void>, interrupt?: any } = {};
+    private _pendingWorkspaceInit : Promise<void> | undefined;
+    private _verifiedSyskitContext : boolean;
+
+    constructor(root: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
         this.root = root;
         this.name = path.basename(root);
+        this._outputChannel = outputChannel;
+        this._verifiedSyskitContext = false;
+        this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
+        this._pendingWorkspaceInit = undefined;
         if (loadInfo) {
             this._info = this.createInfoPromise();
         }
@@ -96,6 +145,23 @@ export class Workspace
 
     autoprojExePath() {
         return autoprojExePath(this.root);
+    }
+
+    autoprojExec(command: string, args: string[],
+        options: child_process.SpawnOptions = {}) : Process
+    {
+        return child_process.spawn(
+            this.autoprojExePath(), ['exec', command, ...args],
+            { cwd: this.root, stdio: 'pipe', env: process.env, ...options }
+        );
+    }
+
+    syskitExec(args: string[],
+        options: child_process.SpawnOptions = {}) : Process
+    {
+        let env = options.env || process.env;
+        delete env.ROCK_BUNDLE;
+        return this.autoprojExec('syskit', args, { ...options, env: env });
     }
 
     private createInfoPromise()
@@ -107,13 +173,23 @@ export class Workspace
         return this._info !== undefined;
     }
 
-    async reload()
+    reload()
     {
         this._info = this.createInfoPromise()
+        this._info.then((info) => { this._infoUpdatedEvent.fire(info) });
         return this._info;
     }
 
-    async info(): Promise<WorkspaceInfo>
+    dispose() {
+        this._infoUpdatedEvent.dispose();
+        this.syskitDefaultStop();
+    }
+
+    onInfoUpdated(callback: (info: WorkspaceInfo) => any) : vscode.Disposable {
+        return this._infoUpdatedEvent.event(callback);
+    }
+
+    info(): Promise<WorkspaceInfo>
     {
         if (this._info)
         {
@@ -125,15 +201,16 @@ export class Workspace
         }
     }
 
-    async envsh(): Promise<WorkspaceInfo>
+    envsh(): Promise<WorkspaceInfo>
     {
-        const process = child_process.spawn(
+        const subprocess = child_process.spawn(
             this.autoprojExePath(),
             ['envsh', '--color'],
-            { cwd: this.root, stdio: 'ignore' }
+            { cwd: this.root, stdio: 'pipe' }
         );
+        this.redirectProcessToChannel('autoproj envsh', 'envsh', subprocess);
         return new Promise<WorkspaceInfo>((resolve, reject) => {
-            process.on('exit', (code, status) => {
+            subprocess.on('exit', (code, status) => {
                 if (code === 0) {
                     resolve(this.reload());
                 }
@@ -144,13 +221,14 @@ export class Workspace
         })
     }
 
-    async which(cmd: string)
+    which(cmd: string)
     {
         let options: child_process.SpawnOptions = { env: {} };
         Object.assign(options.env, process.env);
         Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: this.root });
         let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
         let path = '';
+        this.redirectProcessToChannel(`autoproj which ${cmd}`, `which ${cmd}`, subprocess);
         subprocess.stdout.on('data', (buffer) => {
             path = path.concat(buffer.toString());
         })
@@ -165,6 +243,196 @@ export class Workspace
                 }
             })
         })
+    }
+
+    private runCommandToCompletion(subprocess, error?: string) : Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            subprocess.on('exit', (code, signal) => {
+                if (code == 0) {
+                    resolve();
+                }
+                else {
+                    reject(new Error(error));
+                }
+            });
+        });
+    }
+
+    public syskitDefaultBundle() : string {
+        return path.join(this.root, '.vscode', 'rock-default-bundle');
+    }
+
+    private syskitDefaultSocketPath() : string {
+        return path.join(this.root, '.vscode', `syskit-socket-${process.pid}`);
+    }
+
+    private syskitDefaultURIBase() : string {
+        return `http://unix:${this.syskitDefaultSocketPath()}:`;
+    }
+
+    public syskitGenApp(path: string) : Promise<void> {
+        let subprocess = this.syskitExec(["gen", "app", path]);
+        this.redirectProcessToChannel(`syskit gen ${path}`, "gen", subprocess);
+        return this.runCommandToCompletion(subprocess, `failed to run \`syskit gen app ${path}\``);
+    }
+
+    public syskitCheckApp(path: string) : Promise<void> {
+        let subprocess = this.syskitExec(["check"], { cwd: this.defaultBundlePath() });
+        this.redirectProcessToChannel(`syskit check ${path}`, "check", subprocess);
+        return this.runCommandToCompletion(subprocess, `bundle in ${path} seem invalid, or syskit cannot be executed in this workspace`);
+    }
+
+    public defaultBundlePath() : string {
+        return path.join(this.root, '.vscode', 'rock-default-bundle');
+    }
+
+    public hasValidSyskitContext() : Promise<boolean> {
+        // We do the cheap existence check even if the syskit context has been
+        // verified. This would allow the user to "reset" the bundle by deleting
+        // the bundle folder without having to restart VSCode, with a small
+        // performance cost
+        let bundlePath = this.defaultBundlePath();
+        if (!fs.existsSync(bundlePath)) {
+            return Promise.resolve(false);
+        }
+
+        if (this._verifiedSyskitContext) {
+            return Promise.resolve(true);
+        }
+
+        return this.syskitCheckApp(bundlePath).
+            then(() => {
+                this._verifiedSyskitContext = true;
+                return true;
+            }).
+            catch(() => false);
+    }
+
+    public ensureSyskitContextAvailable(): Promise<void>
+    {
+        let pending = this._pendingWorkspaceInit;
+        if (pending) {
+            return pending;
+        }
+
+        let p = this.hasValidSyskitContext().then((result) => {
+            if (result) {
+                this._pendingWorkspaceInit = undefined;
+            }
+            else {
+                let bundlePath = this.defaultBundlePath();
+                return this.syskitGenApp(bundlePath).
+                    then(
+                        ()  => { this._pendingWorkspaceInit = undefined },
+                        (e) => { this._pendingWorkspaceInit = undefined; throw e; }
+                    );
+            }
+        })
+
+        this._pendingWorkspaceInit = p;
+        return p;
+    }
+
+    // Private API, made public only for testing reasons
+    private redirectProcessToChannel(name, shortname, subprocess : Process)
+    {
+        this._outputChannel.appendLine(`${shortname}: starting ${name}`)
+        subprocess.stderr.on('data', (buffer) => {
+            let lines = buffer.toString().split("\n");
+            lines.forEach((l) => {
+                this._outputChannel.appendLine(`${shortname}: ${l}`)
+            })
+        })
+        subprocess.stdout.on('data', (buffer) => {
+            let lines = buffer.toString().split("\n");
+            lines.forEach((l) => {
+                this._outputChannel.appendLine(`${shortname}: ${l}`)
+            })
+        })
+        subprocess.on('exit', () => {
+            this._outputChannel.appendLine(`${shortname}: ${name} quit`)
+        })
+    }
+
+    syskitDefaultStart() : Promise<void>
+    {
+        if (this._syskitDefaultRun.running) {
+            return this._syskitDefaultRun.running;
+        }
+
+        let available = this.ensureSyskitContextAvailable();
+        let started = available.then(() => {
+            let subprocess = this.syskitExec(['run', '--no-interface', '--no-logs', `--rest=${this.syskitDefaultSocketPath()}`],
+                { cwd: this.syskitDefaultBundle() });
+            this.redirectProcessToChannel(`syskit background process for ${this.root}`, 'syskit run', subprocess);
+            return subprocess;
+        });
+        let running = started.then((subprocess) => {
+            let cleanup = () => {
+                if (this._syskitDefaultRun.interrupt) {
+                    clearTimeout(this._syskitDefaultRun.interrupt);
+                }
+                this._syskitDefaultRun = {}
+            }
+            let p = new Promise<void>((resolve, reject) => {
+                subprocess.on('exit', (code, status) => {
+                    reject(new Error(`syskit background process for ${this.root} quit`));
+                })
+            });
+            p.then(cleanup, cleanup);
+            this._syskitDefaultRun.subprocess = subprocess;
+            return p;
+        })
+        this._syskitDefaultRun.started = started.then((subprocess) => {});
+        this._syskitDefaultRun.running = running;
+        return running;
+    }
+
+    syskitDefaultStarted() : Promise<void> {
+        if (this._syskitDefaultRun.started) {
+            return this._syskitDefaultRun.started;
+        }
+        else {
+            return Promise.reject(new Error(`Syskit background process for ${this.root} has not been started`));
+        }
+    }
+
+    syskitDefaultStop(timeout = 2000) : Promise<void>
+    {
+        if (!this._syskitDefaultRun.started) {
+            return Promise.resolve();
+        }
+
+        this._syskitDefaultRun.interrupt = setTimeout(() => {
+            if (this._syskitDefaultRun.subprocess) {
+                this._syskitDefaultRun.subprocess.kill("SIGINT");
+            }
+        }, timeout);
+
+        let tokenSource = new vscode.CancellationTokenSource();
+        let c = new syskit.Connection(this, this.syskitDefaultURIBase());
+        c.connect(tokenSource.token).then(() => c.quit()).
+            catch(() => {})
+
+        let running = this._syskitDefaultRun.running as Promise<void>;
+        return running.
+            catch(() => {
+                tokenSource.cancel();
+
+            });
+    }
+
+    async syskitDefaultConnection() : Promise<syskit.Connection>
+    {
+        await this.ensureSyskitContextAvailable();
+        let c = new syskit.Connection(this, this.syskitDefaultURIBase());
+        let tokenSource = new vscode.CancellationTokenSource();
+
+        let start = this.syskitDefaultStart();
+        start.then(
+            () => {},
+            () => tokenSource.cancel());
+        return c.connect(tokenSource.token).then(() => c);
     }
 }
 
@@ -200,7 +468,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
                 packageSets.set(entry.user_local_dir, entry)
             }
         })
-        return { path: workspacePath, packageSets: packageSets, packages: packages };
+        return new WorkspaceInfo(workspacePath, packages, packageSets);
     });
 }
 
@@ -210,13 +478,31 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
 export class Workspaces
 {
     devFolder : string | null;
-    workspaces : Map<string, Workspace>
-    folderToWorkspace : Map<string, Workspace>;
+    workspaces = new Map<string, Workspace>();
+    folderToWorkspace = new Map<string, Workspace>();
+    private _outputChannel : { appendLine: (string) => void };
+    private _workspaceInfoEvent = new vscode.EventEmitter<WorkspaceInfo>();
+    private _folderInfoEvent = new vscode.EventEmitter<Package | PackageSet>();
+    private _folderInfoDisposables = new Map<string, vscode.Disposable>();
 
-    constructor(devFolder = null) {
+    constructor(devFolder = null, outputChannel : OutputChannel = new ConsoleOutputChannel()) {
         this.devFolder = devFolder;
-        this.workspaces = new Map();
-        this.folderToWorkspace = new Map();
+        this._outputChannel = outputChannel;
+    }
+
+    dispose() {
+        this.workspaces.forEach((ws) => ws.dispose());
+        this._workspaceInfoEvent.dispose();
+        this._folderInfoEvent.dispose();
+        this._folderInfoDisposables.forEach((d) => d.dispose());
+    }
+
+    onWorkspaceInfo(callback : (info: WorkspaceInfo) => any) : vscode.Disposable {
+        return this._workspaceInfoEvent.event(callback);
+    }
+
+    onFolderInfo(callback : (info: Package | PackageSet) => any) : vscode.Disposable {
+        return this._folderInfoEvent.event(callback);
     }
 
     /** Add workspaces that contain some directory paths
@@ -230,18 +516,19 @@ export class Workspaces
         // Workspaces are often duplicates (multiple packages from the same ws).
         // Make sure we don't start the info resolution promise until we're sure
         // it is new
-        let ws = Workspace.fromDir(path, false);
-        if (!ws) {
+        let wsRoot = findWorkspaceRoot(path);
+        if (!wsRoot) {
             return { added: false, workspace: null };
         }
-        else if (this.workspaces.has(ws.root)) {
-            return { added: false, workspace: this.workspaces.get(ws.root) };
+        else if (this.workspaces.has(wsRoot)) {
+            return { added: false, workspace: this.workspaces.get(wsRoot) };
         }
         else {
+            let ws = new Workspace(wsRoot, loadInfo, this._outputChannel);
             this.add(ws);
-            if (loadInfo) {
-                ws.info();
-            }
+            ws.onInfoUpdated((info) => {
+                this._workspaceInfoEvent.fire(info);
+            })
             return { added: true, workspace: ws };
         }
     }
@@ -262,8 +549,15 @@ export class Workspaces
         let { added, workspace } = this.addCandidate(path);
         if (workspace) {
             this.associateFolderToWorkspace(path, workspace);
+            let event = workspace.onInfoUpdated((info) => {
+                let pkgInfo = info.find(path);
+                if (pkgInfo) {
+                    this._folderInfoEvent.fire(pkgInfo);
+                }
+            })
+            this._folderInfoDisposables.set(path, event);
         }
-        return workspace;
+        return { added, workspace };
     }
 
     /** De-registers a folder
@@ -274,6 +568,10 @@ export class Workspaces
      */
     deleteFolder(path: string) {
         let ws = this.folderToWorkspace.get(path);
+        let event = this._folderInfoDisposables.get(path);
+        if (event) {
+            event.dispose();
+        }
         this.folderToWorkspace.delete(path);
         if (ws) {
             if (this.useCount(ws) == 0) {
@@ -308,6 +606,10 @@ export class Workspaces
 
     /** Remove workspaces */
     delete(workspace: Workspace) {
+        if (this.useCount(workspace) !== 0) {
+            throw new Error("cannot remove a workspace that is in-use");
+        }
+        workspace.dispose();
         this.workspaces.delete(workspace.root);
     }
 
@@ -315,7 +617,7 @@ export class Workspaces
      *
      * Yields (ws)
      */
-    forEachWorkspace(callback) {
+    forEachWorkspace(callback: (ws: Workspace) => void) {
         this.workspaces.forEach(callback);
     }
 
@@ -323,7 +625,7 @@ export class Workspaces
      *
      * Yields (ws, folder)
      */
-    forEachFolder(callback) {
+    forEachFolder(callback: (ws: Workspace, folder: string) => void) {
         this.folderToWorkspace.forEach(callback);
     }
 

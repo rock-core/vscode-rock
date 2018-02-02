@@ -9,7 +9,6 @@ import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../src/packages'
 import { basename, join as joinPath } from 'path'
-import { EnvironmentBridge } from '../src/async';
 
 describe("ConfigurationProvider", function() {
     let root: string;

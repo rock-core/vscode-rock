@@ -58,16 +58,36 @@
                 "configurationAttributes": {
                     "launch": {
                         "required": [
-                            "task"
+                            "deploy"
                         ],
                         "properties": {
-                            "task": {
+                            "deploy": {
                                 "type": "string",
-                                "description": "Task name to debug."
+                                "description": "Name of the task model or deployment to debug."
                             },
                             "deployAs": {
                                 "type": "string",
-                                "description": "Name to be used as the deployment name."
+                                "description": "Name to be used as the deployment name for task models, and as prefix for deployments."
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "Working directory"
+                            },
+                            "stopAtEntry": {
+                                "type": "boolean",
+                                "description": "Whether GDB should break when entering the program"
+                            },
+                            "externalConsole": {
+                                "type": "boolean",
+                                "description": "Whether the program should get its own console or be redirected to the main debug console"
+                            },
+                            "environment": {
+                                "type": "array",
+                                "description": "Environment variables that should be set as { \"name\": \"name_of_var\", \"value\": \"value_of_var\" }" 
+                            },
+                            "MIMode": {
+                                "type": "string",
+                                "description": "Debugger mode"
                             },
                             "start": {
                                 "type": "boolean",
@@ -83,10 +103,14 @@
                 },
                 "initialConfigurations": [
                     {
-                        "name": "component_name::Task",
+                        "name": "orogen - component_name::Task",
                         "type": "orogen",
                         "request": "launch",
-                        "task": "Task"
+                        "deploy": "component_name::Task",
+                        "deployAs": "task",
+                        "cwd": "${workspaceRoot}",
+                        "stopAtEntry": false,
+                        "externalConsole": true
                     }
                 ]
             }
@@ -106,6 +130,11 @@
                 "title": "Update VS Code configuration",
                 "category": "rock",
                 "command": "rock.updateCodeConfig"
+            },
+            {
+                "title": "Show Output",
+                "category": "rock",
+                "command": "rock.showOutputChannel"
             }
         ],
         "languages": [
@@ -213,7 +242,8 @@
     "dependencies": {
         "js-yaml": "latest",
         "fs-temp": "latest",
-        "jsonc-parser": "latest"
+        "jsonc-parser": "latest",
+        "request-promise-native": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",

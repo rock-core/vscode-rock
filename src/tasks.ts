@@ -2,8 +2,13 @@
 import * as vscode from 'vscode';
 import * as autoproj from './autoproj';
 import * as path from 'path';
+import * as context from './context';
 
-export class Provider implements vscode.TaskProvider
+function runAutoproj(ws, ...args) {
+    return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
+}
+
+export class AutoprojProvider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;
 
@@ -15,10 +20,6 @@ export class Provider implements vscode.TaskProvider
     private _updateConfigTasks: Map<string, vscode.Task>;
     private _allTasks: vscode.Task[];
 
-    private runAutoproj(ws, ...args) {
-        return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
-    }
-
     constructor(workspaces: autoproj.Workspaces)
     {
         this.workspaces = workspaces;
@@ -27,7 +28,7 @@ export class Provider implements vscode.TaskProvider
 
     private createTask(name, ws, defs = {}, args : string[] = []) {
         let definition = { type: 'autoproj', workspace: ws.root, ...defs }
-        let exec = this.runAutoproj(ws, ...args);
+        let exec = runAutoproj(ws, ...args);
         return new vscode.Task(definition, name, 'autoproj', exec, []);
     }
 
