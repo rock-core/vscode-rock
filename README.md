@@ -6,29 +6,157 @@ workspace.
 
 ## Features
 
-- Sets up syntax highlighting for Rock files with non-standard extensions (e.g. .autobuild, .osdeps and .orogen)
-- Autoproj integration
-  - Build
-  - Update
-  - Checkout
-- Rock integration
-    - Debug (C/C++, Ruby, Orogen)
+- run autoproj commands directly from VSCode and see build/update errors in
+  the problem view
+- support to ease the creation of launch entries
+- seamlessly debug oroGen components directly from VScode
 
-## Requirements
+## Installation {#installation}
+
+This extension depends on two other extensions on the VSCode side. These
+dependencies are declared, so vscode should install them on installation of
+the Rock extension
 
 - Microsoft CPP Tools Extension
 - Rebornix Ruby Extension
-- Ruby gems:
-  - debase
-  - ruby-debug-ide
-  - rubocop (optional but recommended)
 
-## Extension Settings
+In addition, the Ruby support requires a set of gems. They must be installed
+within your Rock workspace, which currently has to be done manually.
 
-None so far.
+If you add the `rock.vscode` package set to your workspace's `autoproj/manifest` with
+
+~~~
+- github: rock-core/rock.vscode-package_set
+~~~
+
+Then all these dependencies will be installed by adding the following entry
+to your layout. If you are already using the Rock extension in VSCode, do
+`Run Task > autoproj: install OS dependencies` and reload VSCode. Otherwise,
+run `autoproj osdeps`.
+
+~~~
+- rock.vscode.gems
+~~~
+
+## Important Note about `env.sh`
+
+**Note** there is no need to load the env.sh before you start vscode. Autoproj
+generates its own environment. Loading env.sh is even harmful as it would break
+if you were opening packages and programs from a different workspace than the one
+you loaded the env.sh from.
+
+## Autoproj Integration
+
+The Rock vscode extension automatically creates tasks to handle the common
+autoproj operations. These tasks are available as soon as you add a folder that
+is within an Autoproj workspace to your VSCode workspace.
+
+Most autoproj subcommands are available as tasks (through the `Run Task` command).
+The very-oft used build tasks are also available in the `Run Build Tasks`
+command (under the Shift+Ctrl+B shortcut). The created tasks are either
+applied to the whole workspace, or to specific packages.
+
+Once Rock packages have been added to your VSCode workspace, the `Run Task`
+picker will look like this:
+
+![Autoproj Tasks](docs/vscode-task.png)
+
+And the `Run Build Task` picker:
+
+![Autoproj Build Tasks](docs/vscode-build-task.png)
+
+**Tip** the last task(s) that have been run are at the top of the picker, which
+gives a convenient way to run the same task over and over again.
+
+**Important** if you create a new package, you must add it to the `layout`
+section of `autoproj/manifest` and run the `rock - Update package info` 
+command before the extension tools can be used for it.
+
+## C++ Packages
+
+The extensions sets and updates a package's IntelliSense configuration so
+that it finds the package's compilation database. IntelliSense will only
+be valid after you configured the package, so you should build the package
+at least once, even if the build fails.
+
+## Launch Support
+
+In order to use VSCode's debugging capabilities, this extension provides help
+writing launch entries that integrate well within Rock's development workflow.
+The following subsections will detail this support on a per-package basis.
+
+The extension provides a `rock - Add launch config` command to easily create
+new launch entries, providing things such as executable selection (for C++
+packages) or oroGen model selection (for oroGen models).
+
+### Launching C++ Programs
+
+When within a C++ package, the `rock - Add launch config` command will help
+you with selecting the binary you want to run. It discovers binaries within
+the package's build directory and proposes them to add to the new
+configuration.
+
+**NOTE** due to a bug in VSCode, newly created `launch.json` files are
+sometimes not taken into account. If this is the case, you have to reload
+VSCode with the `Reload Window` command.
+
+Click on the image below for a demo video:
+
+[![Demo workflow fo C++ packages](https://img.youtube.com/vi/1bJx2UYKf1c/0.jpg)](https://www.youtube.com/watch?v=1bJx2UYKf1c)
+
+The generated C++ launch configurations are [standard cppdbg launch
+configurations](https://github.com/Microsoft/vscode-cpptools/blob/master/launch.md).
+To ease integration within an autoproj workspace, the extension provides the
+possibility to use expansions to query information about the autoproj
+environment. These expansions can be used in any field within the debug
+configuration.
+
+- `${rock:srcDir}` expands to the package's source directory
+- `${rock:buildDir}` expands to the package's build directory
+- `${rock:prefixDir}` expands to the package's prefix (install) directory
+- `${rock:which:cmd}` expands to the full path to the command `cmd` within
+   the autoproj workspace's PATH.
+
+### Launching OroGen Components
+
+When within an oroGen package, the `rock - Add launch config` command will
+propose to select an oroGen component model or a deployment to debug.
+
+Click on the image below for a demo video:
+
+[![Demo workflow for oroGen packages](https://img.youtube.com/vi/aXc67327g-0/0.jpg)](https://www.youtube.com/watch?v=aXc67327g-0)
+
+The generated configurations use an `orogen` debugger entry. These entries
+accept most of [the `cppdbg` configuration entries](https://github.com/Microsoft/vscode-cpptools/blob/master/launch.md), but
+for the `program` entry. Instead of `program`, one provides either
+
+- the name of an existing deployment in the `deploy` field. The `deployAs`
+  field can be used to add a prefix to the deployment task's names, equivalent
+  to doing `use_deployment "deployment_name" => "prefix"` in Syskit.
+- the name of an existing task model in the `deploy` field, in which case
+  the `deployAs` field is mandatory and is the name of the deployed task.
+
+In addition, the `start` field can be used to control whether the task should
+be automatically configured and started, and `confDir` points to the configuration
+directory.
+
+The same `${rock:...}` expansions than with C++ packages are available.
+
+### Launching Ruby programs
+
+The extension relies on the debugger provided by the Ruby extension. Some gems
+[need to be installed](#install) for this to be functional.
+
+The Ruby launch configurations are therefore the [Ruby debugger configurations](https://github.com/rubyide/vscode-ruby/wiki/2.-Launching-from-VS-Code). The
+same expansions that are available in C++ entries are also available in the Ruby
+entries, that is:
+
+- `${rock:srcDir}` expands to the package's source directory
+- `${rock:buildDir}` expands to the package's build directory
+- `${rock:prefixDir}` expands to the package's prefix (install) directory
+- `${rock:which:cmd}` expands to the full path to the command `cmd` within
+   the autoproj workspace's PATH.
 
 ## Known Issues
 
 See [the issue page on GitHub](https://github.com/doudou/rock_website/issues?q=is%3Aopen+is%3Aissue+label%3Avscode)
-
-
