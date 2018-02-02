@@ -35,7 +35,7 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
     async expandAutoprojPaths(which: (cmd: string) => Promise<string>, pkg: { srcdir: string, builddir: string, prefix: string }, value: string) {
         let whichReplacements = new Map<string, Promise<string>>();
 
-        let replaced = value.replace(/\${rock:[a-zA-Z]+(?::[^}]+)?}/, (match) => {
+        let replaced = value.replace(/\${rock:[a-zA-Z]+(?::[^}]+)?}/g, (match) => {
             let mode = match.substring(7, match.length - 1)
             if (mode === "buildDir") {
                 return pkg.builddir;
@@ -46,17 +46,19 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
             else if (mode === "prefixDir") {
                 return pkg.prefix;
             }
-
-            if (mode.substring(0, 5) === "which") {
-                let toResolve = mode.substring(6, mode.length);
-                whichReplacements.set(match, which(toResolve));
+            else {
+                if (mode.substring(0, 5) === "which") {
+                    let toResolve = mode.substring(6, mode.length);
+                    whichReplacements.set(match, which(toResolve));
+                }
+                return match;
             }
-            return match;
+
         });
 
         for (let [string, promise] of whichReplacements) {
             let s = await promise;
-            replaced = value.replace(string, s);
+            replaced = replaced.replace(string, s);
         }
         return replaced;
     }

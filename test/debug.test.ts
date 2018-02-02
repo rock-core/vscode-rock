@@ -85,6 +85,11 @@ describe("ConfigurationProvider", function() {
             let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg, "before:${rock:which:test}:after")
             assert.equal("before:/path/to/test:after", expanded);
         })
+        it("can resolve multiple entries in the same string", async function() {
+            let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg,
+                "before:${rock:which:first}:middle:${rock:which:second}:after")
+            assert.equal(expanded, "before:/path/to/first:middle:/path/to/second:after");
+        })
     })
 })
 
