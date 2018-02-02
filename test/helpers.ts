@@ -31,7 +31,7 @@ export class OutputChannel implements Autoproj.OutputChannel
 
 };
 
-export async function assertThrowsAsync(p, msg: RegExp)
+export async function assertThrowsAsync(p, msg: RegExp) : Promise<Error>
 {
     try {
         await p;
@@ -40,7 +40,7 @@ export async function assertThrowsAsync(p, msg: RegExp)
         if (!msg.test(e.message)) {
             throw new Error(`expected message "${e.message}" to match "${msg}"`);
         }
-        return;
+        return e;
     }
     throw new Error("expected promise failure but it succeeded") 
 }

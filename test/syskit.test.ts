@@ -33,9 +33,9 @@ describe("SyskitConnection", function() {
         helpers.clear();
     })
 
-    function mockRESTResponse(method, url, data, statusCode) {
+    function mockRESTResponse(method, url, data, statusCode, headers = {}) {
         clientMock.setup(x => x.call(method, url)).
-            returns(() => Promise.resolve({ body: JSON.stringify(data), statusCode: statusCode }));
+            returns(() => Promise.resolve({ body: JSON.stringify(data), statusCode: statusCode, headers: headers }));
     }
 
     function mockRESTError(method, url, error) {
@@ -104,11 +104,19 @@ describe("SyskitConnection", function() {
                 new Error("network error"));;
             await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /network error/);
         })
-
-        it("specifically ", async function() {
-            mockRESTError('GET', "http://host:4242/api/syskit/deployments/available",
-                new Error("network error"));;
-            await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /network error/);
+        
+        it("uses the x-roby-error header to set the error's name property", async function() {
+            mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
+                "Error Message", 404, { "x-roby-error": "SpecificError" });
+            let e = await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /Error Message/);
+            assert.equal(e.name, "SpecificError")
+        })
+        
+        it("adds the URI and method to the message if there is no x-roby-error field", async function() {
+            mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
+                "Error Message", 404, { "x-roby-error": "SpecificError" });
+            let e = await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /Error Message/);
+            assert.equal(e.name, "SpecificError")
         })
     })
 

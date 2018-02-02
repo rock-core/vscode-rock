@@ -96,7 +96,12 @@ export class Connection
 
                 if (response.statusCode !== expectedStatus) {
                     let msg = data.error || data;
-                    throw new Error(`${msg} (${method} ${uri})`);
+                    let errorType = response.headers['x-roby-error'];
+                    let error = new Error(`${msg} (${method} ${uri})`);
+                    if (errorType) {
+                        error.name = errorType;
+                    }
+                    throw error;
                 }
                 else {
                     return data;
