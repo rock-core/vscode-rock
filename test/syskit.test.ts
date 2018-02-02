@@ -54,6 +54,13 @@ describe("SyskitConnection", function() {
             default_logger: 'logger'
         }
 
+        it("resolves with undefined if the call is successful and the body is empty", async function() {
+            mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
+                "", 200);
+            let result = await syskitConnection.availableDeployments();
+            assert.strictEqual(result, undefined)
+        })
+
         it("resolves with the data if the call is successful", async function() {
             mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
                 { deployments: [deployment] }, 200);
@@ -61,12 +68,25 @@ describe("SyskitConnection", function() {
             assert.deepStrictEqual([deployment], result);
         })
 
+        it("encodes the URI before passing it through", async function() {
+            mockRESTResponse('POST', "http://host:4242/api/syskit/deployments?name=something%20with%20spaces&as=task",
+                { registered_deployment: 42 }, 201);
+            await syskitConnection.registerDeployment("something with spaces", "task");
+        })
+
+        it("does encode colons (:) in the query", async function() {
+            // This is something encodeURI is not explicitely doing, but then
+            // the `request` package does something weird
+            mockRESTResponse('POST', "http://host:4242/api/syskit/deployments?name=something%3A%3ATask&as=task",
+                { registered_deployment: 42 }, 201);
+            await syskitConnection.registerDeployment("something::Task", "task");
+        })
+
         it("rejects if the call returns an unexpected statusCode", async function() {
             mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
                 { deployments: [deployment] }, 404);
             await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /.*/);
         })
-
         it("passes the response's error field if there is one", async function() {
             mockRESTResponse('GET', "http://host:4242/api/syskit/deployments/available",
                 { error: 'error message' }, 404);
@@ -80,6 +100,12 @@ describe("SyskitConnection", function() {
         })
 
         it("rejects with the network error if there is one", async function() {
+            mockRESTError('GET', "http://host:4242/api/syskit/deployments/available",
+                new Error("network error"));;
+            await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /network error/);
+        })
+
+        it("specifically ", async function() {
             mockRESTError('GET', "http://host:4242/api/syskit/deployments/available",
                 new Error("network error"));;
             await helpers.assertThrowsAsync(syskitConnection.availableDeployments(), /network error/);

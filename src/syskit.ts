@@ -79,13 +79,24 @@ export class Connection
 
     private callBase(method : REST_METHODS, expectedStatus : number, path : string) : Promise<any>
     {
-        let uri = `${this._uriBase}/api/${path}`;
+        let encodedPath = encodeURI(path).replace(/:/g, "%3A")
+        let uri = `${this._uriBase}/api/${encodedPath}`;
         return this._client.call(method, uri).
             then((response) => {
-                let data = JSON.parse(response.body);
+                // This is NOT part of the tests
+                //
+                // JSON.parse("") and JSON.parse("a string") work in tests, fails
+                // live, so add special cases here
+                if (response.body.length === 0) {
+                    return;
+                }
+                let data
+                try { data = JSON.parse(response.body) }
+                catch(e) { data = response.body }
+
                 if (response.statusCode !== expectedStatus) {
                     let msg = data.error || data;
-                    throw new Error(`${method} ${uri} error: ${msg}`);
+                    throw new Error(`${msg} (${method} ${uri})`);
                 }
                 else {
                     return data;
