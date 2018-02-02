@@ -88,6 +88,15 @@
                             "MIMode": {
                                 "type": "string",
                                 "description": "Debugger mode"
+                            },
+                            "start": {
+                                "type": "boolean",
+                                "description": "Start task on launch.",
+                                "default": false
+                            },
+                            "confDir": {
+                                "type": "string",
+                                "description": "Directory to launch task configuration from."
                             }
                         }
                     }
