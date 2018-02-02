@@ -243,7 +243,8 @@
         "js-yaml": "latest",
         "fs-temp": "latest",
         "jsonc-parser": "latest",
-        "request-promise-native": "latest"
+        "request-promise-native": "latest",
+        "request": "latest"
     },
     "devDependencies": {
         "typescript": "^2.6.1",
