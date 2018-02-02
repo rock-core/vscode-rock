@@ -155,4 +155,22 @@ describe("SyskitConnection", function() {
             await helpers.assertThrowsAsync(p, /Syskit connection interrupted/);
         })
     })
+    describe("registerDeployment", function () {
+        it("returns the registered deployment ID as a number", async function() {
+            mockRESTResponse('POST', 'http://host:4242/api/syskit/deployments?name=model&as=task',
+                { registered_deployment: 42 }, 201);
+            let result = await syskitConnection.registerDeployment("model", "task");
+            assert.equal(result, 42)
+        })
+        it("passes both modelName and taskName if they are both given", async function() {
+            mockRESTResponse('POST', 'http://host:4242/api/syskit/deployments?name=model&as=task',
+                { registered_deployment: 42 }, 201);
+            await syskitConnection.registerDeployment("model", "task");
+        })
+        it("does not pass taskName if it is undefined", async function() {
+            mockRESTResponse('POST', 'http://host:4242/api/syskit/deployments?name=model',
+                { registered_deployment: 42 }, 201);
+            await syskitConnection.registerDeployment("model", undefined);
+        })
+    })
 })

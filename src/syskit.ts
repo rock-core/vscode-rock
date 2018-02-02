@@ -163,9 +163,13 @@ export class Connection
             then((response) => response.deployments);
     }
 
-    public registerDeployment(modelName: string, taskName: string) : Promise<number>
+    public registerDeployment(modelName: string, taskName?: string) : Promise<number>
     {
-        return this.call<{ registered_deployment: number }>('POST', 201, `syskit/deployments?name=${modelName}&as=${taskName}`).
+        let path = `syskit/deployments?name=${modelName}`;
+        if (taskName) {
+            path = `${path}&as=${taskName}`
+        }
+        return this.call<{ registered_deployment: number }>('POST', 201, path).
             then((response) => response.registered_deployment);
     }
 
