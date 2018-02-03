@@ -79,11 +79,18 @@ that it finds the package's compilation database. IntelliSense will only
 be valid after you configured the package, so you should build the package
 at least once, even if the build fails.
 
+**Important** it is not recommended to put the generated
+*`c_cpp_properties.json` file in version control, as it gets re-generated
+by the Rock extension. Ideally add it to your package's `.gitignore` file.
+
 ## Launch Support
 
 In order to use VSCode's debugging capabilities, this extension provides help
 writing launch entries that integrate well within Rock's development workflow.
 The following subsections will detail this support on a per-package basis.
+
+This support allow the launch entries to be generic, so that they can be
+checked in version control and shared with other developers.
 
 The extension provides a `rock - Add launch config` command to easily create
 new launch entries, providing things such as executable selection (for C++
