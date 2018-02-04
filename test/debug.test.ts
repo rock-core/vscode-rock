@@ -85,6 +85,76 @@ describe("ConfigurationProvider", function() {
             let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg, "before:${rock:which:test}:after")
             assert.equal("before:/path/to/test:after", expanded);
         })
+        it("can resolve multiple entries in the same string", async function() {
+            let expanded = await subject.expandAutoprojPaths((name) => Promise.resolve(`/path/to/${name}`), pkg,
+                "before:${rock:which:first}:middle:${rock:which:second}:after")
+            assert.equal(expanded, "before:/path/to/first:middle:/path/to/second:after");
+        })
+    })
+    describe("performExpansionsInObject", function() {
+        it("expands the values of all the fields", async function() {
+            let object = { a: 'a', b: 'b', c: 'c' }
+            let result = await subject.performExpansionsInObject(object,
+                async (name) => `X:${name}:Y`)
+            assert.deepStrictEqual(result, { a: 'X:a:Y', b: 'X:b:Y', c: 'X:c:Y'})
+        })
+        it("recursively expands objects", async function() {
+            let object = { a: 'a', b: { name: 'A', value: 'B' }, c: 'c' }
+            let result = await subject.performExpansionsInObject(object,
+                async (name) => {
+                    if (name[0] == 'A') {
+                        return name;
+                    }
+                    else {
+                        return `X:${name}:Y`;
+                    }
+                })
+            let expected = {
+                a: 'X:a:Y',
+                b: { name: 'A', value: 'X:B:Y' },
+                c: 'X:c:Y'
+            }
+            assert.deepStrictEqual(result, expected);
+        })
+        it("recursively expands arrays", async function() {
+            let object = { a: 'a', b: ['B', 'C' ], c: 'c' }
+            let result = await subject.performExpansionsInObject(object,
+                async (name) => {
+                    if (name[0] == 'A') {
+                        return name;
+                    }
+                    else {
+                        return `X:${name}:Y`;
+                    }
+                })
+            let expected = {
+                a: 'X:a:Y',
+                b: ['X:B:Y', 'X:C:Y'],
+                c: 'X:c:Y'
+            }
+            assert.deepStrictEqual(result, expected);
+        })
+        it("recursively expands objects within arrays", async function() {
+            let object = { a: 'a', b: [{ name: 'A', value: 'B' }, { name: 'A', value: 'C' }], c: 'c' }
+            let result = await subject.performExpansionsInObject(object,
+                async (name) => {
+                    if (name[0] == 'A') {
+                        return name;
+                    }
+                    else {
+                        return `X:${name}:Y`;
+                    }
+                })
+            let expected = {
+                a: 'X:a:Y',
+                b: [
+                    { name: 'A', value: 'X:B:Y' },
+                    { name: 'A', value: 'X:C:Y' }
+                ],
+                c: 'X:c:Y'
+            }
+            assert.deepStrictEqual(result, expected);
+        })
     })
 })
 
@@ -200,7 +270,7 @@ describe("CXXConfigurationProvider", function() {
 
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
-                assert.equal(config.program, "expanded");
+                assert.equal(resolvedConfig.program, "expanded");
             })
             it("expands the 'cwd' value", async function () {
                 let mockSubject = TypeMoq.Mock.ofInstance(subject);
@@ -212,7 +282,7 @@ describe("CXXConfigurationProvider", function() {
 
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
-                assert.equal(config.cwd, "expanded");
+                assert.equal(resolvedConfig.cwd, "expanded");
             })
         })
     })
@@ -282,7 +352,7 @@ describe("RubyConfigurationProvider", function() {
                 config.env = { TEST: "FOO" };
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
-                assert.equal(config.env.TEST, "FOO");
+                assert.equal(resolvedConfig.env.TEST, "FOO");
             })
             it("sets useBundler to true", async function () {
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
@@ -308,7 +378,7 @@ describe("RubyConfigurationProvider", function() {
 
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
-                assert.equal(config.program, "expanded");
+                assert.equal(resolvedConfig.program, "expanded");
             })
             it("expands the 'cwd' value", async function () {
                 let mockSubject = TypeMoq.Mock.ofInstance(subject);
@@ -320,7 +390,7 @@ describe("RubyConfigurationProvider", function() {
 
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
-                assert.equal(config.cwd, "expanded");
+                assert.equal(resolvedConfig.cwd, "expanded");
             })
         })
     })

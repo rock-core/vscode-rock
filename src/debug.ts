@@ -35,7 +35,7 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
     async expandAutoprojPaths(which: (cmd: string) => Promise<string>, pkg: { srcdir: string, builddir: string, prefix: string }, value: string) {
         let whichReplacements = new Map<string, Promise<string>>();
 
-        let replaced = value.replace(/\${rock:[a-zA-Z]+(?::[^}]+)?}/, (match) => {
+        let replaced = value.replace(/\${rock:[a-zA-Z]+(?::[^}]+)?}/g, (match) => {
             let mode = match.substring(7, match.length - 1)
             if (mode === "buildDir") {
                 return pkg.builddir;
@@ -46,19 +46,51 @@ export class ConfigurationProvider implements vscode.DebugConfigurationProvider
             else if (mode === "prefixDir") {
                 return pkg.prefix;
             }
-
-            if (mode.substring(0, 5) === "which") {
-                let toResolve = mode.substring(6, mode.length);
-                whichReplacements.set(match, which(toResolve));
+            else {
+                if (mode.substring(0, 5) === "which") {
+                    let toResolve = mode.substring(6, mode.length);
+                    whichReplacements.set(match, which(toResolve));
+                }
+                return match;
             }
-            return match;
+
         });
 
         for (let [string, promise] of whichReplacements) {
             let s = await promise;
-            replaced = value.replace(string, s);
+            replaced = replaced.replace(string, s);
         }
         return replaced;
+    }
+
+    public async performExpansionsInObject<T>(object : T, expandFunction : (value: string) => Promise<string>) : Promise<T>
+    {
+        let result;
+        if (object instanceof Array) {
+            result = object.slice(0);
+        }
+        else {
+            result = { ...<any>object };
+        }
+        let replacements : { key: string, resolver: Promise<string> }[] = []
+        for (let key in <any>object) {
+            let value = object[key];
+            let resolver;
+            if (typeof value === 'string') {
+                resolver = expandFunction(value);
+            }
+            else if (typeof value === 'object') {
+                resolver = this.performExpansionsInObject(value, expandFunction);
+            }
+            if (resolver) {
+                replacements.push({ key: key, resolver: resolver })
+            }
+        }
+        await Promise.all(replacements.map(async (entry) => {
+            result[entry.key] = await entry.resolver;
+        }))
+
+        return <T>result;
     }
 }
 
@@ -66,7 +98,7 @@ export class CXXConfigurationProvider extends ConfigurationProvider
 {
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
-        let pkg = await this.resolvePackage(folder);
+        const pkg = await this.resolvePackage(folder);
         if (!pkg) {
             return config;
         }
@@ -75,6 +107,9 @@ export class CXXConfigurationProvider extends ConfigurationProvider
 
         let debuggerPath = config.miDebuggerPath || config.MIMode;
         let stubScript = joinpath(__dirname, '..', '..', 'stubs', config.MIMode);
+
+        config = await this.performExpansionsInObject(config,
+            (value) => this.expandAutoprojPaths((name) => ws.which(name), pkg.info, value));
 
         config.miDebuggerPath = stubScript;
         if (!config.environment) {
@@ -86,10 +121,6 @@ export class CXXConfigurationProvider extends ConfigurationProvider
             { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
         ])
 
-        config.program = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.program)
-        if (config.cwd) {
-            config.cwd = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.cwd);
-        }
         return config;
     }
 }
@@ -98,23 +129,20 @@ export class RubyConfigurationProvider extends ConfigurationProvider
 {
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
-        let pkg = await this.resolvePackage(folder);
+        const pkg = await this.resolvePackage(folder);
         if (!pkg) {
             return config;
         }
         let ws = pkg.workspace;
 
+        config = await this.performExpansionsInObject(config,
+            (value) => this.expandAutoprojPaths((name) => ws.which(name), pkg.info, value));
         config.useBundler = true;
         config.pathToBundler = ws.autoprojExePath();
         if (!config.env) {
             config.env = {}
         }
         config.env.AUTOPROJ_CURRENT_ROOT = ws.root;
-
-        config.program = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.program)
-        if (config.cwd) {
-            config.cwd = await this.expandAutoprojPaths((name) => ws.which(name), pkg.info, config.cwd);
-        }
         return config;
     }
 }
@@ -130,7 +158,7 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
 
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
     {
-        let pkg = await this.resolvePackage(folder);
+        const pkg = await this.resolvePackage(folder);
         if (!pkg) {
             throw new Error("Cannot debug orogen packages not within an Autoproj workspace");
         }
@@ -148,6 +176,9 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
             throw e;
         }
         let commandLine = await this.deploymentCommandLine(pkg, deployment);
+
+        config = await this.performExpansionsInObject(config,
+            (value) => this.expandAutoprojPaths((name) => ws.which(name), pkg.info, value));
 
         config.type    = "cppdbg";
         config.program = commandLine.command;
