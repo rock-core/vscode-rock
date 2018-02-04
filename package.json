@@ -100,19 +100,7 @@
                             }
                         }
                     }
-                },
-                "initialConfigurations": [
-                    {
-                        "name": "orogen - component_name::Task",
-                        "type": "orogen",
-                        "request": "launch",
-                        "deploy": "component_name::Task",
-                        "deployAs": "task",
-                        "cwd": "${workspaceRoot}",
-                        "stopAtEntry": false,
-                        "externalConsole": true
-                    }
-                ]
+                }
             }
         ],
         "commands": [
