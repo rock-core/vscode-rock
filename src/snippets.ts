@@ -43,7 +43,7 @@ export class LaunchSnippetProvider implements vscode.CompletionItemProvider
                     let deploy = deployment.default_deployment_for ?
                         deployment.default_deployment_for : deployment.name;
                     this.replaceEditorSelection(this._vscode.activeTextEditor, deploy);
-                }    
+                }
             }
             catch (err) {
                 this._vscode.showWarningMessage(err.message);
@@ -68,7 +68,7 @@ export class LaunchSnippetProvider implements vscode.CompletionItemProvider
         const launcher = this.snippetForPackageType(pkgPath,
             packages.Type.fromType(packages.TypeList.RUBY));
         let entry = JSON.stringify(launcher, null, 4);
-        entry = entry.replace(/{{file}}/g, "\${1:main.rb}");
+        entry = entry.replace(/{{file}}/g, "\${1}");
         entry = entry.replace(/{{root}}/g, "\\$\{workspaceRoot}");
 
         const snippet = new vscode.SnippetString(entry);
@@ -92,7 +92,7 @@ export class LaunchSnippetProvider implements vscode.CompletionItemProvider
         const launcher = this.snippetForPackageType(pkgPath,
             packages.Type.fromType(packages.TypeList.CXX));
         let entry = JSON.stringify(launcher, null, 4);
-        entry = entry.replace(/{{file}}/g, "\${1:test/test_suite}");
+        entry = entry.replace(/{{file}}/g, "\${1}");
         entry = entry.replace(/{{root}}/g, "\\$\{rock:buildDir}");
         entry = entry.replace(/{{cwd}}/g, "\\$\{rock:buildDir}");
 
@@ -120,7 +120,7 @@ export class LaunchSnippetProvider implements vscode.CompletionItemProvider
         const launcher = this.snippetForPackageType(pkgPath,
             packages.Type.fromType(packages.TypeList.OROGEN));
         let entry = JSON.stringify(launcher, null, 4);
-        entry = entry.replace(/{{deploy}}/g, "\${1:Task}");
+        entry = entry.replace(/{{deploy}}/g, "\${1}");
 
         const snippet = new vscode.SnippetString(entry);
         const item = new vscode.CompletionItem('Rock: Orogen',
