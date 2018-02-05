@@ -159,8 +159,9 @@ same expansions that are available in C++ entries are also available in the Ruby
 entries, that is:
 
 - `${rock:srcDir}` expands to the package's source directory
-- `${rock:buildDir}` expands to the package's build directory
-- `${rock:prefixDir}` expands to the package's prefix (install) directory
+- `${rock:prefixDir}` expands to the package's prefix (install) directory. This
+  currently expands to the same than `srcDir`, but it might change in future
+  autoproj versions.
 - `${rock:which:cmd}` expands to the full path to the command `cmd` within
    the autoproj workspace's PATH.
 
