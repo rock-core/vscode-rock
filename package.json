@@ -83,7 +83,7 @@
                             },
                             "environment": {
                                 "type": "array",
-                                "description": "Environment variables that should be set as { \"name\": \"name_of_var\", \"value\": \"value_of_var\" }" 
+                                "description": "Environment variables that should be set as { \"name\": \"name_of_var\", \"value\": \"value_of_var\" }"
                             },
                             "MIMode": {
                                 "type": "string",
@@ -193,11 +193,12 @@
                     "absolute"
                 ],
                 "pattern": {
-                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (.+):(\\d+):(\\d+):\\s+error:\\s+(.+)",
+                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (.+):(\\d+):(\\d+):\\s+(?:fatal\\s+)?(error):\\s+(.+)",
                     "file": 1,
                     "line": 2,
                     "column": 3,
-                    "message": 4
+                    "severity": 4,
+                    "message": 5
                 }
             },
             {
@@ -207,11 +208,12 @@
                     "absolute"
                 ],
                 "pattern": {
-                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (?:.+:\\d+:\\d+:\n)?(.+):(\\d+):(\\d+):\\s+(?:.*\\s+)?warning:\\s+(.+)",
+                    "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):build: (?:.+:\\d+:\\d+:\n)?(.+):(\\d+):(\\d+):\\s+(?:.*\\s+)?(warning):\\s+(.+)",
                     "file": 1,
                     "line": 2,
                     "column": 3,
-                    "message": 4
+                    "severity": 4,
+                    "message": 5
                 }
             }
         ]
