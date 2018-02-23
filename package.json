@@ -187,6 +187,20 @@
                 ]
             },
             {
+                "name": "autoproj-orogen-error",
+                "owner": "autoproj",
+                "fileLocation": [
+                    "absolute"
+                ],
+                "severity": "error",
+                "pattern": {
+                    "regexp": "Autobuild::Orogen:(?:[^:]+):orogen: (.+):(\\d+):\\s+(.+)",
+                    "file": 1,
+                    "line": 2,
+                    "message": 3
+                }
+            },
+            {
                 "name": "autoproj-gcc-compile-error",
                 "owner": "autoproj",
                 "fileLocation": [
