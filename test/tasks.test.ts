@@ -44,6 +44,12 @@ describe("Task provider", function () {
         let args = ['build', '--tool', '--force', '--deps=f', '--no-confirm', path];
         assertTask(task, process, args);
     }
+    function assertNodepsBuildTask(task: vscode.Task, path: string)
+    {
+        let process = autoprojExePath(path);
+        let args = ['build', '--tool', '--deps=f', path];
+        assertTask(task, process, args);
+    }
     function assertUpdateTask(task: vscode.Task, path: string, isPackage = true)
     {
         let process = autoprojExePath(path);
@@ -75,6 +81,10 @@ describe("Task provider", function () {
         let buildTask = subject.buildTask(path);
         assert.notEqual(buildTask, undefined);
         assertBuildTask(buildTask, path);
+
+        let nodepsBuildTask = subject.nodepsBuildTask(path);
+        assert.notEqual(nodepsBuildTask, undefined);
+        assertNodepsBuildTask(nodepsBuildTask, path);
 
         let forceBuildTask = subject.forceBuildTask(path);
         assert.notEqual(forceBuildTask, undefined);
@@ -142,7 +152,7 @@ describe("Task provider", function () {
         })
         it("is initalized with all tasks", function () {
             let tasks = subject.provideTasks(null);
-            assert.equal(tasks.length, 22);
+            assert.equal(tasks.length, 25);
 
             assertAllTasks(a);
             assertAllTasks(b);
@@ -168,7 +178,7 @@ describe("Task provider", function () {
             subject.reloadTasks();
 
             let tasks = subject.provideTasks(null);
-            assert.equal(tasks.length, 9);
+            assert.equal(tasks.length, 10);
             assertAllTasks(a);
         })
     });

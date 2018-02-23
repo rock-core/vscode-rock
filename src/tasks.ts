@@ -13,6 +13,7 @@ export class AutoprojProvider implements vscode.TaskProvider
     workspaces : autoproj.Workspaces;
 
     private _buildTasks: Map<string, vscode.Task>;
+    private _nodepsBuildTasks: Map<string, vscode.Task>;
     private _forceBuildTasks: Map<string, vscode.Task>;
     private _updateTasks: Map<string, vscode.Task>;
     private _checkoutTasks: Map<string, vscode.Task>;
@@ -82,6 +83,12 @@ export class AutoprojProvider implements vscode.TaskProvider
             [...args, folder])
     }
 
+    private createPackageNodepsBuildTask(name, ws, folder, defs = {}, args : string[] = []) {
+        return this.createPackageBuildTask(name, ws, folder,
+            { mode: 'build-no-deps', ...defs },
+            ['--deps=f', ...args]);
+    }
+
     private createPackageForceBuildTask(name, ws, folder, defs = {}, args : string[] = []) {
         return this.createPackageBuildTask(name, ws, folder,
             { mode: 'force-build', ...defs },
@@ -122,6 +129,11 @@ export class AutoprojProvider implements vscode.TaskProvider
         return this.getCache(this._forceBuildTasks, path);
     }
 
+    public nodepsBuildTask(path: string): vscode.Task
+    {
+        return this.getCache(this._nodepsBuildTasks, path);
+    }
+
     public updateTask(path: string): vscode.Task
     {
         return this.getCache(this._updateTasks, path);
@@ -154,6 +166,7 @@ export class AutoprojProvider implements vscode.TaskProvider
         this._allTasks = [];
 
         this._buildTasks = new Map<string, vscode.Task>();
+        this._nodepsBuildTasks = new Map<string, vscode.Task>();
         this._forceBuildTasks = new Map<string, vscode.Task>();
         this._updateTasks = new Map<string, vscode.Task>();
         this._checkoutTasks = new Map<string, vscode.Task>();
@@ -180,8 +193,10 @@ export class AutoprojProvider implements vscode.TaskProvider
                 this._buildTasks);
             this.addTask(folder, this.createPackageCheckoutTask(`${ws.name}: Checkout ${relative}`, ws, folder),
                 this._checkoutTasks);
-            this.addTask(folder, this.createPackageForceBuildTask(`${ws.name}: Force Build ${relative}`, ws, folder),
+            this.addTask(folder, this.createPackageForceBuildTask(`${ws.name}: Force Build ${relative} (nodeps)`, ws, folder),
                 this._forceBuildTasks);
+            this.addTask(folder, this.createPackageNodepsBuildTask(`${ws.name}: Build ${relative} (nodeps)`, ws, folder),
+                this._nodepsBuildTasks);
             this.addTask(folder, this.createPackageUpdateTask(`${ws.name}: Update ${relative}`, ws, folder),
                 this._updateTasks);
         })
