@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/g-arjones/vscode-rock.svg?branch=master)](https://travis-ci.org/g-arjones/vscode-rock)
-[![Coverage Status](https://coveralls.io/repos/github/g-arjones/vscode-rock/badge.svg?branch=master)](https://coveralls.io/github/g-arjones/vscode-rock?branch=master)
+[![Build Status](https://travis-ci.org/rock-core/vscode-rock.svg?branch=master)](https://travis-ci.org/rock-core/vscode-rock)
+[![Coverage Status](https://coveralls.io/repos/github/rock-core/vscode-rock/badge.svg?branch=master)](https://coveralls.io/github/rock-core/vscode-rock?branch=master)
 
 # Rock README
 
