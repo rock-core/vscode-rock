@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/g-arjones/vscode-rock.svg?branch=master)](https://travis-ci.org/g-arjones/vscode-rock)
+
 # Rock README
 
 This extension provides basic services related to using Visual Studio Code to
