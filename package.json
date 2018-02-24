@@ -237,8 +237,7 @@
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
         "postinstall": "node ./node_modules/vscode/bin/install",
-        "test": "npm run compile && node ./node_modules/vscode/bin/test",
-        "coveralls": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
+        "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
     "extensionDependencies": [
         "ms-vscode.cpptools",
@@ -255,10 +254,14 @@
         "@types/js-yaml": "latest",
         "@types/node": "^7.0.43",
         "@types/should": "latest",
-        "coveralls": "^3.0.0",
         "decache": "^4.1.0",
+        "del": "^3.0.0",
+        "gulp": "^3.9.1",
+        "gulp-coveralls": "^0.1.4",
+        "gulp-json-editor": "^2.2.2",
         "istanbul": "^0.4.5",
         "remap-istanbul": "^0.6.4",
+        "run-sequence": "^2.2.1",
         "should": "latest",
         "typemoq": "latest",
         "typescript": "^2.6.1",

@@ -10,9 +10,12 @@ before_install:
       sleep 3;
     fi
 
+install:
+  - npm install -g --silent gulp-cli
+
 script:
   - npm install
   - npm run compile
-  - "sed -i.bak 's/\"enabled\": false/\"enabled\": true/' coverconfig.json"
+  - gulp cover:enable
   - npm run test
-  - npm run coveralls
+  - gulp cover:publish
