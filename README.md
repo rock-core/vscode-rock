@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/rock-core/vscode-rock.svg?branch=master)](https://travis-ci.org/rock-core/vscode-rock)
+[![Coverage Status](https://coveralls.io/repos/github/rock-core/vscode-rock/badge.svg?branch=master)](https://coveralls.io/github/rock-core/vscode-rock?branch=master)
+
 # Rock README
 
 This extension provides basic services related to using Visual Studio Code to

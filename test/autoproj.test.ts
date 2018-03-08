@@ -563,6 +563,7 @@ describe("Autoproj helpers tests", function () {
                     returns(() => ready);
                 let p = subject.syskitDefaultStart();
                 await ready;
+                await subject.syskitDefaultStarted();
                 processMock.emit('exit', 0, undefined)
                 await helpers.assertThrowsAsync(p,
                     new RegExp(`^syskit background process for ${subject.root} quit`));
