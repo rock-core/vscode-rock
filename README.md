@@ -168,6 +168,50 @@ entries, that is:
 - `${rock:which:cmd}` expands to the full path to the command `cmd` within
    the autoproj workspace's PATH.
 
+### Syskit Workflow
+
+The only syskit-specific workflow available right now is the ability to
+configure the Syskit IDE to open file links directly in VSCode. To do so, open
+`$HOME/.config/syskit.conf` and create or update the `[Main]` section to have
+
+~~~
+cmdline=code --goto %FILEPATH:%LINENO
+~~~
+
+For instance, a freshly created `syskit.conf` would look like:
+
+~~~
+[Main]
+cmdline=code --goto %FILEPATH:%LINENO
+~~~
+
+Moreover, as part of a good general Syskit workflow in VSCode, we recommend
+creating task entries to start `rock-gazebo` and the IDE. For instance:
+
+~~~
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "rock-gazebo right_margin",
+            "type": "shell",
+            "command": "cd ${workspaceRoot} ; ../../.autoproj/bin/autoproj exec rock-gazebo right_margin",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "syskit (gazebo)",
+            "type": "shell",
+            "command": "cd ${workspaceRoot} ; ../../.autoproj/bin/autoproj exec syskit ide -rgazebo",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}
+~~~
+
 ## Known Issues
 
 See [the issue page on GitHub](https://github.com/doudou/rock_website/issues?q=is%3Aopen+is%3Aissue+label%3Avscode)
