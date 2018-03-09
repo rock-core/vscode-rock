@@ -333,6 +333,27 @@ export class Workspace
         return p;
     }
 
+    public readWatchPID(): Promise<number>
+    {
+        return new Promise((resolve, reject) => {
+            fs.readFile(path.join(this.root, '.autoproj', 'watch'),
+                (err, data) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        let pid = Number(data.toString());
+                        if (isNaN(pid) || pid == 0) {
+                            reject(new Error("invalid watch PID file"));
+                        }
+                        else {
+                            resolve(pid);
+                        }
+                    }
+                })
+        })
+    }
+
     // Private API, made public only for testing reasons
     private redirectProcessToChannel(name, shortname, subprocess : Process)
     {
