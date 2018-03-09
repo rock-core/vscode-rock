@@ -667,6 +667,29 @@ describe("Autoproj helpers tests", function () {
                     new RegExp(`^Syskit background process for ${ws.root} has not been started`))
             })
         })
+
+        describe("readWatchPID", function() {
+            let workspace : autoproj.Workspace;
+
+            beforeEach(async function() {
+                let setup = new helpers.TestSetup();
+                let { mock, ws } = setup.createAndRegisterWorkspace('ws');
+                workspace = ws;
+            })
+            it ("errors if the watch file does not exist", async function() {
+                await helpers.assertThrowsAsync(workspace.readWatchPID(),
+                    new RegExp("^ENOENT: no such file or directory"))
+            })
+            it ("errors if the watch file is empty", async function() {
+                helpers.mkfile('', 'ws', '.autoproj', 'watch');
+                await helpers.assertThrowsAsync(workspace.readWatchPID(),
+                    new RegExp(`^invalid watch PID file$`))
+            })
+            it ("returns the PID if the file contains a number", async function() {
+                helpers.mkfile('1234', 'ws', '.autoproj', 'watch');
+                assert.strictEqual(1234, await workspace.readWatchPID())
+            })
+        })
     })
     describe("Workspaces", function () {
         let workspaces: autoproj.Workspaces;

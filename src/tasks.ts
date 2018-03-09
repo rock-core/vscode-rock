@@ -12,6 +12,7 @@ export class AutoprojProvider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;
 
+    private _watchTasks: Map<string, vscode.Task>;
     private _buildTasks: Map<string, vscode.Task>;
     private _nodepsBuildTasks: Map<string, vscode.Task>;
     private _forceBuildTasks: Map<string, vscode.Task>;
@@ -37,6 +38,12 @@ export class AutoprojProvider implements vscode.TaskProvider
         return this.createTask(name, ws,
             { mode: 'osdeps', ...defs },
             ['osdeps', '--color', ...args]);
+    }
+
+    private createWatchTask(name, ws, defs = {}, args : string[] = []) {
+        return this.createTask(name, ws,
+            { mode: 'watch', ...defs },
+            ['watch', '--show-events', ...args]);
     }
 
     private createBuildTask(name, ws, defs = {}, args : string[] = []) {
@@ -125,6 +132,11 @@ export class AutoprojProvider implements vscode.TaskProvider
         return this.getCache(this._buildTasks, path);
     }
 
+    public watchTask(path: string): vscode.Task
+    {
+        return this.getCache(this._watchTasks, path);
+    }
+
     public forceBuildTask(path: string): vscode.Task
     {
         return this.getCache(this._forceBuildTasks, path);
@@ -166,6 +178,7 @@ export class AutoprojProvider implements vscode.TaskProvider
     {
         this._allTasks = [];
 
+        this._watchTasks = new Map<string, vscode.Task>();
         this._buildTasks = new Map<string, vscode.Task>();
         this._nodepsBuildTasks = new Map<string, vscode.Task>();
         this._forceBuildTasks = new Map<string, vscode.Task>();
@@ -175,6 +188,8 @@ export class AutoprojProvider implements vscode.TaskProvider
         this._updateConfigTasks = new Map<string, vscode.Task>();
 
         this.workspaces.forEachWorkspace((ws) => {
+            this.addTask(ws.root, this.createWatchTask(`${ws.name}: Watch`, ws),
+                this._watchTasks);
             this.addTask(ws.root, this.createBuildTask(`${ws.name}: Build`, ws),
                 this._buildTasks);
             this.addTask(ws.root, this.createCheckoutTask(`${ws.name}: Checkout`, ws),

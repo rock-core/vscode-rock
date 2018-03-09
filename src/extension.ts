@@ -23,7 +23,7 @@ function handleNewWorkspaceFolder(
     let { added, workspace } = workspaces.addFolder(path);
     if (added && workspace) {
         workspace.ensureSyskitContextAvailable().catch(() => {})
-
+        vscode.commands.executeCommand('workbench.action.tasks.runTask', `autoproj: ${workspace.name}: Watch`)
     }
     configManager.setupPackage(path).catch((reason) => {
         vscode.window.showErrorMessage(reason.message);
@@ -52,7 +52,12 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
                 handleNewWorkspaceFolder(folder.uri.fsPath, rockContext, workspaces, configManager);
             });
             event.removed.forEach((folder) => {
-                workspaces.deleteFolder(folder.uri.fsPath);
+                let deletedWs = workspaces.deleteFolder(folder.uri.fsPath);
+                if (deletedWs) {
+                    deletedWs.readWatchPID().
+                        then((pid) => process.kill(pid, 'SIGINT')).
+                        catch(() => {})
+                }
             });
             taskProvider.reloadTasks();
         })

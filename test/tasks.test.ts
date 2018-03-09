@@ -32,6 +32,12 @@ describe("Task provider", function () {
         let wsRoot = autoproj.findWorkspaceRoot(basePath) as string;
         return autoproj.autoprojExePath(wsRoot);
     }
+    function assertWatchTask(task: vscode.Task, path: string)
+    {
+        let process = autoprojExePath(path);
+        let args = ['watch', '--show-events'];
+        assertTask(task, process, args);
+    }
     function assertBuildTask(task: vscode.Task, path: string, isPackage = true)
     {
         let process = autoprojExePath(path);
@@ -76,7 +82,7 @@ describe("Task provider", function () {
         let args = ['update', '--progress=f', '-k', '--color', '--config'];
         assertTask(task, process, args);
     }
-    function assertAllTasks(path: string)
+    function assertAllPackageTasks(path: string)
     {
         let buildTask = subject.buildTask(path);
         assert.notEqual(buildTask, undefined);
@@ -97,14 +103,18 @@ describe("Task provider", function () {
         let checkoutTask = subject.checkoutTask(path);
         assert.notEqual(checkoutTask, undefined);
         assertCheckoutTask(checkoutTask, path);
+    }
 
-        let ws = workspaces.folderToWorkspace.get(path) as autoproj.Workspace;
-        let wsRoot = ws.root;
-        buildTask = subject.buildTask(wsRoot);
+    function assertAllWorkspaceTasks(wsRoot: string) {
+        let watchTask = subject.watchTask(wsRoot);
+        assert.notEqual(watchTask, undefined);
+        assertWatchTask(watchTask, wsRoot);
+
+        let buildTask = subject.buildTask(wsRoot);
         assert.notEqual(buildTask, undefined);
         assertBuildTask(buildTask, wsRoot, false);
 
-        checkoutTask = subject.checkoutTask(wsRoot);
+        let checkoutTask = subject.checkoutTask(wsRoot);
         assert.notEqual(checkoutTask, undefined);
         assertCheckoutTask(checkoutTask, wsRoot, false);
 
@@ -116,20 +126,22 @@ describe("Task provider", function () {
         assert.notEqual(updateConfigTask, undefined);
         assertUpdateConfigTask(updateConfigTask, wsRoot);
 
-        updateTask = subject.updateTask(wsRoot);
+        let updateTask = subject.updateTask(wsRoot);
         assert.notEqual(updateTask, undefined);
         assertUpdateTask(updateTask, wsRoot, false);
     }
 
     describe("in a non empty workspace", function () {
+        let wsOneRoot: string;
+        let wsTwoRoot: string;
         let a: string;
         let b: string;
         let c: string;
         let d: string;
         let e: string;
         beforeEach(function () {
-            helpers.mkdir('one');
-            helpers.mkdir('two');
+            wsOneRoot = helpers.mkdir('one');
+            wsTwoRoot = helpers.mkdir('two');
             helpers.mkdir('one', '.autoproj');
             helpers.mkdir('two', '.autoproj');
             d = helpers.mkdir('one', 'autoproj');
@@ -150,13 +162,21 @@ describe("Task provider", function () {
             workspaces.addFolder(e);
             subject = new tasks.AutoprojProvider(workspaces);
         })
+
         it("is initalized with all tasks", function () {
             let tasks = subject.provideTasks(null);
-            assert.equal(tasks.length, 25);
-
-            assertAllTasks(a);
-            assertAllTasks(b);
-            assertAllTasks(c);
+            assert.equal(tasks.length, 27);
+        })
+        it("is initalized with all workspace tasks", function () {
+            let tasks = subject.provideTasks(null);
+            assertAllWorkspaceTasks(wsOneRoot);
+            assertAllWorkspaceTasks(wsTwoRoot);
+        });
+        it("is initalized with all package tasks", function () {
+            let tasks = subject.provideTasks(null);
+            assertAllPackageTasks(a);
+            assertAllPackageTasks(b);
+            assertAllPackageTasks(c);
         });
     });
 
@@ -178,8 +198,9 @@ describe("Task provider", function () {
             subject.reloadTasks();
 
             let tasks = subject.provideTasks(null);
-            assert.equal(tasks.length, 10);
-            assertAllTasks(a);
+            assert.equal(tasks.length, 11);
+            assertAllWorkspaceTasks(helpers.fullPath());
+            assertAllPackageTasks(a);
         })
     });
 });
