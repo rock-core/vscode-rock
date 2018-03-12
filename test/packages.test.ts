@@ -120,15 +120,6 @@ describe("PackageFactory", function () {
                 let aPackage = await subject.createPackage(path, s.context);
                 assert.equal(aPackage.workspace, ws);
             })
-            it("attempts to regenerate the manifest if the package is not present in it", async function() {
-                mockWS.setup(x => x.envsh()).
-                    returns(() => {
-                        s.addPackageToManifest(ws, ['package'], { type: 'Autobuild::Ruby' })
-                        return ws.reload();
-                    });
-                let aPackage = await subject.createPackage(path, s.context);
-                assert.deepEqual(aPackage.type, rubyType);
-            })
             it("returns OTHER if the package is not in the manifest even after reloading", async function () {
                 mockWS.setup(x => x.envsh()).returns(() => Promise.resolve(emptyInfo));
                 let aPackage = await subject.createPackage(path, s.context);
