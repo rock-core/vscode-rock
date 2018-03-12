@@ -88,4 +88,10 @@ export class VSCode {
     public createOutputChannel(name: string) {
         return vscode.window.createOutputChannel(name);
     }
+
+    public updateWorkspaceFolders(start: number, deleteCount: number | undefined | null,
+        ...workspaceFoldersToAdd: { name?: string, uri: vscode.Uri }[]): boolean
+    {
+        return vscode.workspace.updateWorkspaceFolders(start, deleteCount, ...workspaceFoldersToAdd);
+    }
 }

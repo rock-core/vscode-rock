@@ -115,6 +115,11 @@
                 "command": "rock.addLaunchConfig"
             },
             {
+                "title": "Add package to workspace",
+                "category": "Rock",
+                "command": "rock.addPackageToWorkspace"
+            },
+            {
                 "title": "Update VS Code configuration",
                 "category": "Rock",
                 "command": "rock.updateCodeConfig"
