@@ -148,46 +148,39 @@ export class Commands
         this._context.outputChannel.show();
     }
 
-    packagePickerChoices(): Promise<{ label, description, pkg }[]>
+    async packagePickerChoices(): Promise<{ label, description, pkg }[]>
     {
         let choices: { label, description, pkg }[] = [];
-        function addChoice(aPkg: autoproj.Package, ws: autoproj.WorkspaceInfo)
-        {
-            const choice = {
-                label: aPkg.name,
-                description: basename(ws.path),
-                pkg: aPkg
-            }
-            choices.push(choice);
-        }
+        let fsPathsObj = {};
+        const wsInfos: Promise<autoproj.WorkspaceInfo>[] = [];
 
-        return new Promise<{ label, description, pkg }[]>((resolve, reject) => {
-            let pending: any[] = [];
-            this._context.workspaces.forEachWorkspace((ws) => {
-                pending.push(ws.info().then((wsInfo) => {
-                        for (const aPkg of wsInfo.packages) {
-                            if (!this._vscode.workspaceFolders
-                                || !this._vscode.workspaceFolders.find((item) => item.uri.fsPath == aPkg[1].srcdir))
-                            {
-                                addChoice(aPkg[1], wsInfo);
-                            }
-                        }
-                    },
-                    (err) => {
-                        reject(new Error(`Could not load installation manifest: ${err.message}`));
-                    }));
-            });
-            Promise.all(pending).then(_ => {
-                choices.sort((a, b) => {
-                    if (a.pkg.name < b.pkg.name)
-                        return -1;
-                    if (a.pkg.name > b.pkg.name)
-                        return 1;
-                    return 0;
-                })
-                resolve(choices);
-            })
-        });
+        this._context.workspaces.forEachWorkspace((ws) => wsInfos.push(ws.info()));
+        if (this._vscode.workspaceFolders) {
+            for (const folder of this._vscode.workspaceFolders) {
+                fsPathsObj[folder.uri.fsPath] = true;
+            }
+        }
+        for (const wsInfoP of wsInfos) {
+            try {
+                const wsInfo = await wsInfoP;
+                for (const aPkg of wsInfo.packages) {
+                    if (!fsPathsObj.hasOwnProperty(aPkg[1].srcdir)) {
+                        choices.push({
+                            label: aPkg[1].name,
+                            description: basename(wsInfo.path),
+                            pkg: aPkg[1]
+                        });
+                    }
+                }
+            }
+            catch (err) {
+                throw new Error(
+                    `Could not load installation manifest: ${err.message}`);
+            }
+        }
+        choices.sort((a, b) =>
+            a.pkg.name < b.pkg.name ? -1 : a.pkg.name > b.pkg.name ? 1 : 0);
+        return choices;
     }
     async addPackageToWorkspace()
     {
@@ -208,9 +201,11 @@ export class Commands
         if (selectedOption) {
             const folder = { uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
             const wsFolders = this._vscode.workspaceFolders;
-            const added = this._vscode.updateWorkspaceFolders(wsFolders ? wsFolders.length : 0, null, folder);
-            if (!added) {
-                this._vscode.showErrorMessage(`Could not add folder: ${selectedOption.pkg.srcdir}`);
+            const start = wsFolders ? wsFolders.length : 0;
+
+            if (!this._vscode.updateWorkspaceFolders(start, null, folder)) {
+                this._vscode.showErrorMessage(
+                    `Could not add folder: ${selectedOption.pkg.srcdir}`);
             }
         }
     }
