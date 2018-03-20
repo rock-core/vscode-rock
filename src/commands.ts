@@ -148,11 +148,74 @@ export class Commands
         this._context.outputChannel.show();
     }
 
+    async packagePickerChoices(): Promise<{ label, description, pkg }[]>
+    {
+        let choices: { label, description, pkg }[] = [];
+        let fsPathsObj = {};
+        const wsInfos: Promise<autoproj.WorkspaceInfo>[] = [];
+
+        this._context.workspaces.forEachWorkspace((ws) => wsInfos.push(ws.info()));
+        if (this._vscode.workspaceFolders) {
+            for (const folder of this._vscode.workspaceFolders) {
+                fsPathsObj[folder.uri.fsPath] = true;
+            }
+        }
+        for (const wsInfoP of wsInfos) {
+            try {
+                const wsInfo = await wsInfoP;
+                for (const aPkg of wsInfo.packages) {
+                    if (!fsPathsObj.hasOwnProperty(aPkg[1].srcdir)) {
+                        choices.push({
+                            label: aPkg[1].name,
+                            description: basename(wsInfo.path),
+                            pkg: aPkg[1]
+                        });
+                    }
+                }
+            }
+            catch (err) {
+                throw new Error(
+                    `Could not load installation manifest: ${err.message}`);
+            }
+        }
+        choices.sort((a, b) =>
+            a.pkg.name < b.pkg.name ? -1 : a.pkg.name > b.pkg.name ? 1 : 0);
+        return choices;
+    }
+    async addPackageToWorkspace()
+    {
+        const tokenSource = new vscode.CancellationTokenSource();
+        const options: vscode.QuickPickOptions = {
+            placeHolder: 'Select a package to add to this workspace'
+        }
+        const choices = this.packagePickerChoices();
+        choices.catch((err) => {
+            this._vscode.showErrorMessage(err.message);
+            tokenSource.cancel();
+        })
+
+        const selectedOption = await this._vscode.showQuickPick(choices,
+            options, tokenSource.token);
+
+        tokenSource.dispose();
+        if (selectedOption) {
+            const folder = { uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
+            const wsFolders = this._vscode.workspaceFolders;
+            const start = wsFolders ? wsFolders.length : 0;
+
+            if (!this._vscode.updateWorkspaceFolders(start, null, folder)) {
+                this._vscode.showErrorMessage(
+                    `Could not add folder: ${selectedOption.pkg.srcdir}`);
+            }
+        }
+    }
+
     register()
     {
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', () => { this.updatePackageInfo() });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', () => { this.addLaunchConfig() });
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', () => { this.updateCodeConfig() });
         this._vscode.registerAndSubscribeCommand('rock.showOutputChannel', () => { this.showOutputChannel() });
+        this._vscode.registerAndSubscribeCommand('rock.addPackageToWorkspace', () => { this.addPackageToWorkspace() });
     }
 }

@@ -28,7 +28,7 @@
         "url": "https://github.com/rock-core/vscode-rock.git"
     },
     "engines": {
-        "vscode": "^1.18.0"
+        "vscode": "^1.21.0"
     },
     "activationEvents": [
         "*"
@@ -113,6 +113,11 @@
                 "title": "Add launch config",
                 "category": "Rock",
                 "command": "rock.addLaunchConfig"
+            },
+            {
+                "title": "Add package to workspace",
+                "category": "Rock",
+                "command": "rock.addPackageToWorkspace"
             },
             {
                 "title": "Update VS Code configuration",

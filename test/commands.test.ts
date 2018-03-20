@@ -322,4 +322,154 @@ describe("Commands", function () {
             assert.strictEqual(ws, choices[0].ws);
         });
     })
+    describe("packagePickerChoices()", function () {
+        let mockWs: TypeMoq.IMock<autoproj.Workspace>;
+        let mockWsInfo: TypeMoq.IMock<autoproj.WorkspaceInfo>;
+        let mockPackageOne: TypeMoq.IMock<autoproj.Package>;
+        let mockPackageTwo: TypeMoq.IMock<autoproj.Package>;
+        let pathToPackage: Map<string, autoproj.Package>;
+        beforeEach(function () {
+            mockWs = TypeMoq.Mock.ofType<autoproj.Workspace>();
+            mockWsInfo = TypeMoq.Mock.ofType<autoproj.WorkspaceInfo>();
+            mockPackageOne = TypeMoq.Mock.ofType<autoproj.Package>();
+            mockPackageTwo = TypeMoq.Mock.ofType<autoproj.Package>();
+            pathToPackage = new Map();
+            mockWsInfo.setup((x: any) => x.then).returns(() => undefined);
+            mockWsInfo.setup(x => x.path).returns(() => '/path/to');
+            mockPackageOne.setup(x => x.srcdir).returns(() => '/path/to/one');
+            mockPackageTwo.setup(x => x.srcdir).returns(() => '/path/to/two');
+            mockPackageOne.setup(x => x.name).returns(() => 'one');
+            mockPackageTwo.setup(x => x.name).returns(() => 'two');
+            pathToPackage.set('/path/to/two', mockPackageTwo.object);
+            pathToPackage.set('/path/to/one', mockPackageOne.object);
+            mockWorkspaces.setup(x => x.forEachWorkspace(TypeMoq.It.isAny())).
+                callback((cb) => cb(mockWs.object));
+        })
+        it("throws if installation manifest loading fails", async function () {
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWs.setup(x => x.info()).returns(() => Promise.reject('test'));
+            await helpers.assertThrowsAsync(subject.packagePickerChoices(),
+                /Could not load installation manifest/)
+        })
+        it("returns all packages if workspace is empty", async function () {
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWs.setup(x => x.info()).returns(() => Promise.resolve(mockWsInfo.object));
+            mockWsInfo.setup(x => x.packages).returns(() => pathToPackage);
+
+            const choices = await subject.packagePickerChoices();
+            assert.equal(choices.length, 2);
+            assert.strictEqual(choices[0].pkg, mockPackageOne.object);
+            assert.strictEqual(choices[0].label, 'one');
+            assert.strictEqual(choices[0].description, 'to');
+            assert.strictEqual(choices[1].pkg, mockPackageTwo.object);
+            assert.strictEqual(choices[1].label, 'two');
+            assert.strictEqual(choices[1].description, 'to');
+        })
+        it("returns packages that are not in the current workspace", async function () {
+            let folder: vscode.WorkspaceFolder = {
+                uri: vscode.Uri.file('/path/to/one'),
+                name: 'one',
+                index: 0
+            }
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => [folder]);
+            mockWs.setup(x => x.info()).returns(() => Promise.resolve(mockWsInfo.object));
+            mockWsInfo.setup(x => x.packages).returns(() => pathToPackage);
+
+            const choices = await subject.packagePickerChoices();
+            assert.equal(choices.length, 1);
+            assert.strictEqual(choices[0].pkg, mockPackageTwo.object);
+            assert.strictEqual(choices[0].label, 'two');
+            assert.strictEqual(choices[0].description, 'to');
+        })
+    })
+    describe("addPackageToWorkspace()", function () {
+        let mockSubject: TypeMoq.IMock<commands.Commands>;
+        let mockPackageOne: TypeMoq.IMock<autoproj.Package>;
+        let mockPackageTwo: TypeMoq.IMock<autoproj.Package>;
+        let choices: { label, description, pkg }[] = [];
+        const options: vscode.QuickPickOptions = {
+            placeHolder: 'Select a package to add to this workspace'
+        }
+        beforeEach(function () {
+            mockPackageOne = TypeMoq.Mock.ofType<autoproj.Package>();
+            mockPackageTwo = TypeMoq.Mock.ofType<autoproj.Package>();
+            mockPackageOne.setup(x => x.srcdir).returns(() => '/path/to/one');
+            mockPackageTwo.setup(x => x.srcdir).returns(() => '/path/to/two');
+            mockPackageOne.setup(x => x.name).returns(() => 'one');
+            mockPackageTwo.setup(x => x.name).returns(() => 'two');
+            choices = [{
+                label: 'one',
+                description: 'to',
+                pkg: mockPackageOne.object
+            },
+            {
+                label: 'two',
+                description: 'to',
+                pkg: mockPackageTwo.object
+            }];
+            mockSubject = TypeMoq.Mock.ofInstance(subject);
+            subject = mockSubject.target;
+        });
+        it("shows an error message if manifest loading fails", async function () {
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => Promise.reject(new Error('test')));
+            await subject.addPackageToWorkspace();
+            mockWrapper.verify(x => x.showErrorMessage("test"),
+                TypeMoq.Times.once());
+        })
+        it("shows a quick pick ui", async function () {
+            const promise = Promise.resolve(choices);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            await subject.addPackageToWorkspace();
+
+            mockWrapper.verify(x => x.showErrorMessage(TypeMoq.It.isAny()),
+                TypeMoq.Times.never());
+            mockWrapper.verify(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny()), TypeMoq.Times.once());
+        })
+        it("adds the selected package to the end of the workspace", async function () {
+            const promise = Promise.resolve(choices);
+            const folder: vscode.WorkspaceFolder = {
+                uri: vscode.Uri.file('/path/to/one'),
+                name: 'one',
+                index: 0
+            }
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => [folder]);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            mockWrapper.setup(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[1]));
+            await subject.addPackageToWorkspace();
+
+            mockWrapper.verify(x => x.updateWorkspaceFolders(1, null,
+                { uri: vscode.Uri.file('/path/to/two') }), TypeMoq.Times.once());
+        })
+        it("adds the selected package to the begining of the workspace", async function () {
+            const promise = Promise.resolve(choices);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            mockWrapper.setup(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[1]));
+            await subject.addPackageToWorkspace();
+
+            mockWrapper.verify(x => x.updateWorkspaceFolders(0, null,
+                { uri: vscode.Uri.file('/path/to/two') }), TypeMoq.Times.once());
+        })
+        it("shows an error if folder could not be added", async function () {
+            const promise = Promise.resolve(choices);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            mockWrapper.setup(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[1]));
+            mockWrapper.setup(x => x.updateWorkspaceFolders(0, null,
+                    { uri: vscode.Uri.file('/path/to/two') })).returns(() => false);
+
+            await subject.addPackageToWorkspace();
+            mockWrapper.verify(x => x.showErrorMessage("Could not add folder: /path/to/two"),
+                TypeMoq.Times.once());
+        })
+    })
 });
