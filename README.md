@@ -41,6 +41,16 @@ run `autoproj osdeps`.
 - rock.vscode.gems
 ~~~
 
+## Management of Autoproj Workspaces
+
+The extension will start providing commands and support for a given Rock
+workspace as soon as at least one package from this workspace is opened in
+VSCode (via the "Add Folder to Workspace" command).
+
+Once there is such a folder opened in VSCode, other packages from the same
+workspace can easily be added with the `Rock: add package to workspace` command
+provided by this extension.
+
 ## Important Note about `env.sh`
 
 **Note** there is no need to load the env.sh before you start vscode. Autoproj
