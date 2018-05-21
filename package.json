@@ -249,11 +249,11 @@
         "rebornix.Ruby"
     ],
     "dependencies": {
-        "js-yaml": "latest",
+        "js-yaml": "*",
         "fs-temp": "latest",
-        "jsonc-parser": "latest",
+        "jsonc-parser": "*",
         "request-promise-native": "latest",
-        "request": "latest"
+        "request": "*"
     },
     "devDependencies": {
         "@types/js-yaml": "latest",
