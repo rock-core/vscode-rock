@@ -120,7 +120,9 @@ export class Workspace
         return new Workspace(root, loadInfo, outputChannel);
     }
 
+    // The workspace name
     name: string;
+    // The workspace root directory
     readonly root: string;
     private _info: Promise<WorkspaceInfo>;
     private _infoUpdatedEvent : vscode.EventEmitter<WorkspaceInfo>;
