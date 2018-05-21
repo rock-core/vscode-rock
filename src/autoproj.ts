@@ -475,7 +475,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
         })
     }).then((data) =>
     {
-        let manifest = yaml.safeLoad(data.toString());
+        let manifest = yaml.safeLoad(data.toString()) as any[];
         if (manifest === undefined) {
             manifest = [];
         }

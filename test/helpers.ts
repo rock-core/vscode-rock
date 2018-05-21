@@ -42,7 +42,7 @@ export async function assertThrowsAsync(p, msg: RegExp) : Promise<Error>
         }
         return e;
     }
-    throw new Error("expected promise failure but it succeeded") 
+    throw new Error("expected promise failure but it succeeded")
 }
 
 let root;
@@ -133,7 +133,7 @@ export function addPackageToManifest(ws, path : string[], partialInfo: { [key: s
     };
 
     let manifestPath = Autoproj.installationManifestPath(ws.root)
-    let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString());
+    let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString()) as any[];
     manifest.push(result);
     FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
     ws.reload();
