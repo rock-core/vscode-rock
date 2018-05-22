@@ -2,7 +2,7 @@
     "name": "rock",
     "displayName": "rock",
     "description": "Base support for Rock workspaces",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "publisher": "rock-robotics",
     "license": "SEE LICENSE IN LICENSE.txt",
     "icon": "images/icon.png",
@@ -249,11 +249,11 @@
         "rebornix.Ruby"
     ],
     "dependencies": {
-        "js-yaml": "latest",
+        "js-yaml": "*",
         "fs-temp": "latest",
-        "jsonc-parser": "latest",
+        "jsonc-parser": "*",
         "request-promise-native": "latest",
-        "request": "latest"
+        "request": "*"
     },
     "devDependencies": {
         "@types/js-yaml": "latest",

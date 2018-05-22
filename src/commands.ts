@@ -1,4 +1,4 @@
-import { basename, relative, dirname } from 'path';
+import { basename, relative, dirname, join as pathjoin } from 'path';
 import * as context from './context';
 import * as packages from './packages';
 import * as wrappers from './wrappers';
@@ -10,6 +10,16 @@ function assertWorkspaceNotEmpty(vscode: wrappers.VSCode)
 {
     if (!vscode.workspaceFolders || vscode.workspaceFolders.length == 0)
         throw new Error("Current workspace is empty");
+}
+
+function findInsertIndex(array, predicate) {
+    for (let i = 0; i < array.length; ++i) {
+        let element = array[i];
+        if (predicate(element)) {
+            return i;
+        }
+    }
+    return 0
 }
 
 export class Commands
@@ -152,17 +162,25 @@ export class Commands
     {
         let choices: { label, description, pkg }[] = [];
         let fsPathsObj = {};
-        const wsInfos: Promise<autoproj.WorkspaceInfo>[] = [];
+        const wsInfos: [autoproj.Workspace, Promise<autoproj.WorkspaceInfo>][] = [];
 
-        this._context.workspaces.forEachWorkspace((ws) => wsInfos.push(ws.info()));
+        this._context.workspaces.forEachWorkspace((ws) => wsInfos.push([ws, ws.info()]));
         if (this._vscode.workspaceFolders) {
             for (const folder of this._vscode.workspaceFolders) {
                 fsPathsObj[folder.uri.fsPath] = true;
             }
         }
-        for (const wsInfoP of wsInfos) {
+        for (const [ws, wsInfoP] of wsInfos) {
             try {
                 const wsInfo = await wsInfoP;
+                if (!fsPathsObj.hasOwnProperty(ws.root)) {
+                    let name = `autoproj`
+                    choices.push({
+                        label: name,
+                        description: `${ws.name} Build Configuration`,
+                        pkg: { name: 'autoproj', srcdir: pathjoin(ws.root, 'autoproj') }
+                    });
+                }
                 for (const aPkg of wsInfo.packages) {
                     if (!fsPathsObj.hasOwnProperty(aPkg[1].srcdir)) {
                         choices.push({
@@ -182,6 +200,7 @@ export class Commands
             a.pkg.name < b.pkg.name ? -1 : a.pkg.name > b.pkg.name ? 1 : 0);
         return choices;
     }
+
     async addPackageToWorkspace()
     {
         const tokenSource = new vscode.CancellationTokenSource();
@@ -199,10 +218,16 @@ export class Commands
 
         tokenSource.dispose();
         if (selectedOption) {
-            const folder = { uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
+            const name = selectedOption.pkg.name;
             const wsFolders = this._vscode.workspaceFolders;
-            const start = wsFolders ? wsFolders.length : 0;
+            let start = 0;
+            if (wsFolders) {
+                start = findInsertIndex(wsFolders, ((f) => name < f.name))
+            }
 
+            const folder = {
+                name: name,
+                uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
             if (!this._vscode.updateWorkspaceFolders(start, null, folder)) {
                 this._vscode.showErrorMessage(
                     `Could not add folder: ${selectedOption.pkg.srcdir}`);
