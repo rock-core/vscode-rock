@@ -19,7 +19,7 @@ describe("ConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.ConfigurationProvider(s.context);
+        subject = new debug.ConfigurationProvider(s.context, s.configManager);
         let result = s.createAndRegisterWorkspace('test');
         ws = result.ws;
     })
@@ -166,7 +166,7 @@ describe("CXXConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.CXXConfigurationProvider(s.context);
+        subject = new debug.CXXConfigurationProvider(s.context, s.configManager);
         folder = {
             name: "folder",
             uri: vscode.Uri.file("/path/to/folder"),
@@ -284,6 +284,15 @@ describe("CXXConfigurationProvider", function() {
                     config, undefined);
                 assert.equal(resolvedConfig.cwd, "expanded");
             })
+
+            describe("handling of Sync remotes", function() {
+                it("leaves plain remote targets alone", async function() {
+                    config.mi
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+
+                })
+            })
         })
     })
 })
@@ -297,7 +306,7 @@ describe("RubyConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.RubyConfigurationProvider(s.context);
+        subject = new debug.RubyConfigurationProvider(s.context, s.configManager);
         folder = {
             name: "folder",
             uri: vscode.Uri.file("/path/to/folder"),

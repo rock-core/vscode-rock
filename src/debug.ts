@@ -7,13 +7,16 @@ import * as packages from './packages'
 import * as autoproj from './autoproj'
 import * as child_process from 'child_process';
 import * as syskit from './syskit';
+import * as config from './config';
 
 export class ConfigurationProvider implements vscode.DebugConfigurationProvider
 {
     protected _context : context.Context;
+    protected readonly _configManager: config.ConfigManager;
 
-    constructor(context : context.Context) {
+    constructor(context : context.Context, configManager : config.ConfigManager) {
         this._context = context;
+        this._configManager = configManager;
     }
 
     async resolveDebugConfiguration(folder : vscode.WorkspaceFolder | undefined, config : vscode.DebugConfiguration, token : vscode.CancellationToken | undefined) : Promise<vscode.DebugConfiguration>
@@ -111,17 +114,52 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         config = await this.performExpansionsInObject(config,
             (value) => this.expandAutoprojPaths((name) => ws.which(name), pkg.info, value));
 
-        config.miDebuggerPath = stubScript;
-        if (!config.environment) {
-            config.environment = [];
+        let debuggerServer = config.miDebuggerServerAddress;
+        if (debuggerServer) {
+            if (debuggerServer.startsWith("rock:")) {
+                config.preLaunchTask = this.createGdbserverTask(ws, config, pkg.path);
+            }
         }
-        config.environment = config.environment.concat([
-            { name: "VSCODE_ROCK_AUTOPROJ_PATH", value: ws.autoprojExePath() },
-            { name: "VSCODE_ROCK_AUTOPROJ_DEBUGGER", value: debuggerPath },
-            { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
-        ])
+        else {
+            config.miDebuggerPath = stubScript;
+            if (!config.environment) {
+                config.environment = [];
+            }
+            config.environment = config.environment.concat([
+                { name: "VSCODE_ROCK_AUTOPROJ_PATH", value: ws.autoprojExePath() },
+                { name: "VSCODE_ROCK_AUTOPROJ_DEBUGGER", value: debuggerPath },
+                { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
+            ])
+
+        }
 
         return config;
+    }
+
+    private createGdbserverTask(ws, config, pkgPath) {
+        let debuggerServer = config.miDebuggerServerAddress;
+        let syncNameAndPort = debuggerServer.slice(5);
+        let portIndex = syncNameAndPort.indexOf(":");
+        if (!portIndex) {
+            throw new Error("no port given");
+        }
+        let port = syncNameAndPort.slice(portIndex + 1);
+        let syncName = syncNameAndPort.slice(0, portIndex);
+
+        let uri = ws.syncRemote(syncName);
+        if (!uri) {
+            throw new Error(`no Autoproj Sync host ${syncName} in configuration`);
+        }
+
+        let taskLabel =`${config.name}-gdbserver-${syncName}-${port}`;
+        this._configManager.addTaskConfig(pkgPath, {
+            label: taskLabel,
+            type: 'process',
+            command: ws.autoprojExePath,
+            args: [
+                'sync', 'exec', 'gdbserver', `:${port}`, config.program
+            ]
+        });
     }
 }
 
@@ -150,9 +188,9 @@ export class RubyConfigurationProvider extends ConfigurationProvider
 export class OrogenConfigurationProvider extends CXXConfigurationProvider
 {
     private readonly _vscode: wrappers.VSCode;
-    constructor(context : context.Context, wrapper: wrappers.VSCode)
+    constructor(context : context.Context, wrapper: wrappers.VSCode, configManager: config.ConfigManager)
     {
-        super(context);
+        super(context, configManager);
         this._vscode = wrapper;
     }
 
@@ -195,7 +233,7 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         for(let key in commandLine.env) {
             config.environment.push({ name: key, value: commandLine.env[key] })
         }
-        
+
         if (config.start || config.confDir) {
             this.setupTask(ws, config.deployAs, config.start, config.confDir).
                 catch(err => {
