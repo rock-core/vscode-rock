@@ -117,7 +117,7 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         let debuggerServer = config.miDebuggerServerAddress;
         if (debuggerServer) {
             if (debuggerServer.startsWith("rock:")) {
-                config.preLaunchTask = this.createGdbserverTask(ws, config, pkg.path);
+                this.setupDebugServer(ws, config, pkg.path);
             }
         }
         else {
@@ -136,7 +136,7 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         return config;
     }
 
-    private createGdbserverTask(ws, config, pkgPath) {
+    private setupDebugServer(ws : autoproj.Workspace, config, pkgPath) {
         let debuggerServer = config.miDebuggerServerAddress;
         let syncNameAndPort = debuggerServer.slice(5);
         let portIndex = syncNameAndPort.indexOf(":");
@@ -151,15 +151,10 @@ export class CXXConfigurationProvider extends ConfigurationProvider
             throw new Error(`no Autoproj Sync host ${syncName} in configuration`);
         }
 
-        let taskLabel =`${config.name}-gdbserver-${syncName}-${port}`;
-        this._configManager.addTaskConfig(pkgPath, {
-            label: taskLabel,
-            type: 'process',
-            command: ws.autoprojExePath,
-            args: [
-                'sync', 'exec', 'gdbserver', `:${port}`, config.program
-            ]
-        });
+        config.debugServerPath = ws.autoprojExePath();
+        config.debugServerArgs =
+            `sync exec ${syncName} -- gdbserver --once :${port} "${config.program}"`;
+        config.miDebuggerServerAddress = `${uri.hostname}:${port}`;
     }
 }
 

@@ -608,7 +608,7 @@ export class Workspaces
         return { added, workspace };
     }
 
-    /** De-registers a folder
+    /** De-registers a folderuri.host
      *
      * Removes a folder, and removes the corresponding workspace
      * if it was the last folder of this workspace - in which case

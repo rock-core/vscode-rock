@@ -9,6 +9,7 @@ import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../src/packages'
 import { basename, join as joinPath } from 'path'
+import * as url from 'url'
 
 describe("ConfigurationProvider", function() {
     let root: string;
@@ -203,6 +204,7 @@ describe("CXXConfigurationProvider", function() {
             let stub: string;
             beforeEach(async function() {
                 let result = s.createAndRegisterWorkspace('test');
+                mock = result.mock;
                 ws = result.ws;
                 pkg = await s.registerPackage(ws, ['test'], { type: 'Autobuild::CMake' });
                 folder = {
@@ -287,10 +289,22 @@ describe("CXXConfigurationProvider", function() {
 
             describe("handling of Sync remotes", function() {
                 it("leaves plain remote targets alone", async function() {
-                    config.mi
+                    config.miDebuggerServerAddress = "localhost:4242";
                     let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                         config, undefined);
-
+                    assert.equal("localhost:4242", resolvedConfig.miDebuggerServerAddress);
+                    assert.equal("/path/to/gdb", resolvedConfig.miDebuggerPath);
+                })
+                it("resolves sync targets and sets up server startup", async function() {
+                    config.miDebuggerServerAddress = "rock:target:4242";
+                    mock.setup(x => x.syncRemote("target")).
+                        returns(() => new url.URL("ssh://target.local/"))
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal("target.local:4242", resolvedConfig.miDebuggerServerAddress);
+                    assert.equal(ws.autoprojExePath(), resolvedConfig.debugServerPath);
+                    assert.deepEqual('sync exec target -- gdbserver --once :4242 "/path/to/target"',
+                        resolvedConfig.debugServerArgs);
                 })
             })
         })
