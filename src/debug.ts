@@ -152,8 +152,11 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         }
 
         config.debugServerPath = ws.autoprojExePath();
-        config.debugServerArgs =
-            `sync exec ${syncName} -- gdbserver --once :${port} "${config.program}"`;
+        let debugServerArgs = `sync exec ${syncName} -- gdbserver --once :${port} "${config.program}"`;
+        if (config.args && config.args.length > 0) {
+            debugServerArgs = debugServerArgs + ` "${config.args.join("\" \"")}"`;
+        }
+        config.debugServerArgs = debugServerArgs;
         config.miDebuggerServerAddress = `${uri.hostname}:${port}`;
     }
 }
