@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as syskit from './syskit';
 import * as wrappers from './wrappers';
 import { EventEmitter } from 'events';
+import * as url from 'url';
 
 export function findWorkspaceRoot(rootPath: string): string | null
 {
@@ -26,6 +27,10 @@ export function findWorkspaceRoot(rootPath: string): string | null
 export function autoprojExePath(workspacePath: string): string
 {
     return path.join(workspacePath, '.autoproj', 'bin', 'autoproj')
+}
+export function configFilePath(workspacePath: string): string
+{
+    return path.join(workspacePath, '.autoproj', 'config.yml')
 }
 export function installationManifestPath(workspacePath: string): string
 {
@@ -185,6 +190,26 @@ export class Workspace
     dispose() {
         this._infoUpdatedEvent.dispose();
         this.syskitDefaultStop();
+    }
+
+    syncRemote(name: string) : url.Url | undefined {
+        let autoprojConfig = this.config();
+        let syncConfig = autoprojConfig['sync'];
+        if (!syncConfig)
+            return;
+        let config = syncConfig[name];
+        if (!config)
+            return;
+
+        return new url.URL(config['uri']);
+    }
+
+    config() : object {
+        let data = fs.readFileSync(configFilePath(this.root)).toString();
+        let config = yaml.safeLoad(data.toString());
+        if (config)
+            return config;
+        else return {};
     }
 
     onInfoUpdated(callback: (info: WorkspaceInfo) => any) : vscode.Disposable {
@@ -583,7 +608,7 @@ export class Workspaces
         return { added, workspace };
     }
 
-    /** De-registers a folder
+    /** De-registers a folderuri.host
      *
      * Removes a folder, and removes the corresponding workspace
      * if it was the last folder of this workspace - in which case

@@ -86,6 +86,13 @@ export function registerFile(...path) {
     let joinedPath = fullPath(...path);
     createdFS.push([joinedPath, 'file']);
 }
+export function createConfigFile(data: any, ...workspacePath): string {
+    let joinedPath = fullPath(...workspacePath, '.autoproj', 'config.yml');
+    mkdir(...workspacePath, '.autoproj')
+    FS.writeFileSync(joinedPath, YAML.safeDump(data));
+    createdFS.push([joinedPath, 'file']);
+    return joinedPath;
+}
 export function createInstallationManifest(data: any, ...workspacePath): string {
     let joinedPath = fullPath(...workspacePath);
     joinedPath = Autoproj.installationManifestPath(joinedPath);

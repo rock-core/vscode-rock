@@ -110,6 +110,29 @@ export class ConfigManager
 
         return data;
     }
+    private tasksConfigurationPath(pkgPath: string)
+    {
+        return path.join(pkgPath, ".vscode", "tasks.json");
+    }
+    private writeConfigFile(path, data)
+    {
+        fs.writeFileSync(path, JSON.stringify(data, null, 4), this._defaultWriteOptions);
+    }
+    private updateTasksConfig(path: string, config: vscode.TaskDefinition)
+    {
+        const data = this.loadJsonFile(path);
+
+        if (!data.tasks)
+            data.tasks = [];
+        if (!Array.isArray(data.tasks))
+            throw new Error("Invalid tasks in tasks.json");
+        if (!data.version)
+            data.version = "2.0.0";
+
+        data.tasks = data.tasks.filter(t => t.name != config.name)
+        (data.tasks as Array<any>).unshift(config);
+        this.writeConfigFile(path, data);
+    }
     private launchConfigurationPath(pkgPath: string)
     {
         return path.join(pkgPath, ".vscode", "launch.json");
@@ -122,32 +145,32 @@ export class ConfigManager
         }
         return candidate;
     }
-    private updateLaunchConfig(pkgPath: string, config: vscode.DebugConfiguration)
+    private updateLaunchConfig(path: string, config: vscode.DebugConfiguration)
     {
-        const data = this.loadJsonFile(this.launchConfigurationPath(pkgPath));
+        const data = this.loadJsonFile(path);
 
-        if (!data.configurations) data.configurations = [];
+        if (!data.configurations)
+            data.configurations = [];
         if (!Array.isArray(data.configurations))
             throw new Error("Invalid configuration in launch.json");
+        if (!data.version)
+            data.version = "0.2.0";
 
         config.name = this.uniqueLaunchConfigName(config.name, data.configurations);
         (data.configurations as Array<any>).unshift(config);
-        if (!data.version) data.version = "0.2.0";
-        fs.writeFileSync(this.launchConfigurationPath(pkgPath),
-            JSON.stringify(data, null, 4), this._defaultWriteOptions);
+        this.writeConfigFile(path, data);
     }
     addLaunchConfig(pkgPath: string, config: vscode.DebugConfiguration)
     {
-        if (fs.existsSync(this.launchConfigurationPath(pkgPath))) {
-            this.updateLaunchConfig(pkgPath, config);
+        const path = this.launchConfigurationPath(pkgPath);
+        if (fs.existsSync(path)) {
+            this.updateLaunchConfig(path, config);
         } else {
-            const data = {
+            this.createVscodeFolder(pkgPath);
+            this.writeConfigFile(path, {
                 version: "0.2.0",
                 configurations: [config]
-            }
-            this.createVscodeFolder(pkgPath);
-            fs.writeFileSync(this.launchConfigurationPath(pkgPath),
-                JSON.stringify(data, null, 4), this._defaultWriteOptions);
+            });
         }
     }
     suggestedSettings(): any

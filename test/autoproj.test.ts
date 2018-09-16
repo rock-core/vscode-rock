@@ -7,6 +7,7 @@ import * as autoproj from '../src/autoproj';
 import * as helpers from './helpers';
 import * as TypeMoq from 'typemoq'
 import * as events from 'events';
+import * as url from 'url';
 
 async function assertProcessIsShown(shortname, cmd, promise, subprocess, channel)
 {
@@ -236,6 +237,29 @@ describe("Autoproj helpers tests", function () {
                 workspace.onInfoUpdated((callback) => called = true);
                 await workspace.reload();
                 assert(called);
+            })
+        })
+
+        describe("syncRemote", function() {
+            let ws : autoproj.Workspace;
+            beforeEach(async function() {
+                helpers.mkdir('.autoproj');
+                helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+                ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+            })
+            it("returns undefined if there is no sync configuration", function() {
+                helpers.createConfigFile({});
+                assert.strictEqual(undefined, ws.syncRemote("test"));
+            })
+            it("returns undefined if the sync target does not exist", function() {
+                helpers.createConfigFile({sync: {}});
+                assert.strictEqual(undefined, ws.syncRemote("test"));
+            })
+            it("returns an existing target's sync URI", function() {
+                helpers.createConfigFile({sync: {test: {uri: 'ssh://host/'}}});
+                let uri = ws.syncRemote("test") as url.Url;
+                assert.equal('host', uri.hostname);
+                assert.equal('ssh:', uri.protocol);
             })
         })
 

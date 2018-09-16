@@ -134,11 +134,11 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     extensionContext.subscriptions.push(workspaces);
     extensionContext.subscriptions.push(outputChannel);
 
-    let cppDebugProvider = new debug.CXXConfigurationProvider(rockContext);
+    let cppDebugProvider = new debug.CXXConfigurationProvider(rockContext, configManager);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('cppdbg', cppDebugProvider));
-    let rubyDebugProvider = new debug.RubyConfigurationProvider(rockContext);
+    let rubyDebugProvider = new debug.RubyConfigurationProvider(rockContext, configManager);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('Ruby', rubyDebugProvider));
-    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, vscodeWrapper);
+    let orogenDebugProvider = new debug.OrogenConfigurationProvider(rockContext, vscodeWrapper, configManager);
     extensionContext.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('orogen', orogenDebugProvider));
 
     extensionContext.subscriptions.push(rockContext);

@@ -2,7 +2,7 @@
     "name": "rock",
     "displayName": "rock",
     "description": "Base support for Rock workspaces",
-    "version": "0.2.2",
+    "version": "0.3.0",
     "publisher": "rock-robotics",
     "license": "SEE LICENSE IN LICENSE.txt",
     "icon": "images/icon.png",

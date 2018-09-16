@@ -9,6 +9,7 @@ import * as helpers from './helpers'
 import * as path from 'path'
 import * as packages from '../src/packages'
 import { basename, join as joinPath } from 'path'
+import * as url from 'url'
 
 describe("ConfigurationProvider", function() {
     let root: string;
@@ -19,7 +20,7 @@ describe("ConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.ConfigurationProvider(s.context);
+        subject = new debug.ConfigurationProvider(s.context, s.configManager);
         let result = s.createAndRegisterWorkspace('test');
         ws = result.ws;
     })
@@ -166,7 +167,7 @@ describe("CXXConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.CXXConfigurationProvider(s.context);
+        subject = new debug.CXXConfigurationProvider(s.context, s.configManager);
         folder = {
             name: "folder",
             uri: vscode.Uri.file("/path/to/folder"),
@@ -203,6 +204,7 @@ describe("CXXConfigurationProvider", function() {
             let stub: string;
             beforeEach(async function() {
                 let result = s.createAndRegisterWorkspace('test');
+                mock = result.mock;
                 ws = result.ws;
                 pkg = await s.registerPackage(ws, ['test'], { type: 'Autobuild::CMake' });
                 folder = {
@@ -284,6 +286,27 @@ describe("CXXConfigurationProvider", function() {
                     config, undefined);
                 assert.equal(resolvedConfig.cwd, "expanded");
             })
+
+            describe("handling of Sync remotes", function() {
+                it("leaves plain remote targets alone", async function() {
+                    config.miDebuggerServerAddress = "localhost:4242";
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal("localhost:4242", resolvedConfig.miDebuggerServerAddress);
+                    assert.equal("/path/to/gdb", resolvedConfig.miDebuggerPath);
+                })
+                it("resolves sync targets and sets up server startup", async function() {
+                    config.miDebuggerServerAddress = "rock:target:4242";
+                    mock.setup(x => x.syncRemote("target")).
+                        returns(() => new url.URL("ssh://target.local/"))
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal("target.local:4242", resolvedConfig.miDebuggerServerAddress);
+                    assert.equal(ws.autoprojExePath(), resolvedConfig.debugServerPath);
+                    assert.deepEqual('sync exec target -- gdbserver --once :4242 "/path/to/target"',
+                        resolvedConfig.debugServerArgs);
+                })
+            })
         })
     })
 })
@@ -297,7 +320,7 @@ describe("RubyConfigurationProvider", function() {
     beforeEach(function() {
         root = helpers.init();
         s = new helpers.TestSetup();
-        subject = new debug.RubyConfigurationProvider(s.context);
+        subject = new debug.RubyConfigurationProvider(s.context, s.configManager);
         folder = {
             name: "folder",
             uri: vscode.Uri.file("/path/to/folder"),
