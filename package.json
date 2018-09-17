@@ -235,6 +235,54 @@
                     "message": 5
                 }
             }
+        ],
+        "taskDefinitions": [
+            {
+                "type": "autoproj-package",
+                "required": ["workspace", "mode", "path"],
+                "properties": {
+                    "workspace": {
+                        "type": "string",
+                        "description": "The workspace root"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "The package path"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "update",
+                            "checkout",
+                            "build",
+                            "build-no-deps",
+                            "force-build"
+                        ],
+                        "description": "The operation mode"
+                    }
+                }
+            },
+            {
+                "type": "autoproj-workspace",
+                "required": ["workspace", "mode"],
+                "properties": {
+                    "workspace": {
+                        "type": "string",
+                        "description": "The workspace root"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "osdeps",
+                            "watch",
+                            "update-config",
+                            "update",
+                            "checkout"
+                        ],
+                        "description": "The operation mode"
+                    }
+                }
+            }
         ]
     },
     "scripts": {
