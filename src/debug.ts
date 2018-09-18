@@ -108,6 +108,9 @@ export class CXXConfigurationProvider extends ConfigurationProvider
 
         let ws = pkg.workspace;
 
+        if (!config.MIMode) {
+            config.MIMode = 'gdb';
+        }
         let debuggerPath = config.miDebuggerPath || config.MIMode;
         let stubScript = joinpath(__dirname, '..', '..', 'stubs', config.MIMode);
 
