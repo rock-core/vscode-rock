@@ -172,13 +172,13 @@
                 ],
                 "pattern": [
                     {
-                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Error at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):(?:configure|build): (?:.+\n)?CMake Error at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
                         "file": 1,
                         "line": 2,
-                        "message": 0
+                        "message": -1
                     },
                     {
-                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?!Call Stack)(.*)",
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):(?:configure|build): (?!Call Stack)(.*)",
                         "message": 1,
                         "loop": true
                     }
@@ -192,13 +192,13 @@
                 ],
                 "pattern": [
                     {
-                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Warning at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):(?:configure|build): (?:.+\n)?CMake Warning at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
                         "file": 1,
                         "line": 2,
-                        "message": 0
+                        "message": -1
                     },
                     {
-                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?!Call Stack)(.*)",
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):(?:configure|build): (?!Call Stack)(.*)",
                         "message": 1,
                         "loop": true
                     }
