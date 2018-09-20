@@ -66,6 +66,8 @@ export class AutoprojProvider implements vscode.TaskProvider
             '$autoproj-cmake-configure-warning',
             '$autoproj-gcc-compile-error',
             '$autoproj-gcc-compile-warning',
+            '$autoproj-gcc-compile-template-expansion',
+            '$autoproj-gcc-compile-file-inclusion',
             '$autoproj-orogen-error'
         ];
         return task;
