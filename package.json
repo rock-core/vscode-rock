@@ -172,7 +172,7 @@
                 ],
                 "pattern": [
                     {
-                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Error at ([/0-9a-zA-Z\\._-]+):(\\d+).*",
+                        "regexp": "(?:Autobuild::CMake|Autobuild::Orogen):(?:[^:]+):configure: (?:.+\n)?CMake Error at ([\\/0-9a-zA-Z\\._-]+):(\\d+).*",
                         "file": 1,
                         "line": 2,
                         "message": 0
