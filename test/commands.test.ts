@@ -451,7 +451,7 @@ describe("Commands", function () {
                 { name: 'two', uri: vscode.Uri.file('/path/to/two') }),
                 TypeMoq.Times.once());
         })
-        it("keeps the folder list sorted", async function () {
+        it("inserts alphabetically before the first item", async function () {
             const folder: vscode.WorkspaceFolder = {
                 uri: vscode.Uri.file('/path/to/two'),
                 name: 'two',
@@ -467,6 +467,47 @@ describe("Commands", function () {
 
             mockWrapper.verify(x => x.updateWorkspaceFolders(0, null,
                 { name: 'one', uri: vscode.Uri.file('/path/to/one') }),
+                TypeMoq.Times.once());
+        })
+        it("inserts alphabetically in the middle of existing items", async function () {
+            let mockPackageThree = TypeMoq.Mock.ofType<autoproj.Package>();
+            mockPackageThree.setup(x => x.srcdir).returns(() => '/path/to/three');
+            mockPackageThree.setup(x => x.name).returns(() => 'three');
+            choices = [{ label: 'one', description: 'to', pkg: mockPackageOne.object },
+                { label: 'three', description: 'to', pkg: mockPackageThree.object },
+                { label: 'two', description: 'to', pkg: mockPackageTwo.object }];
+
+            const existing: vscode.WorkspaceFolder[] = [
+                { uri: vscode.Uri.file('/path/to/one'), name: 'one', index: 0 },
+                { uri: vscode.Uri.file('/path/to/two'), name: 'two', index: 0 }]
+            const promise = Promise.resolve(choices);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => existing);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            mockWrapper.setup(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[1]));
+            await subject.addPackageToWorkspace();
+
+            mockWrapper.verify(x => x.updateWorkspaceFolders(1, null,
+                { name: 'three', uri: vscode.Uri.file('/path/to/three') }),
+                TypeMoq.Times.once());
+        })
+        it("inserts alphabetically after the last item", async function () {
+            const folder: vscode.WorkspaceFolder = {
+                uri: vscode.Uri.file('/path/to/one'),
+                name: 'one',
+                index: 0
+            }
+            const promise = Promise.resolve(choices);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => [folder]);
+            mockSubject.setup(x => x.packagePickerChoices()).
+                returns(() => promise);
+            mockWrapper.setup(x => x.showQuickPick(promise,
+                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[1]));
+            await subject.addPackageToWorkspace();
+
+            mockWrapper.verify(x => x.updateWorkspaceFolders(1, null,
+                { name: 'two', uri: vscode.Uri.file('/path/to/two') }),
                 TypeMoq.Times.once());
         })
         it("shows an error if folder could not be added", async function () {
