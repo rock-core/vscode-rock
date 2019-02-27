@@ -47,18 +47,20 @@ function unwatchManifest(ws: autoproj.Workspace, fileWatcher: watcher.FileWatche
 function handleNewWorkspaceFolder(
         path: string,
         rockContext : context.Context,
-        workspaces: autoproj.Workspaces,
-        configManager: config.ConfigManager,
-        fileWatcher: watcher.FileWatcher) : void
+        workspaces: autoproj.Workspaces, taskProvider: tasks.AutoprojProvider,
+        configManager: config.ConfigManager, fileWatcher: watcher.FileWatcher) : void
 {
-    let { added, workspace } = workspaces.addFolder(path);
+    const { added, workspace } = workspaces.addFolder(path);
     if (added && workspace) {
         workspace.info().catch(err => {
-                let errMsg = `Could not load installation manifest: ${err.message}`
-                vscode.window.showErrorMessage(errMsg);
+            let errMsg = `Could not load installation manifest: ${err.message}`
+            vscode.window.showErrorMessage(errMsg);
         })
+        taskProvider.reloadTasks();
         workspace.ensureSyskitContextAvailable().catch(() => {})
-        vscode.commands.executeCommand('workbench.action.tasks.runTask', `autoproj: ${workspace.name}: Watch`)
+        let watchTask = taskProvider.watchTask(workspace.root)
+        vscode.tasks.executeTask(watchTask).
+            then((taskExecution) => workspace.associateTask(taskExecution))
         watchManifest(workspace, fileWatcher);
     } else if (workspace) {
         configManager.setupPackage(path).catch((reason) => {
@@ -69,14 +71,13 @@ function handleNewWorkspaceFolder(
 
 function initializeWorkspacesFromVSCodeFolders(
     rockContext: context.Context,
-    workspaces: autoproj.Workspaces,
-    configManager: config.ConfigManager,
-    fileWatcher: watcher.FileWatcher)
+    workspaces: autoproj.Workspaces, taskProvider: tasks.AutoprojProvider,
+    configManager: config.ConfigManager, fileWatcher: watcher.FileWatcher)
 {
     if (vscode.workspace.workspaceFolders != undefined) {
         vscode.workspace.workspaceFolders.forEach((folder) => {
             handleNewWorkspaceFolder(folder.uri.fsPath, rockContext,
-                workspaces, configManager, fileWatcher);
+                workspaces, taskProvider, configManager, fileWatcher);
         });
     }
 }
@@ -89,10 +90,11 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             event.added.forEach((folder) => {
                 handleNewWorkspaceFolder(folder.uri.fsPath, rockContext,
-                    workspaces, configManager, fileWatcher);
+                    workspaces, taskProvider, configManager, fileWatcher);
             });
             event.removed.forEach((folder) => {
                 let deletedWs = workspaces.deleteFolder(folder.uri.fsPath);
+                taskProvider.reloadTasks();
                 if (deletedWs) {
                     unwatchManifest(deletedWs, fileWatcher);
                     deletedWs.readWatchPID().
@@ -100,7 +102,6 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
                         catch(() => {})
                 }
             });
-            taskProvider.reloadTasks();
         })
     );
 }
@@ -121,10 +122,12 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
 
+    vscode.tasks.onDidEndTask((event) => workspaces.notifyEndTask(event.execution))
+
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));
 
-    initializeWorkspacesFromVSCodeFolders(rockContext, workspaces,
+    initializeWorkspacesFromVSCodeFolders(rockContext, workspaces, autoprojTaskProvider,
         configManager, fileWatcher);
     autoprojTaskProvider.reloadTasks();
     setupEvents(rockContext, extensionContext, workspaces,

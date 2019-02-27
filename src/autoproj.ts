@@ -136,6 +136,7 @@ export class Workspace
     private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void>, interrupt?: any } = {};
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
+    private _tasks : Array<vscode.TaskExecution>;
 
     constructor(root: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
@@ -145,6 +146,7 @@ export class Workspace
         this._verifiedSyskitContext = false;
         this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
         this._pendingWorkspaceInit = undefined;
+        this._tasks = []
         if (loadInfo) {
             this._info = this.createInfoPromise();
         }
@@ -187,9 +189,18 @@ export class Workspace
         return this._info;
     }
 
+    associateTask(task : vscode.TaskExecution) {
+        this._tasks.push(task);
+    }
+
+    notifyEndTask(task : vscode.TaskExecution) {
+        this._tasks = this._tasks.filter((t) => t != task);
+    }
+
     dispose() {
         this._infoUpdatedEvent.dispose();
         this.syskitDefaultStop();
+        this._tasks.forEach((t) => t.terminate())
     }
 
     syncRemote(name: string) : url.Url | undefined {
@@ -543,6 +554,13 @@ export class Workspaces
         this._workspaceInfoEvent.dispose();
         this._folderInfoEvent.dispose();
         this._folderInfoDisposables.forEach((d) => d.dispose());
+    }
+
+    notifyEndTask(execution: vscode.TaskExecution) {
+        let ws = execution.task.definition.ws;
+        if (ws) {
+            ws.notifyEndTask(execution);
+        }
     }
 
     onWorkspaceInfo(callback : (info: WorkspaceInfo) => any) : vscode.Disposable {
