@@ -12,14 +12,25 @@ function assertWorkspaceNotEmpty(vscode: wrappers.VSCode)
         throw new Error("Current workspace is empty");
 }
 
-function findInsertIndex(array, predicate) {
-    for (let i = 0; i < array.length; ++i) {
-        let element = array[i];
-        if (predicate(element)) {
-            return i;
+function findInsertIndex(folders : vscode.WorkspaceFolder[], ws, name) : [boolean, number]
+{
+    const configUri = vscode.Uri.file(pathjoin(ws.root, 'autoproj'));
+    let wsFound = false;
+    for (let i = 0; i < folders.length; ++i) {
+        let f = folders[i];
+        if (wsFound) {
+            if (!f.uri.path.startsWith(ws.root)) {
+                return [true, i];
+            }
+            if (name < f.name) {
+                return [true, i];
+            }
+        }
+        else if (f.uri.fsPath == configUri.fsPath) {
+            wsFound = true;
         }
     }
-    return array.length;
+    return [wsFound, folders.length];
 }
 
 export class Commands
@@ -219,38 +230,32 @@ export class Commands
             options, tokenSource.token);
 
         tokenSource.dispose();
-        if (selectedOption) {
-            const name = selectedOption.pkg.name;
-            const wsFolders = this._vscode.workspaceFolders;
-            const ws = selectedOption.ws;
-            const configUri = vscode.Uri.file(pathjoin(ws.root, 'autoproj'));
+        if (!selectedOption) {
+            return;
+        }
 
-            let insertPosition = 0;
-            if (wsFolders) {
-                insertPosition = findInsertIndex(wsFolders,
-                    ((f) => f.uri != configUri && name < f.name))
-            }
+        const name = selectedOption.pkg.name;
+        const wsFolders = this._vscode.workspaceFolders;
+        const ws = selectedOption.ws;
+        const configUri = vscode.Uri.file(pathjoin(ws.root, 'autoproj'));
+        const pkgUri = vscode.Uri.file(selectedOption.pkg.srcdir);
 
-            // Auto-add the autoproj folder if it's not there
-            if (!selectedOption.config) {
-                let configIndex : number | null = null;
-                if (wsFolders) {
-                    configIndex = wsFolders.
-                        findIndex((folder) => folder.uri == configUri);
-                }
-                if (!configIndex) {
-                    const configFolder = { name: `autoproj (${ws.name})`, uri: configUri };
-                    this._vscode.updateWorkspaceFolders(0, null, configFolder);
-                    insertPosition += 1;
-                }
-            }
+        let insertPosition = 0;
+        let hasConfig = false;
+        if (wsFolders) {
+            [hasConfig, insertPosition] = findInsertIndex(wsFolders, ws, name);
+        }
 
-            const folder = { name: name,
-                uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
-            if (!this._vscode.updateWorkspaceFolders(insertPosition, null, folder)) {
-                this._vscode.showErrorMessage(
-                    `Could not add folder: ${selectedOption.pkg.srcdir}`);
-            }
+        let folders : any[] = [];
+        // Auto-add the autoproj folder if it's not there
+        if (!hasConfig && pkgUri != configUri) {
+            folders.push({ name: `autoproj (${ws.name})`, uri: configUri });
+        }
+
+        folders.push({ name: name, uri: pkgUri })
+        if (!this._vscode.updateWorkspaceFolders(insertPosition, null, ...folders)) {
+            this._vscode.showErrorMessage(
+                `Could not add folder: ${selectedOption.pkg.srcdir}`);
         }
     }
 
