@@ -19,7 +19,7 @@ function findInsertIndex(array, predicate) {
             return i;
         }
     }
-    return 0
+    return array.length;
 }
 
 export class Commands
