@@ -28,7 +28,7 @@
         "url": "https://github.com/rock-core/vscode-rock.git"
     },
     "engines": {
-        "vscode": "^1.21.0"
+        "vscode": "^1.30.0"
     },
     "activationEvents": [
         "*"
@@ -287,7 +287,11 @@
         "taskDefinitions": [
             {
                 "type": "autoproj-package",
-                "required": ["workspace", "mode", "path"],
+                "required": [
+                    "workspace",
+                    "mode",
+                    "path"
+                ],
                 "properties": {
                     "workspace": {
                         "type": "string",
@@ -312,7 +316,10 @@
             },
             {
                 "type": "autoproj-workspace",
-                "required": ["workspace", "mode"],
+                "required": [
+                    "workspace",
+                    "mode"
+                ],
                 "properties": {
                     "workspace": {
                         "type": "string",
