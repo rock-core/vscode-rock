@@ -50,10 +50,9 @@
             "title": "Rock Workspace Configuration",
             "properties": {
                 "rock.devFolder": {
-                    "title": "Dev Folder",
                     "type": "string",
                     "default": null,
-                    "description": "Toplevel path in which your workspaces are stored"
+                    "description": "Toplevel path in which your workspaces are stored, to speed up selection in the Add Workspace command"
                 }
             }
         },
