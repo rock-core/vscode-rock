@@ -45,6 +45,10 @@ export class Context
         return this._contextUpdatedEvent.event(callback);
     }
 
+    public get vscode() : wrappers.VSCode {
+        return this._vscode;
+    }
+
     public isWorkspaceEmpty() : boolean {
         return this._vscode.workspaceFolders.length === 0;
     }

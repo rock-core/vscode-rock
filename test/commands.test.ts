@@ -396,7 +396,7 @@ describe("Commands", function () {
         let mockSubject: TypeMoq.IMock<commands.Commands>;
         let mockPackageOne: TypeMoq.IMock<autoproj.Package>;
         let mockPackageTwo: TypeMoq.IMock<autoproj.Package>;
-        let choices: { label, description, config, ws, pkg }[] = [];
+        let choices: { label, description, ws, pkg }[] = [];
         const options: vscode.QuickPickOptions = {
             placeHolder: 'Select a package to add to this workspace'
         }
@@ -410,14 +410,12 @@ describe("Commands", function () {
             choices = [{
                 label: 'one',
                 description: 'to',
-                config: false,
                 ws: {name: 'test', root: "/test"},
                 pkg: mockPackageOne.object
             },
             {
                 label: 'two',
                 description: 'to',
-                config: false,
                 ws: {name: 'test', root: "/test"},
                 pkg: mockPackageTwo.object
             }];
@@ -452,12 +450,10 @@ describe("Commands", function () {
             await subject.addPackageToWorkspace();
 
             mockWrapper.verify(x => x.updateWorkspaceFolders(0, null,
-                { name: 'autoproj (test)', uri: vscode.Uri.file('/test/autoproj') },
                 { name: 'two', uri: vscode.Uri.file('/test/two') }),
                 TypeMoq.Times.once());
         })
-        it("auto-inserts the autoproj configuration", async function () {
-            choices[0].config = false;
+        it("inserts at the end if the autoproj configuration has not been found", async function () {
             choices[0].ws.name = 'test';
             const promise = Promise.resolve(choices);
             mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
@@ -468,27 +464,6 @@ describe("Commands", function () {
             await subject.addPackageToWorkspace();
 
             mockWrapper.verify(x => x.updateWorkspaceFolders(0, null,
-                { name: 'autoproj (test)', uri: vscode.Uri.file('/test/autoproj') },
-                { name: 'one', uri: vscode.Uri.file('/test/one') }),
-                TypeMoq.Times.once());
-        })
-        it("does not attempt to auto-insert the configuration if it's already there", async function () {
-            const existing: vscode.WorkspaceFolder[] = [
-                { uri: vscode.Uri.file('/test/autoproj'), name: '', index: 0 }];
-            choices[0].config = false;
-            choices[0].ws.name = 'test';
-            const promise = Promise.resolve(choices);
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => existing);
-            mockSubject.setup(x => x.packagePickerChoices()).
-                returns(() => promise);
-            mockWrapper.setup(x => x.showQuickPick(promise,
-                options, TypeMoq.It.isAny())).returns(() => Promise.resolve(choices[0]));
-            await subject.addPackageToWorkspace();
-
-            mockWrapper.verify(x => x.updateWorkspaceFolders(0, null,
-                { name: 'autoproj (test)', uri: vscode.Uri.file('/test/autoproj') }),
-                TypeMoq.Times.never());
-            mockWrapper.verify(x => x.updateWorkspaceFolders(1, null,
                 { name: 'one', uri: vscode.Uri.file('/test/one') }),
                 TypeMoq.Times.once());
         })
@@ -528,7 +503,7 @@ describe("Commands", function () {
             let mockPackageThree = TypeMoq.Mock.ofType<autoproj.Package>();
             mockPackageThree.setup(x => x.srcdir).returns(() => '/test/three');
             mockPackageThree.setup(x => x.name).returns(() => 'three');
-            let common = { config: true, ws: { root: '/test' }, description: 'to' };
+            let common = { ws: { root: '/test' }, description: 'to' };
             choices = [{ label: 'one', pkg: mockPackageOne.object, ...common },
                 { label: 'three', pkg: mockPackageThree.object, ...common },
                 { label: 'two', pkg: mockPackageTwo.object, ...common }];
