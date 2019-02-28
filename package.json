@@ -368,23 +368,20 @@
         "rebornix.ruby"
     ],
     "dependencies": {
-        "js-yaml": "*",
         "fs-temp": "latest",
-        "jsonc-parser": "*",
-        "request-promise-native": "latest",
-        "request": "*"
+        "js-yaml": "latest",
+        "jsonc-parser": "latest",
+        "request": "latest",
+        "request-promise-native": "latest"
     },
     "devDependencies": {
-        "@types/js-yaml": "latest",
-        "@types/node": "^7.0.43",
+        "@types/js-yaml": "^3.12.0",
+        "@types/node": "^7.10.3",
         "@types/should": "latest",
-        "decache": "^4.1.0",
+        "decache": "^4.5.1",
         "del": "^3.0.0",
-        "gulp": "^3.9.1",
-        "gulp-coveralls": "^0.1.4",
-        "gulp-json-editor": "^2.2.2",
-        "istanbul": "^0.4.5",
-        "remap-istanbul": "^0.6.4",
+        "gulp": "latest",
+        "gulp-json-editor": "latest",
         "run-sequence": "^2.2.1",
         "should": "latest",
         "typemoq": "latest",
