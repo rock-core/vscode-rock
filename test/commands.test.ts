@@ -348,13 +348,13 @@ describe("Commands", function () {
                 callback((cb) => cb(mockWs.object));
         })
         it("throws if installation manifest loading fails", async function () {
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
             mockWs.setup(x => x.info()).returns(() => Promise.reject('test'));
             await helpers.assertThrowsAsync(subject.packagePickerChoices(),
                 /Could not load installation manifest/)
         })
         it("returns all packages if workspace is empty", async function () {
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
             mockWs.setup(x => x.info()).returns(() => Promise.resolve(mockWsInfo.object));
             mockWsInfo.setup(x => x.packages).returns(() => pathToPackage);
 
@@ -444,7 +444,7 @@ describe("Commands", function () {
         })
         it("handles an empty workspace", async function () {
             const promise = Promise.resolve(choices);
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
             mockSubject.setup(x => x.packagePickerChoices()).
                 returns(() => promise);
             mockWrapper.setup(x => x.showQuickPick(promise,
@@ -460,7 +460,7 @@ describe("Commands", function () {
             choices[0].config = false;
             choices[0].ws.name = 'test';
             const promise = Promise.resolve(choices);
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
             mockSubject.setup(x => x.packagePickerChoices()).
                 returns(() => promise);
             mockWrapper.setup(x => x.showQuickPick(promise,
@@ -584,7 +584,7 @@ describe("Commands", function () {
         })
         it("shows an error if folder could not be added", async function () {
             const promise = Promise.resolve(choices);
-            mockWrapper.setup(x => x.workspaceFolders).returns(() => undefined);
+            mockWrapper.setup(x => x.workspaceFolders).returns(() => []);
             mockSubject.setup(x => x.packagePickerChoices()).
                 returns(() => promise);
             mockWrapper.setup(x => x.showQuickPick(promise,

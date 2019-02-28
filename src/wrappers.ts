@@ -29,9 +29,12 @@ export class VSCode {
         return vscode.window.activeTextEditor;
     }
 
-    public get workspaceFolders(): vscode.WorkspaceFolder[] | undefined
+    public get workspaceFolders(): vscode.WorkspaceFolder[]
     {
-        return vscode.workspace.workspaceFolders;
+        let folders = vscode.workspace.workspaceFolders;
+        if (folders)
+            return folders;
+        else return [];
     }
 
     public getWorkspaceFolder(uri: vscode.Uri | string): vscode.WorkspaceFolder | undefined
