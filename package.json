@@ -45,6 +45,18 @@
         "roby"
     ],
     "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Rock Workspace Configuration",
+            "properties": {
+                "rock.devFolder": {
+                    "title": "Dev Folder",
+                    "type": "string",
+                    "default": null,
+                    "description": "Toplevel path in which your workspaces are stored"
+                }
+            }
+        },
         "debuggers": [
             {
                 "type": "orogen",
@@ -113,6 +125,11 @@
                 "title": "Add launch config",
                 "category": "Rock",
                 "command": "rock.addLaunchConfig"
+            },
+            {
+                "title": "Add workspace",
+                "category": "Rock",
+                "command": "rock.addWorkspace"
             },
             {
                 "title": "Add package to workspace",

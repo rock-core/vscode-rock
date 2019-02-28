@@ -106,6 +106,11 @@ function setupEvents(rockContext: context.Context, extensionContext: vscode.Exte
     );
 }
 
+function applyConfiguration(configManager : config.ConfigManager,
+    workspaces : autoproj.Workspaces) : void {
+    workspaces.devFolder = configManager.getDevFolder();
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(extensionContext: vscode.ExtensionContext) {
@@ -122,7 +127,12 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
 
-    vscode.tasks.onDidEndTask((event) => workspaces.notifyEndTask(event.execution))
+    applyConfiguration(configManager, workspaces);
+    extensionContext.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(
+            () => applyConfiguration(configManager, workspaces)))
+    extensionContext.subscriptions.push(
+        vscode.tasks.onDidEndTask((event) => workspaces.notifyEndTask(event.execution)))
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));

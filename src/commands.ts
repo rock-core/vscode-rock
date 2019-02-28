@@ -214,6 +214,38 @@ export class Commands
         return choices;
     }
 
+    async addWorkspace()
+    {
+        let defaultUri;
+        let dev = this._context.workspaces.devFolder;
+        if (dev) {
+            defaultUri = vscode.Uri.file(dev);
+        }
+
+        let paths = await this._vscode.showOpenDialog(
+            { canSelectFiles: false, canSelectFolders: true, canSelectMany: true,
+              defaultUri: defaultUri, openLabel: 'Select the workspace(s) to add' });
+        if (!paths) {
+            return;
+        }
+
+        paths.forEach((p) => {
+            let root = autoproj.findWorkspaceRoot(p.fsPath);
+            if (root) {
+                let wsname = basename(root);
+                let configUri = vscode.Uri.file(pathjoin(root, 'autoproj'));
+
+                let folder = { name: `autoproj (${wsname})`, uri: configUri };
+                const wsFolders = this._vscode.workspaceFolders;
+                let insertPosition = 0;
+                if (wsFolders) {
+                    insertPosition = wsFolders.length;
+                }
+                this._vscode.updateWorkspaceFolders(insertPosition, null, folder);
+            }
+        })
+    }
+
     async addPackageToWorkspace()
     {
         const tokenSource = new vscode.CancellationTokenSource();
@@ -266,5 +298,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', () => { this.updateCodeConfig() });
         this._vscode.registerAndSubscribeCommand('rock.showOutputChannel', () => { this.showOutputChannel() });
         this._vscode.registerAndSubscribeCommand('rock.addPackageToWorkspace', () => { this.addPackageToWorkspace() });
+        this._vscode.registerAndSubscribeCommand('rock.addWorkspace', () => { this.addWorkspace() });
     }
 }
