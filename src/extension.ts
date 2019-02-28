@@ -17,6 +17,7 @@ import { Manager as VSCodeWorkspaceManager } from './vscode_workspace_manager';
 function applyConfiguration(configManager : config.ConfigManager,
     workspaces : autoproj.Workspaces) : void {
     workspaces.devFolder = configManager.getDevFolder();
+    configManager.autoApplySettings();
 }
 
 // this method is called when your extension is activated
