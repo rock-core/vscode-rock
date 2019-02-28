@@ -158,7 +158,7 @@ export class Commands
         }
     }
 
-    async updateCodeConfig()
+    async pickConfigTarget() : Promise<vscode.ConfigurationTarget | undefined>
     {
         let choices: { label, description, configTarget }[] = [];
         function addChoice(label: string, scope: vscode.ConfigurationTarget)
@@ -178,12 +178,7 @@ export class Commands
         }
         const configTarget = await this._vscode.showQuickPick(choices, options);
         if (configTarget) {
-            try {
-                this._configManager.updateCodeConfig(configTarget.configTarget);
-            }
-            catch (err) {
-                this._vscode.showErrorMessage(err.message);
-            }
+            return configTarget.configTarget;
         }
     }
 
@@ -295,11 +290,37 @@ export class Commands
         }
     }
 
+    async applySettings(f) : Promise<void> {
+        let target = await this.pickConfigTarget();
+
+        if (target === undefined) {
+            return;
+        }
+
+        try {
+            f(target);
+        }
+        catch(err) {
+            this._vscode.showErrorMessage(err.message);
+        }
+    }
+
     register()
     {
         this._vscode.registerAndSubscribeCommand('rock.updatePackageInfo', () => { this.updatePackageInfo() });
         this._vscode.registerAndSubscribeCommand('rock.addLaunchConfig', () => { this.addLaunchConfig() });
-        this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', () => { this.updateCodeConfig() });
+        this._vscode.registerAndSubscribeCommand('rock.applyDefaultSettings', () => {
+            this.applySettings((target) => this._configManager.applyDefaultSettings(target));
+        });
+        this._vscode.registerAndSubscribeCommand('rock.applyCPPSettings', () => {
+            this.applySettings((target) => this._configManager.applyCPPSettings(target));
+        });
+        this._vscode.registerAndSubscribeCommand('rock.applyRubySettings', () => {
+            this.applySettings((target) => this._configManager.applyRubySettings(target));
+        });
+        this._vscode.registerAndSubscribeCommand('rock.applyEditorSettings', () => {
+            this.applySettings((target) => this._configManager.applyEditorSettings(target));
+        });
         this._vscode.registerAndSubscribeCommand('rock.showOutputChannel', () => { this.showOutputChannel() });
         this._vscode.registerAndSubscribeCommand('rock.addPackageToWorkspace', () => { this.addPackageToWorkspace() });
         this._vscode.registerAndSubscribeCommand('rock.addWorkspace', () => { this.addWorkspace() });

@@ -178,35 +178,117 @@ export class ConfigManager
             });
         }
     }
-    suggestedSettings(): any
+
+    autoApplyRubySettings() : boolean {
+        return this._vscode.getConfiguration().get("rock.applyRubySettings", true);
+    }
+
+    autoApplyCPPSettings() : boolean {
+        return this._vscode.getConfiguration().get("rock.applyCPPSettings", true);
+    }
+
+    autoApplySettings() {
+        if (this._workspaces.size !== 1) {
+            return;
+        }
+
+        if (this.autoApplyRubySettings()) {
+            this.applyRubySettings(vscode.ConfigurationTarget.Workspace);
+        }
+        if (this.autoApplyCPPSettings()) {
+            this.applyCPPSettings(vscode.ConfigurationTarget.Workspace);
+        }
+    }
+
+    suggestedEditorSettings(scope: vscode.ConfigurationTarget): any
+    {
+        return {
+            "editor.detectIndentation": false,
+            "editor.insertSpaces": true,
+            "editor.rulers": [80, 90],
+            "editor.tabSize": 4,
+            "editor.trimAutoWhitespace": true,
+            "files.trimTrailingWhitespace": true,
+            "git.countBadge": "tracked"
+        }
+    }
+    suggestedCPPSettings(scope: vscode.ConfigurationTarget): any
     {
         return {
             "C_Cpp.intelliSenseEngine": "Default",
             "C_Cpp.intelliSenseEngineFallback": "Enabled",
-            "editor.detectIndentation": false,
-            "editor.insertSpaces": true,
-            "editor.rulers": [80],
-            "editor.tabSize": 4,
-            "editor.trimAutoWhitespace": true,
-            "files.trimTrailingWhitespace": true,
-            "git.countBadge": "tracked",
-            "ruby.lint": {
-                "rubocop": {
-                    "except": [
-                        "Layout/IndentationWidth",
-                        "Style/DoubleNegation"
-                    ]
-                }
-            }
         }
     }
-    updateCodeConfig(configTarget: vscode.ConfigurationTarget): any
+    suggestedRubySettings(scope: vscode.ConfigurationTarget): any
+    {
+        let settings = {}
+        if (scope === vscode.ConfigurationTarget.Workspace) {
+            // Apply the following settings only if we have a single Autoproj
+            // workspace. We need to set the path to a single autoproj
+            // executable
+            let workspaces : autoproj.Workspace[] = []
+            this._workspaces.forEachWorkspace((ws) => workspaces.push(ws))
+            let ws = workspaces.find(() => true) as autoproj.Workspace;
+
+            if (workspaces.length > 1) {
+                this._vscode.showWarningMessage(
+                    "Most Ruby settings can be automatically set "+
+                    "only in workspaces with a single Autoproj workspace");
+
+            }
+            else if (workspaces.length === 0) {
+                this._vscode.showWarningMessage(
+                    "Most Ruby settings can be automatically set "+
+                    "only in workspaces with a single Autoproj workspace");
+            }
+            else {
+                settings['solargraph.bundlerPath'] = ws.autoprojExePath();
+                settings['solargraph.useBundler'] = true;
+                settings['ruby.intellisense'] = false;
+                settings['ruby.codeCompletion'] = false;
+                settings['ruby.pathToBundler'] = ws.autoprojExePath();
+                settings['ruby.useBundler'] = true;
+                settings['ruby.lint'] = { rubocop: true };
+            }
+        }
+        return settings
+    }
+
+    applySuggestedSettings(settings, configTarget : vscode.ConfigurationTarget)
     {
         const configs = this._vscode.getConfiguration();
-        for (const key in this.suggestedSettings()) {
-            configs.update(key, this.suggestedSettings()[key],
-                configTarget);
+        for (const key in settings) {
+            configs.update(key, settings[key], configTarget);
         }
-        return this.suggestedSettings();
+    }
+
+    currentWorkspace() : autoproj.Workspace | undefined {
+        let editor = vscode.window.activeTextEditor;
+        if (editor) {
+            let path = editor.document.uri.fsPath;
+            return this._workspaces.getWorkspaceFromFolder(path);
+        }
+    }
+
+    applyDefaultSettings(scope: vscode.ConfigurationTarget): any
+    {
+        this.applySuggestedSettings(this.suggestedEditorSettings(scope), scope);
+        this.applySuggestedSettings(this.suggestedCPPSettings(scope), scope);
+        this.applySuggestedSettings(this.suggestedRubySettings(scope), scope);
+    }
+
+    applyEditorSettings(scope: vscode.ConfigurationTarget): any
+    {
+        this.applySuggestedSettings(this.suggestedEditorSettings(scope), scope);
+    }
+
+    applyCPPSettings(scope: vscode.ConfigurationTarget): any
+    {
+        this.applySuggestedSettings(this.suggestedCPPSettings(scope), scope);
+    }
+
+    applyRubySettings(scope: vscode.ConfigurationTarget): any
+    {
+        this.applySuggestedSettings(this.suggestedRubySettings(scope), scope);
     }
 }

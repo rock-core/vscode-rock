@@ -113,6 +113,7 @@ export class Manager {
         folders.forEach((folder) => {
             index = this.handleNewFolder(index, folder.uri.fsPath);
         });
+        this._configManager.autoApplySettings();
     }
 
     handleDeletedFolder(path: string) {
@@ -131,5 +132,6 @@ export class Manager {
         event.removed.forEach((folder) => {
             this.handleDeletedFolder(folder.uri.fsPath);
         });
+        this._configManager.autoApplySettings();
     }
 };
