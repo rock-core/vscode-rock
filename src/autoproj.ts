@@ -3,11 +3,11 @@
 import * as child_process from 'child_process';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
-import * as global from 'glob';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as syskit from './syskit';
-import * as wrappers from './wrappers';
+import * as disposables from './disposables';
+import * as tasks from './tasks';
 import { EventEmitter } from 'events';
 import * as url from 'url';
 
@@ -136,7 +136,7 @@ export class Workspace
     private _syskitDefaultRun : { subprocess?: Process, started?: Promise<void>, running?: Promise<void>, interrupt?: any } = {};
     private _pendingWorkspaceInit : Promise<void> | undefined;
     private _verifiedSyskitContext : boolean;
-    private _tasks : Array<vscode.TaskExecution>;
+    private _subscriptions : vscode.Disposable[];
 
     constructor(root: string, loadInfo: boolean = true, outputChannel: OutputChannel = new ConsoleOutputChannel())
     {
@@ -146,7 +146,7 @@ export class Workspace
         this._verifiedSyskitContext = false;
         this._infoUpdatedEvent = new vscode.EventEmitter<WorkspaceInfo>();
         this._pendingWorkspaceInit = undefined;
-        this._tasks = []
+        this._subscriptions = []
         if (loadInfo) {
             this._info = this.createInfoPromise();
         }
@@ -189,18 +189,14 @@ export class Workspace
         return this._info;
     }
 
-    associateTask(task : vscode.TaskExecution) {
-        this._tasks.push(task);
-    }
-
-    notifyEndTask(task : vscode.TaskExecution) {
-        this._tasks = this._tasks.filter((t) => t != task);
+    subscribe(disposable: vscode.Disposable) {
+        this._subscriptions.push(disposable);
     }
 
     dispose() {
         this._infoUpdatedEvent.dispose();
         this.syskitDefaultStop();
-        this._tasks.forEach((t) => t.terminate())
+        this._subscriptions.forEach((s) => s.dispose())
     }
 
     syncRemote(name: string) : url.Url | undefined {
@@ -563,12 +559,23 @@ export class Workspaces
         }
     }
 
+    get size() : number {
+        return this.workspaces.size;
+    }
+
     onWorkspaceInfo(callback : (info: WorkspaceInfo) => any) : vscode.Disposable {
         return this._workspaceInfoEvent.event(callback);
     }
 
     onFolderInfo(callback : (info: Package | PackageSet) => any) : vscode.Disposable {
         return this._folderInfoEvent.event(callback);
+    }
+
+    notifyStartTaskProcess(event: vscode.TaskProcessStartEvent) {
+        let ws = tasks.workspaceFromTask(event.execution.task, this);
+        if (ws) {
+            ws.subscribe(disposables.forProcess(event.processId));
+        }
     }
 
     /** Add workspaces that contain some directory paths
@@ -725,5 +732,12 @@ export class Workspaces
     getWorkspaceFromFolder(folder : string) : Workspace | undefined
     {
         return this.folderToWorkspace.get(folder);
+    }
+
+    /** Returns the workspace that has the given root
+     */
+    getWorkspaceFromRoot(root : string) : Workspace | undefined
+    {
+        return this.workspaces.get(root);
     }
 }

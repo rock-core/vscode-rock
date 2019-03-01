@@ -42,6 +42,10 @@ async function terminateSyskit(workspace : autoproj.Workspace, processMock) {
         new RegExp(`^syskit background process for ${workspace.root} quit`));
 }
 
+let killed : { pid, signal }[] = []
+function mockKill(pid: number, signal: string | number | undefined) {
+    killed.push({ pid: pid, signal: signal})
+}
 
 describe("Autoproj helpers tests", function () {
     let originalSpawn = require('child_process').spawn;
@@ -238,6 +242,18 @@ describe("Autoproj helpers tests", function () {
                 await workspace.reload();
                 assert(called);
             })
+        })
+
+        it("disposes of all its subscriptions on dispose", function() {
+            let disposed = false;
+            let disposable = new vscode.Disposable(() => disposed = true);
+
+            helpers.mkdir('.autoproj');
+            helpers.mkfile(MANIFEST_TEST_FILE, ".autoproj", "installation-manifest");
+            let ws = autoproj.Workspace.fromDir(root, false) as autoproj.Workspace;
+            ws.subscribe(disposable);
+            ws.dispose();
+            assert.strictEqual(disposed, true);
         })
 
         describe("syncRemote", function() {
@@ -827,6 +843,46 @@ describe("Autoproj helpers tests", function () {
                 await workspace.reload();
                 assert(received);
                 assert.equal(dir, received.srcdir);
+            })
+        })
+
+        describe("notifyStartTaskProcess", function() {
+            let nodeKill = process.kill;
+            beforeEach(function() {
+                killed = []
+                process.kill = mockKill;
+            })
+            afterEach(function() {
+                process.kill = nodeKill;
+            })
+
+            it("makes the related workspace terminate the process on dispose", function() {
+                helpers.mkdir('.autoproj');
+                helpers.createInstallationManifest([]);
+                let dir = helpers.mkdir('a', 'b');
+                let { added, workspace } = workspaces.addFolder(dir);
+                let autoprojEvent = {
+                    execution: { task: { definition: { workspace: root }} },
+                    processId: 42
+                } as unknown as vscode.TaskProcessStartEvent;
+                workspaces.notifyStartTaskProcess(
+                    autoprojEvent);
+                (workspace as autoproj.Workspace).dispose()
+                assert.deepStrictEqual(killed, [{ pid: 42, signal: 'SIGINT' }])
+            })
+            it("ignores if the event is not an autoproj event", function() {
+                let event = {
+                    execution: { task: { definition: { }} },
+                    processId: 42
+                } as unknown as vscode.TaskProcessStartEvent;
+                workspaces.notifyStartTaskProcess(event);
+            })
+            it("ignores if the event's workspace does not exist", function() {
+                let event = {
+                    execution: { task: { definition: { workspace: root }} },
+                    processId: 42
+                } as unknown as vscode.TaskProcessStartEvent;
+                workspaces.notifyStartTaskProcess(event);
             })
         })
 

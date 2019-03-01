@@ -83,4 +83,36 @@ describe("vscode_workspace_manager.Manager", function () {
                 TypeMoq.Times.once());
         })
     })
+
+    describe("handleDeletedFolder", function() {
+        let mock : any;
+        let ws : autoproj.Workspace;
+        let folder : string;
+
+        beforeEach(function() {
+            let ret = s.createAndRegisterWorkspace('ws');
+            mock = ret.mock; ws = ret.ws;
+            folder = helpers.mkdir('ws', 'a');
+            s.workspaces.addFolder(folder);
+        })
+
+        it("does not dispose of the workspace if there is a folder still", function() {
+            let otherFolder = helpers.mkdir('ws', 'b');
+            s.workspaces.addFolder(otherFolder);
+
+            let disposed = false;
+            let disposable = new vscode.Disposable(() => disposed = true);
+            ws.subscribe(disposable);
+            subject.handleDeletedFolder(folder);
+            assert.strictEqual(disposed, false);
+        })
+
+        it("disposes of the workspace when the last folder is removed", function() {
+            let disposed = false;
+            let disposable = new vscode.Disposable(() => disposed = true);
+            ws.subscribe(disposable);
+            subject.handleDeletedFolder(folder);
+            assert.strictEqual(disposed, true);
+        })
+    })
 })

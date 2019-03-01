@@ -42,7 +42,10 @@ export function activate(extensionContext: vscode.ExtensionContext) {
         vscode.workspace.onDidChangeConfiguration(
             () => applyConfiguration(configManager, workspaces)))
     extensionContext.subscriptions.push(
-        vscode.tasks.onDidEndTask((event) => workspaces.notifyEndTask(event.execution)))
+        vscode.tasks.onDidStartTaskProcess((event) => {
+            workspaces.notifyStartTaskProcess(event)
+        })
+    )
 
     extensionContext.subscriptions.push(
         vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));

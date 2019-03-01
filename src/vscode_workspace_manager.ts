@@ -2,6 +2,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import * as disposables from './disposables';
 import * as tasks from './tasks';
 import * as wrappers from './wrappers';
 import * as context from './context';
@@ -101,7 +102,9 @@ export class Manager {
         workspace.ensureSyskitContextAvailable().catch(() => {})
         let watchTask = this._taskProvider.watchTask(workspace.root)
         vscode.tasks.executeTask(watchTask).
-            then((taskExecution) => workspace.associateTask(taskExecution))
+            then((execution) => {
+                workspace.subscribe(disposables.forTask(execution))
+            })
         this.watchManifest(workspace);
     }
 
@@ -117,9 +120,7 @@ export class Manager {
         this._taskProvider.reloadTasks();
         if (deletedWs) {
             this.unwatchManifest(deletedWs);
-            deletedWs.readWatchPID().
-                then((pid) => process.kill(pid, 'SIGINT')).
-                catch(() => {})
+            deletedWs.dispose()
         }
     }
 
