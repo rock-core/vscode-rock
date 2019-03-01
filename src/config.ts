@@ -44,6 +44,11 @@ export class ConfigManager
 
         return this.writeCppProperties(pkgPath, pkgModel);
     }
+
+    public getDevFolder() : string | null {
+        return this._vscode.getConfiguration().get<string|null>('rock.devFolder', null);
+    }
+
     private writeCppProperties(pkgPath: string, pkgModel: autoproj.Package): boolean
     {
         const dbPath = path.join(pkgModel.builddir, "compile_commands.json");

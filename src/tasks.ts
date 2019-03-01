@@ -8,6 +8,13 @@ function runAutoproj(ws, ...args) {
     return new vscode.ProcessExecution(ws.autoprojExePath(), args, { cwd: ws.root })
 }
 
+export function workspaceFromTask(task : vscode.Task, workspaces : autoproj.Workspaces) : autoproj.Workspace | undefined {
+    let root = task.definition.workspace;
+    if (root) {
+        return workspaces.getWorkspaceFromRoot(root);
+    }
+}
+
 export class AutoprojProvider implements vscode.TaskProvider
 {
     workspaces : autoproj.Workspaces;

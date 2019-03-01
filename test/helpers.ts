@@ -14,6 +14,7 @@ import * as Packages from '../src/packages'
 import * as Tasks from '../src/tasks'
 import * as Syskit from '../src/syskit'
 import * as Config from '../src/config'
+import * as Watcher from '../src/watcher'
 import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 
@@ -215,6 +216,12 @@ export class TestSetup
         return this.mockConfigManager.target;
     }
 
+    mockFileWatcher : TypeMoq.IMock<Watcher.FileWatcher>;
+    get fileWatcher() : Watcher.FileWatcher
+    {
+        return this.mockFileWatcher.target;
+    }
+
     constructor()
     {
         this.mockWrapper = TypeMoq.Mock.ofType<Wrappers.VSCode>();
@@ -225,6 +232,7 @@ export class TestSetup
         this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.wrapper, this.taskProvider]);
         this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.wrapper, this.workspaces, this.packageFactory, this.outputChannel]);
         this.mockConfigManager = TypeMoq.Mock.ofType2(Config.ConfigManager, [this.workspaces, this.wrapper])
+        this.mockFileWatcher = TypeMoq.Mock.ofType2(Watcher.FileWatcher, [])
     }
 
     setupWrapper(fn) {

@@ -12,14 +12,48 @@ function assertWorkspaceNotEmpty(vscode: wrappers.VSCode)
         throw new Error("Current workspace is empty");
 }
 
-function findInsertIndex(array, predicate) {
-    for (let i = 0; i < array.length; ++i) {
-        let element = array[i];
-        if (predicate(element)) {
+export function findAutoprojFolderIndex(folders : vscode.WorkspaceFolder[],
+    ws : { root: string }) : number | undefined
+{
+    const configUri = vscode.Uri.file(pathjoin(ws.root, 'autoproj'));
+    for (let i = 0; i < folders.length; ++i) {
+        let f = folders[i];
+        if (f.uri.fsPath == configUri.fsPath) {
             return i;
         }
     }
-    return array.length;
+}
+
+export function addAutoprojFolder(vscodeW : wrappers.VSCode,
+    root: string, index: number | null = null) : boolean {
+
+    let wsname = basename(root);
+    let configUri = vscode.Uri.file(pathjoin(root, 'autoproj'));
+    let folder = { name: `autoproj (${wsname})`, uri: configUri };
+
+    if (index === null) {
+        index = vscodeW.workspaceFolders.length;
+    }
+    return vscodeW.updateWorkspaceFolders(index, null, folder);
+}
+
+function findInsertIndex(folders : vscode.WorkspaceFolder[], ws, name) : number
+{
+    let configIndex = findAutoprojFolderIndex(folders, ws);
+    if (configIndex === undefined) {
+        return folders.length;
+    }
+
+    for (let i = configIndex + 1; i < folders.length; ++i) {
+        let f = folders[i];
+        if (!f.uri.path.startsWith(ws.root)) {
+            return i;
+        }
+        if (name < f.name) {
+            return i;
+        }
+    }
+    return folders.length;
 }
 
 export class Commands
@@ -158,9 +192,9 @@ export class Commands
         this._context.outputChannel.show();
     }
 
-    async packagePickerChoices(): Promise<{ label, description, pkg }[]>
+    async packagePickerChoices(): Promise<{ label, description, ws, pkg }[]>
     {
-        let choices: { label, description, pkg }[] = [];
+        let choices: { label, description, ws, pkg }[] = [];
         let fsPathsObj = {};
         const wsInfos: [autoproj.Workspace, Promise<autoproj.WorkspaceInfo>][] = [];
 
@@ -174,17 +208,17 @@ export class Commands
             try {
                 const wsInfo = await wsInfoP;
                 if (!fsPathsObj.hasOwnProperty(ws.root)) {
-                    let name = `autoproj`
+                    let name = `autoproj (${ws.name})`
                     choices.push({
-                        label: name,
+                        label: name, ws: ws,
                         description: `${ws.name} Build Configuration`,
-                        pkg: { name: 'autoproj', srcdir: pathjoin(ws.root, 'autoproj') }
+                        pkg: { name: name, srcdir: pathjoin(ws.root, 'autoproj') }
                     });
                 }
                 for (const aPkg of wsInfo.packages) {
                     if (!fsPathsObj.hasOwnProperty(aPkg[1].srcdir)) {
                         choices.push({
-                            label: aPkg[1].name,
+                            label: aPkg[1].name, ws: ws,
                             description: basename(wsInfo.path),
                             pkg: aPkg[1]
                         });
@@ -199,6 +233,29 @@ export class Commands
         choices.sort((a, b) =>
             a.pkg.name < b.pkg.name ? -1 : a.pkg.name > b.pkg.name ? 1 : 0);
         return choices;
+    }
+
+    async addWorkspace()
+    {
+        let defaultUri;
+        let dev = this._context.workspaces.devFolder;
+        if (dev) {
+            defaultUri = vscode.Uri.file(dev);
+        }
+
+        let paths = await this._vscode.showOpenDialog(
+            { canSelectFiles: false, canSelectFolders: true, canSelectMany: true,
+              defaultUri: defaultUri, openLabel: 'Select the workspace(s) to add' });
+        if (!paths) {
+            return;
+        }
+
+        paths.forEach((p) => {
+            let root = autoproj.findWorkspaceRoot(p.fsPath);
+            if (root) {
+                addAutoprojFolder(this._vscode, root);
+            }
+        })
     }
 
     async addPackageToWorkspace()
@@ -217,21 +274,24 @@ export class Commands
             options, tokenSource.token);
 
         tokenSource.dispose();
-        if (selectedOption) {
-            const name = selectedOption.pkg.name;
-            const wsFolders = this._vscode.workspaceFolders;
-            let start = 0;
-            if (wsFolders) {
-                start = findInsertIndex(wsFolders, ((f) => name < f.name))
-            }
+        if (!selectedOption) {
+            return;
+        }
 
-            const folder = {
-                name: name,
-                uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
-            if (!this._vscode.updateWorkspaceFolders(start, null, folder)) {
-                this._vscode.showErrorMessage(
-                    `Could not add folder: ${selectedOption.pkg.srcdir}`);
-            }
+        const name = selectedOption.pkg.name;
+        const wsFolders = this._vscode.workspaceFolders;
+
+        let insertPosition = 0;
+        if (wsFolders) {
+            insertPosition = findInsertIndex(wsFolders, selectedOption.ws, name);
+        }
+
+        let folder = { name: name, uri: vscode.Uri.file(selectedOption.pkg.srcdir) };
+        let success = this._vscode.updateWorkspaceFolders(
+            insertPosition, null, folder)
+        if (!success) {
+            this._vscode.showErrorMessage(
+                `Could not add folder: ${selectedOption.pkg.srcdir}`);
         }
     }
 
@@ -242,5 +302,6 @@ export class Commands
         this._vscode.registerAndSubscribeCommand('rock.updateCodeConfig', () => { this.updateCodeConfig() });
         this._vscode.registerAndSubscribeCommand('rock.showOutputChannel', () => { this.showOutputChannel() });
         this._vscode.registerAndSubscribeCommand('rock.addPackageToWorkspace', () => { this.addPackageToWorkspace() });
+        this._vscode.registerAndSubscribeCommand('rock.addWorkspace', () => { this.addWorkspace() });
     }
 }

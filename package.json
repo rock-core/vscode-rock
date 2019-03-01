@@ -28,7 +28,7 @@
         "url": "https://github.com/rock-core/vscode-rock.git"
     },
     "engines": {
-        "vscode": "^1.21.0"
+        "vscode": "^1.30.0"
     },
     "activationEvents": [
         "*"
@@ -45,6 +45,17 @@
         "roby"
     ],
     "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Rock Workspace Configuration",
+            "properties": {
+                "rock.devFolder": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Toplevel path in which your workspaces are stored, to speed up selection in the Add Workspace command"
+                }
+            }
+        },
         "debuggers": [
             {
                 "type": "orogen",
@@ -113,6 +124,11 @@
                 "title": "Add launch config",
                 "category": "Rock",
                 "command": "rock.addLaunchConfig"
+            },
+            {
+                "title": "Add workspace",
+                "category": "Rock",
+                "command": "rock.addWorkspace"
             },
             {
                 "title": "Add package to workspace",
@@ -287,7 +303,11 @@
         "taskDefinitions": [
             {
                 "type": "autoproj-package",
-                "required": ["workspace", "mode", "path"],
+                "required": [
+                    "workspace",
+                    "mode",
+                    "path"
+                ],
                 "properties": {
                     "workspace": {
                         "type": "string",
@@ -312,7 +332,10 @@
             },
             {
                 "type": "autoproj-workspace",
-                "required": ["workspace", "mode"],
+                "required": [
+                    "workspace",
+                    "mode"
+                ],
                 "properties": {
                     "workspace": {
                         "type": "string",
@@ -365,7 +388,7 @@
         "run-sequence": "^2.2.1",
         "should": "latest",
         "typemoq": "latest",
-        "typescript": "^2.6.1",
-        "vscode": "^1.1.21"
+        "typescript": "latest",
+        "vscode": "^1.1.30"
     }
 }

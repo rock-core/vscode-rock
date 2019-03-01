@@ -41,15 +41,17 @@ run `autoproj osdeps`.
 - rock.vscode.gems
 ~~~
 
-## Management of Autoproj Workspaces
+## Workflow
 
-The extension will start providing commands and support for a given Rock
-workspace as soon as at least one package from this workspace is opened in
-VSCode (via the "Add Folder to Workspace" command).
+The extension does not provide support to bootstrap a workspace. It only
+works with an existing workspace.
 
-Once there is such a folder opened in VSCode, other packages from the same
-workspace can easily be added with the `Rock: add package to workspace` command
-provided by this extension.
+Open an Autoproj workspace using the `Rock: Add Workspace` command. This will
+add the workspace's `autoproj/` folder to your VSCode environment. From there
+on, add the packages you want to work on using the `Rock: Add Package to Workspace`
+command.
+
+
 
 ## Important Note about `env.sh`
 
@@ -57,6 +59,10 @@ provided by this extension.
 generates its own environment. Loading env.sh is even harmful as it would break
 if you were opening packages and programs from a different workspace than the one
 you loaded the env.sh from.
+
+Click on the image below for a demo video:
+
+[![Basic folder workflow](https://img.youtube.com/vi/TxxOOZdDW8c/0.jpg)](https://youtu.be/TxxOOZdDW8c)
 
 ## Autoproj Integration
 
@@ -82,7 +88,7 @@ And the `Run Build Task` picker:
 gives a convenient way to run the same task over and over again.
 
 **Important** if you create a new package, you must add it to the `layout`
-section of `autoproj/manifest` and run the `rock - Update package info` 
+section of `autoproj/manifest` and run the `rock - Update package info`
 command before the extension tools can be used for it.
 
 ## C++ Packages

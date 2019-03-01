@@ -45,9 +45,12 @@ export class Context
         return this._contextUpdatedEvent.event(callback);
     }
 
+    public get vscode() : wrappers.VSCode {
+        return this._vscode;
+    }
+
     public isWorkspaceEmpty() : boolean {
-        let folders = this._vscode.workspaceFolders;
-        return (!folders || folders.length == 0);
+        return this._vscode.workspaceFolders.length === 0;
     }
 
     public getWorkspaceByPath(path : string) : autoproj.Workspace | undefined
