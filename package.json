@@ -388,7 +388,7 @@
         "run-sequence": "^2.2.1",
         "should": "latest",
         "typemoq": "latest",
-        "typescript": "^2.6.1",
-        "vscode": "^1.1.21"
+        "typescript": "latest",
+        "vscode": "^1.1.30"
     }
 }
