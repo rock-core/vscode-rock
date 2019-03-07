@@ -53,6 +53,16 @@
                     "type": "string",
                     "default": null,
                     "description": "Toplevel path in which your workspaces are stored, to speed up selection in the Add Workspace command"
+                },
+                "rock.applyRubySettings": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the recommended Ruby settings should be set on new workspaces"
+                },
+                "rock.applyCPPSettings": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the recommended C++ settings should be set on new workspaces"
                 }
             }
         },
@@ -138,7 +148,22 @@
             {
                 "title": "Update VS Code configuration",
                 "category": "Rock",
-                "command": "rock.updateCodeConfig"
+                "command": "rock.applyDefaultSettings"
+            },
+            {
+                "title": "Apply Recommended Editor Settings",
+                "category": "Rock",
+                "command": "rock.applyEditorSettings"
+            },
+            {
+                "title": "Apply Recommended C++ Settings",
+                "category": "Rock",
+                "command": "rock.applyCPPSettings"
+            },
+            {
+                "title": "Apply Recommended Ruby Settings",
+                "category": "Rock",
+                "command": "rock.applyRubySettings"
             },
             {
                 "title": "Show Output",

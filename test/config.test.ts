@@ -246,7 +246,8 @@ describe("ConfigManager", function () {
             }
             mockSubject = TypeMoq.Mock.ofInstance(subject);
             mockConfiguration = TypeMoq.Mock.ofType<vscode.WorkspaceConfiguration>();
-            mockSubject.setup(x => x.suggestedSettings()).returns(() => mockSettings);
+            mockSubject.setup(x => x.suggestedEditorSettings(TypeMoq.It.isAny())).
+                returns(() => mockSettings);
             mockWrapper.setup(x => x.getConfiguration()).returns(() => mockConfiguration.object);
             subject = mockSubject.target;
         })
@@ -258,8 +259,7 @@ describe("ConfigManager", function () {
         }
         function testConfig(scope: vscode.ConfigurationTarget)
         {
-            subject.updateCodeConfig(scope);
-            mockWrapper.verify(x => x.getConfiguration(), TypeMoq.Times.once());
+            subject.applyDefaultSettings(scope);
             verifyConfig("some.property", "string", scope);
             verifyConfig("some.number", 31337, scope);
             verifyConfig("some.boolean", true, scope);
