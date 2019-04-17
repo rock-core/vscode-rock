@@ -1,7 +1,12 @@
 [![Build Status](https://travis-ci.org/rock-core/vscode-rock.svg?branch=master)](https://travis-ci.org/rock-core/vscode-rock)
 [![Coverage Status](https://coveralls.io/repos/github/rock-core/vscode-rock/badge.svg?branch=master)](https://coveralls.io/github/rock-core/vscode-rock?branch=master)
 
-# Rock README
+# Develop with Rock and VSCode
+
+**The version provided by the VSCode Marketplace may differ from the version found on GitHub. Make sure you read the documentation for the extension you installed:**
+
+- if installed as a VSCode extension, use the documentation [on the VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=rock-robotics.rock)
+- if installed from git, use the documentation [on GitHub](https://github.com/rock-core/vscode-rock/edit/master/README.md)
 
 This extension provides basic services related to using Visual Studio Code to
 work on a Rock system. It is a VERY recommended install to work on a Rock
