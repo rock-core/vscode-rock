@@ -415,7 +415,7 @@
         "run-sequence": "^2.2.1",
         "should": "latest",
         "typemoq": "latest",
-        "typescript": "latest",
+        "typescript": "^3.4.5",
         "vscode": "^1.1.30"
     }
 }
