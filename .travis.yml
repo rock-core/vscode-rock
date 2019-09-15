@@ -13,4 +13,4 @@ script:
   - npm run compile
   - gulp cover:enable
   - npm run test
-  - gulp cover:publish
+  - npm run coveralls
