@@ -97,4 +97,8 @@ export class VSCode {
     {
         return vscode.workspace.updateWorkspaceFolders(start, deleteCount, ...workspaceFoldersToAdd);
     }
+
+    public openTextDocument(fileName: string): Thenable<vscode.TextDocument> {
+        return vscode.workspace.openTextDocument(fileName);
+    }
 }
