@@ -93,6 +93,15 @@ describe("Linter", function () {
                 mockContext.setup((x) => x.getWorkspaceByPath("/foo")).returns(() => undefined);
                 assert.equal(undefined, await subject.lintDocument());
             });
+            it("shows error message if linting fails", async () => {
+                mockContext.setup((x) => x.getWorkspaceByPath("/foo")).returns(() => mockWorkspace.object);
+                mockWorkspace.setup((x) => x.autoprojExec("vera++", ["/foo/bar.cpp"])).returns(() => mockProcess);
+
+                const diagnosticPromise = subject.lintDocument();
+                mockProcess.emit('exit', 1, null);
+                assert.equal(undefined, await diagnosticPromise);
+                mockWrapper.verify((x) => x.showErrorMessage("Unable to run linter"), TypeMoq.Times.once());
+            });
             it("runs vera linting tool", async () => {
                 mockContext.setup((x) => x.getWorkspaceByPath("/foo")).returns(() => mockWorkspace.object);
                 mockWorkspace.setup((x) => x.autoprojExec("vera++", ["/foo/bar.cpp"])).returns(() => mockProcess);

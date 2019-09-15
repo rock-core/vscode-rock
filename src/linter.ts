@@ -21,7 +21,12 @@ export class Linter implements Disposable {
             let document = this._wrapper.activeTextEditor.document
             if (this.isSupportedLanguage(document.languageId) &&
                 this.isPartOfWorkspace(document.fileName)) {
-                diagnostics = this.parseResults(await this.runVera(document.fileName));
+                try {
+                    const result = await this.runVera(document.fileName);
+                    diagnostics = this.parseResults(result);
+                } catch (err) {
+                    this._wrapper.showErrorMessage(err.message);
+                }
             }
         }
         return diagnostics;
