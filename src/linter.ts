@@ -98,7 +98,7 @@ export class Linter implements Disposable {
 
                     let l = doc.lineAt(line);
                     let r = new Range(line, 0, line, l.text.length);
-                    let d = new Diagnostic(r, `${message}`, DiagnosticSeverity.Information);
+                    let d = new Diagnostic(r, message, DiagnosticSeverity.Information);
                     d.source = 'lint';
                     diagnostics.push(d);
                 }
