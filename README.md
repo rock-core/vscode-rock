@@ -43,6 +43,7 @@ to your layout. If you are already using the Rock extension in VSCode, do
 run `autoproj osdeps`.
 
 ~~~
+- rock.vscode
 - rock.vscode.gems
 ~~~
 
