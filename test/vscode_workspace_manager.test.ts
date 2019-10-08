@@ -43,6 +43,51 @@ describe("vscode_workspace_manager.Manager", function () {
                 TypeMoq.Times.never())
         })
 
+        it("adds the tasks of the new workspace", function() {
+            let root = s.createWorkspace('ws');
+            s.mockWrapper.setup(x => x.workspaceFolders).
+                returns(() => [{
+                    name: '',
+                    index: 0,
+                    uri: vscode.Uri.file(`${root}/autoproj`)
+                }])
+            s.mockConfigManager.setup(x => x.setupPackage(`${root}/base/types`)).
+                returns(() => Promise.resolve(true));
+            subject.handleNewFolder(0, `${root}/base/types`);
+            assert(s.taskProvider.watchTask(`${root}`))
+        })
+
+        it("adds the tasks of the new folder in a new workspace", function() {
+            let root = s.createWorkspace('ws');
+            s.mockWrapper.setup(x => x.workspaceFolders).
+                returns(() => [{
+                    name: '',
+                    index: 0,
+                    uri: vscode.Uri.file(`${root}/autoproj`)
+                }])
+            s.mockConfigManager.setup(x => x.setupPackage(`${root}/base/types`)).
+                returns(() => Promise.resolve(true));
+            subject.handleNewFolder(0, `${root}/base/types`);
+            assert(s.taskProvider.updateTask(`${root}/base/types`))
+        })
+
+        it("adds the tasks of a new folder in an existing workspace", function() {
+            let root = s.createWorkspace('ws');
+            s.mockWrapper.setup(x => x.workspaceFolders).
+                returns(() => [{
+                    name: '',
+                    index: 0,
+                    uri: vscode.Uri.file(`${root}/autoproj`)
+                }])
+            s.mockConfigManager.setup(x => x.setupPackage(`${root}/autoproj`)).
+                returns(() => Promise.resolve(true));
+            s.mockConfigManager.setup(x => x.setupPackage(`${root}/base/types`)).
+                returns(() => Promise.resolve(true));
+            subject.handleNewFolder(0, `${root}/autoproj`);
+            subject.handleNewFolder(0, `${root}/base/types`);
+            assert(s.taskProvider.updateTask(`${root}/base/types`))
+        })
+
         it("sets up the workspace if it was not there already", async function() {
             let { mock, ws } = s.createAndRegisterWorkspace('ws');
             let info = ws.info();

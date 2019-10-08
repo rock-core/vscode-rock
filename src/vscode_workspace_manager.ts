@@ -89,6 +89,7 @@ export class Manager {
         this._configManager.setupPackage(path).catch((reason) => {
             vscode.window.showErrorMessage(reason.message);
         });
+        this._taskProvider.reloadTasks();
         return index;
     }
 
