@@ -230,39 +230,45 @@ describe("CXXConfigurationProvider", function() {
                     find((item) => item.name == "TEST");
                 assert.equal(envItem.value, "FOO");
             })
-            it("replaces miDebuggerPath with the stub script", async function () {
-                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
-                    config, undefined);
-
-                assert.equal(resolvedConfig.miDebuggerPath, stub);
-                let envItem = (resolvedConfig.environment as Array<any>).
-                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_DEBUGGER");
-                assert.equal(envItem.value, "/path/to/gdb");
-            })
             it("sets miDebuggerPath to the stub script", async function () {
                 config.miDebuggerPath = undefined;
                 let resolvedConfig = await subject.resolveDebugConfiguration(folder,
                     config, undefined);
 
                 assert.equal(resolvedConfig.miDebuggerPath, stub);
-                let envItem = (resolvedConfig.environment as Array<any>).
-                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_DEBUGGER");
-                assert.equal(envItem.value, "gdb");
             })
-            it("sets autoproj executable path", async function () {
-                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
-                    config, undefined);
-                let envItem = (resolvedConfig.environment as Array<any>).
-                    find((item) => item.name == "VSCODE_ROCK_AUTOPROJ_PATH");
-                assert.equal(envItem.value, ws.autoprojExePath());
-            })
-            it("sets autoproj current root", async function () {
-                let resolvedConfig = await subject.resolveDebugConfiguration(folder,
-                    config, undefined);
-                let envItem = (resolvedConfig.environment as Array<any>).
-                    find((item) => item.name == "AUTOPROJ_CURRENT_ROOT");
-                assert.equal(envItem.value, ws.root);
-            })
+            it("passes the autoproj path and debugger path through arguments to the stub",
+                async function () {
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal(
+                        `"${root}/test/.autoproj/bin/autoproj" "/path/to/gdb"`,
+                        resolvedConfig.miDebuggerArgs
+                    )
+                }
+            )
+            it("defaults to 'gdb' for the debugger if miDebuggerPath is not set",
+                async function () {
+                    config.miDebuggerPath = undefined;
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal(
+                        `"${root}/test/.autoproj/bin/autoproj" "gdb"`,
+                        resolvedConfig.miDebuggerArgs
+                    )
+                }
+            )
+            it("prepends new arguments to existing debugger arguments",
+                async function () {
+                    config.miDebuggerArgs = "a \"b\"";
+                    let resolvedConfig = await subject.resolveDebugConfiguration(folder,
+                        config, undefined);
+                    assert.equal(
+                        `"${root}/test/.autoproj/bin/autoproj" "/path/to/gdb" a "b"`,
+                        resolvedConfig.miDebuggerArgs
+                    )
+                }
+            )
             it("expands the 'program' value", async function () {
                 let mockSubject = TypeMoq.Mock.ofInstance(subject);
                 mockSubject.setup(x => x.expandAutoprojPaths(TypeMoq.It.isAny(),
