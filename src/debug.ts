@@ -125,15 +125,11 @@ export class CXXConfigurationProvider extends ConfigurationProvider
         }
         else {
             config.miDebuggerPath = stubScript;
-            if (!config.environment) {
-                config.environment = [];
+            let args = `"${ws.autoprojExePath()}" "${debuggerPath}"`;
+            if (config.miDebuggerArgs) {
+                args = `${args} ${config.miDebuggerArgs}`;
             }
-            config.environment = config.environment.concat([
-                { name: "VSCODE_ROCK_AUTOPROJ_PATH", value: ws.autoprojExePath() },
-                { name: "VSCODE_ROCK_AUTOPROJ_DEBUGGER", value: debuggerPath },
-                { name: 'AUTOPROJ_CURRENT_ROOT', value: ws.root }
-            ])
-
+            config.miDebuggerArgs = args;
         }
 
         return config;
