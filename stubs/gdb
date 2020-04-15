@@ -1,6 +1,14 @@
-#! /bin/sh
+#! /bin/bash
 
-autoproj_path=$1
-shift
+newparams=()
+for param; do
+    if [[ "$param" == -* ]]; then
+        newparams+=("$param")
+    elif test -z "$autoproj_path"; then
+        autoproj_path=$param
+    elif test -z "$debugger"; then
+        debugger=$param
+    fi
+done
 
-exec "$autoproj_path" exec "$@"
+exec "$autoproj_path" exec "$debugger" "${newparams[@]}"
