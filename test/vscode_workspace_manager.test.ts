@@ -18,7 +18,8 @@ describe("vscode_workspace_manager.Manager", function () {
     beforeEach(function () {
         s = new helpers.TestSetup();
         helpers.init();
-        subject = new Manager(s.context, s.workspaces, s.taskProvider,
+        subject = new Manager(
+            s.context, s.workspaces, s.workspaceTaskProvider, s.packageTaskProvider,
             s.mockConfigManager.object, s.fileWatcher);
     })
     afterEach(function () {
@@ -54,7 +55,7 @@ describe("vscode_workspace_manager.Manager", function () {
             s.mockConfigManager.setup(x => x.setupPackage(`${root}/base/types`)).
                 returns(() => Promise.resolve(true));
             subject.handleNewFolder(0, `${root}/base/types`);
-            assert(s.taskProvider.watchTask(`${root}`))
+            assert(s.workspaceTaskProvider.watchTask(`${root}`))
         })
 
         it("adds the tasks of the new folder in a new workspace", function() {
@@ -68,7 +69,7 @@ describe("vscode_workspace_manager.Manager", function () {
             s.mockConfigManager.setup(x => x.setupPackage(`${root}/base/types`)).
                 returns(() => Promise.resolve(true));
             subject.handleNewFolder(0, `${root}/base/types`);
-            assert(s.taskProvider.updateTask(`${root}/base/types`))
+            assert(s.packageTaskProvider.updateTask(`${root}/base/types`))
         })
 
         it("adds the tasks of a new folder in an existing workspace", function() {
@@ -85,7 +86,7 @@ describe("vscode_workspace_manager.Manager", function () {
                 returns(() => Promise.resolve(true));
             subject.handleNewFolder(0, `${root}/autoproj`);
             subject.handleNewFolder(0, `${root}/base/types`);
-            assert(s.taskProvider.updateTask(`${root}/base/types`))
+            assert(s.packageTaskProvider.updateTask(`${root}/base/types`))
         })
 
         it("sets up the workspace if it was not there already", async function() {

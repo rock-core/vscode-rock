@@ -20,17 +20,21 @@ import * as path from 'path'
 export class Manager {
     private _rockContext : context.Context;
     private _workspaces : autoproj.Workspaces;
-    private _taskProvider : tasks.AutoprojProvider;
+    private _workspaceTaskProvider : tasks.AutoprojWorkspaceTaskProvider;
+    private _packageTaskProvider : tasks.AutoprojPackageTaskProvider;
     private _configManager : config.ConfigManager;
     private _fileWatcher : watcher.FileWatcher;
 
     constructor(rockContext : context.Context, workspaces : autoproj.Workspaces,
-        taskProvider : tasks.AutoprojProvider, configManager : config.ConfigManager,
+        workspaceTaskProvider : tasks.AutoprojWorkspaceTaskProvider,
+        packageTaskProvider : tasks.AutoprojPackageTaskProvider,
+        configManager : config.ConfigManager,
         fileWatcher : watcher.FileWatcher) {
 
         this._rockContext   = rockContext;
         this._workspaces    = workspaces;
-        this._taskProvider  = taskProvider;
+        this._workspaceTaskProvider  = workspaceTaskProvider;
+        this._packageTaskProvider  = packageTaskProvider;
         this._configManager = configManager;
         this._fileWatcher   = fileWatcher;
     }
@@ -89,7 +93,7 @@ export class Manager {
         this._configManager.setupPackage(path).catch((reason) => {
             vscode.window.showErrorMessage(reason.message);
         });
-        this._taskProvider.reloadTasks();
+        this._packageTaskProvider.reloadTasks();
         return index;
     }
 
@@ -99,9 +103,10 @@ export class Manager {
             vscode.window.showErrorMessage(errMsg);
         })
 
-        this._taskProvider.reloadTasks();
+        this._workspaceTaskProvider.reloadTasks();
+        this._packageTaskProvider.reloadTasks();
         workspace.ensureSyskitContextAvailable().catch(() => {})
-        let watchTask = this._taskProvider.watchTask(workspace.root)
+        let watchTask = this._workspaceTaskProvider.watchTask(workspace.root)
         vscode.tasks.executeTask(watchTask).
             then((execution) => {
                 workspace.subscribe(disposables.forTask(execution))
@@ -119,7 +124,7 @@ export class Manager {
 
     handleDeletedFolder(path: string) {
         let deletedWs = this._workspaces.deleteFolder(path);
-        this._taskProvider.reloadTasks();
+        this._packageTaskProvider.reloadTasks();
         if (deletedWs) {
             this.unwatchManifest(deletedWs);
             deletedWs.dispose()

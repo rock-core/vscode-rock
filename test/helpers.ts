@@ -186,10 +186,16 @@ export class TestSetup
         return this.mockWorkspaces.target;
     }
 
-    mockTaskProvider : TypeMoq.IMock<Tasks.AutoprojProvider>;
-    get taskProvider()
+    mockWorkspaceTaskProvider : TypeMoq.IMock<Tasks.AutoprojWorkspaceTaskProvider>;
+    get workspaceTaskProvider()
     {
-        return this.mockTaskProvider.target;
+        return this.mockWorkspaceTaskProvider.target;
+    }
+
+    mockPackageTaskProvider : TypeMoq.IMock<Tasks.AutoprojPackageTaskProvider>;
+    get packageTaskProvider()
+    {
+        return this.mockPackageTaskProvider.target;
     }
 
     mockPackageFactory : TypeMoq.IMock<Packages.PackageFactory>;
@@ -228,8 +234,9 @@ export class TestSetup
 
         this.mockOutputChannel = TypeMoq.Mock.ofType2(OutputChannel, []);
         this.mockWorkspaces = TypeMoq.Mock.ofType2(Autoproj.Workspaces, [undefined, this.outputChannel]);
-        this.mockTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojProvider, [this.workspaces]);
-        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.wrapper, this.taskProvider]);
+        this.mockWorkspaceTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojWorkspaceTaskProvider, [this.workspaces]);
+        this.mockPackageTaskProvider = TypeMoq.Mock.ofType2(Tasks.AutoprojPackageTaskProvider, [this.workspaces]);
+        this.mockPackageFactory = TypeMoq.Mock.ofType2(Packages.PackageFactory, [this.wrapper]);
         this.mockContext = TypeMoq.Mock.ofType2(Context.Context, [this.wrapper, this.workspaces, this.packageFactory, this.outputChannel]);
         this.mockConfigManager = TypeMoq.Mock.ofType2(Config.ConfigManager, [this.workspaces, this.wrapper])
         this.mockFileWatcher = TypeMoq.Mock.ofType2(Watcher.FileWatcher, [])

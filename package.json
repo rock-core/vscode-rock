@@ -351,11 +351,11 @@
                     "mode": {
                         "type": "string",
                         "enum": [
-                            "update",
-                            "checkout",
                             "build",
+                            "checkout",
+                            "force-build",
                             "build-no-deps",
-                            "force-build"
+                            "update"
                         ],
                         "description": "The operation mode"
                     }
@@ -375,11 +375,12 @@
                     "mode": {
                         "type": "string",
                         "enum": [
-                            "osdeps",
                             "watch",
+                            "build",
+                            "checkout",
+                            "osdeps",
                             "update-config",
-                            "update",
-                            "checkout"
+                            "update"
                         ],
                         "description": "The operation mode"
                     }
