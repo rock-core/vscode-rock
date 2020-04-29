@@ -29,14 +29,18 @@ export function activate(extensionContext: vscode.ExtensionContext) {
 
     let outputChannel = vscode.window.createOutputChannel('Rock');
     let workspaces = new autoproj.Workspaces(null, outputChannel);
-    let autoprojTaskProvider = new tasks.AutoprojProvider(workspaces);
+    let autoprojWorkspaceTaskProvider =
+        new tasks.AutoprojWorkspaceTaskProvider(workspaces);
+    let autoprojPackageTaskProvider =
+        new tasks.AutoprojPackageTaskProvider(workspaces);
     let rockContext = new context.Context(vscodeWrapper, workspaces,
         new packages.PackageFactory(vscodeWrapper),
         outputChannel);
 
     let configManager = new config.ConfigManager(workspaces, vscodeWrapper);
     let vscodeWorkspaceManager = new VSCodeWorkspaceManager(
-        rockContext, workspaces, autoprojTaskProvider, configManager, fileWatcher);
+        rockContext, workspaces, autoprojWorkspaceTaskProvider,
+        autoprojPackageTaskProvider, configManager, fileWatcher);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
     let rockLint = new linter.Linter(rockContext, vscodeWrapper,
         vscode.languages.createDiagnosticCollection('lint'));
@@ -52,10 +56,13 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     )
 
     extensionContext.subscriptions.push(
-        vscode.workspace.registerTaskProvider('autoproj', autoprojTaskProvider));
+        vscode.workspace.registerTaskProvider('autoproj-workspace', autoprojWorkspaceTaskProvider));
+    extensionContext.subscriptions.push(
+        vscode.workspace.registerTaskProvider('autoproj-package', autoprojPackageTaskProvider));
 
     vscodeWorkspaceManager.initializeWorkspaces(vscodeWrapper.workspaceFolders);
-    autoprojTaskProvider.reloadTasks();
+    autoprojPackageTaskProvider.reloadTasks();
+    autoprojWorkspaceTaskProvider.reloadTasks();
     extensionContext.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders((event) => {
             vscodeWorkspaceManager.handleWorkspaceChangeEvent(event)
