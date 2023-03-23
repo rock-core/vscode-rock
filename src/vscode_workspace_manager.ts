@@ -114,7 +114,7 @@ export class Manager {
         this.watchManifest(workspace);
     }
 
-    initializeWorkspaces(folders : vscode.WorkspaceFolder[]) {
+    initializeWorkspaces(folders : readonly vscode.WorkspaceFolder[]) {
         let index = 0;
         folders.forEach((folder) => {
             index = this.handleNewFolder(index, folder.uri.fsPath);

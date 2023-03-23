@@ -43,8 +43,9 @@ async function terminateSyskit(workspace : autoproj.Workspace, processMock) {
 }
 
 let killed : { pid, signal }[] = []
-function mockKill(pid: number, signal: string | number | undefined) {
+function mockKill(pid: number, signal: string | number | undefined) : true {
     killed.push({ pid: pid, signal: signal})
+    return true
 }
 
 describe("Autoproj helpers tests", function () {
@@ -273,9 +274,9 @@ describe("Autoproj helpers tests", function () {
             })
             it("returns an existing target's sync URI", function() {
                 helpers.createConfigFile({sync: {test: {uri: 'ssh://host/'}}});
-                let uri = ws.syncRemote("test") as url.Url;
-                assert.equal('host', uri.hostname);
-                assert.equal('ssh:', uri.protocol);
+                let uri = ws.syncRemote("test") as url.URL;
+                assert.strictEqual('host', uri.hostname);
+                assert.strictEqual('ssh:', uri.protocol);
             })
         })
 

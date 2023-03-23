@@ -12,7 +12,7 @@ function assertWorkspaceNotEmpty(vscode: wrappers.VSCode)
         throw new Error("Current workspace is empty");
 }
 
-export function findAutoprojFolderIndex(folders : vscode.WorkspaceFolder[],
+export function findAutoprojFolderIndex(folders : readonly vscode.WorkspaceFolder[],
     ws : { root: string }) : number | undefined
 {
     const configUri = vscode.Uri.file(pathjoin(ws.root, 'autoproj'));
@@ -37,7 +37,7 @@ export function addAutoprojFolder(vscodeW : wrappers.VSCode,
     return vscodeW.updateWorkspaceFolders(index, null, folder);
 }
 
-function findInsertIndex(folders : vscode.WorkspaceFolder[], ws, name) : number
+function findInsertIndex(folders : readonly vscode.WorkspaceFolder[], ws, name) : number
 {
     let configIndex = findAutoprojFolderIndex(folders, ws);
     if (configIndex === undefined) {

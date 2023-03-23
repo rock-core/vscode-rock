@@ -1,12 +1,11 @@
 'use strict';
 
 import * as vscode from 'vscode'
+import * as stream from 'stream'
 import * as Autoproj from '../src/autoproj'
 import * as FS from 'fs';
-import * as Temp from 'fs-temp';
 import * as Path from 'path';
 import * as YAML from 'js-yaml';
-import * as assert from 'assert'
 import * as TypeMoq from 'typemoq'
 import * as Wrappers from '../src/wrappers'
 import * as Context from '../src/context'
@@ -15,8 +14,8 @@ import * as Tasks from '../src/tasks'
 import * as Syskit from '../src/syskit'
 import * as Config from '../src/config'
 import * as Watcher from '../src/watcher'
+import * as os from 'os'
 import { EventEmitter } from 'events';
-import { writeFileSync } from 'fs';
 
 export class OutputChannel implements Autoproj.OutputChannel
 {
@@ -50,8 +49,8 @@ let root;
 let createdFS : Array<Array<string>> = []
 
 export function init(): string {
-    root = Temp.mkdirSync();
-    return root;
+    root = FS.mkdtempSync(Path.join(os.tmpdir(), "vscore-rock"));
+    return root
 }
 
 export function fullPath(...path : string[]): string {
@@ -90,7 +89,7 @@ export function registerFile(...path) {
 export function createConfigFile(data: any, ...workspacePath): string {
     let joinedPath = fullPath(...workspacePath, '.autoproj', 'config.yml');
     mkdir(...workspacePath, '.autoproj')
-    FS.writeFileSync(joinedPath, YAML.safeDump(data));
+    FS.writeFileSync(joinedPath, YAML.dump(data));
     createdFS.push([joinedPath, 'file']);
     return joinedPath;
 }
@@ -98,7 +97,7 @@ export function createInstallationManifest(data: any, ...workspacePath): string 
     let joinedPath = fullPath(...workspacePath);
     joinedPath = Autoproj.installationManifestPath(joinedPath);
     mkdir(...workspacePath, '.autoproj')
-    FS.writeFileSync(joinedPath, YAML.safeDump(data));
+    FS.writeFileSync(joinedPath, YAML.dump(data));
     createdFS.push([joinedPath, 'file']);
     return joinedPath;
 }
@@ -141,9 +140,9 @@ export function addPackageToManifest(ws, path : string[], partialInfo: { [key: s
     };
 
     let manifestPath = Autoproj.installationManifestPath(ws.root)
-    let manifest = YAML.safeLoad(FS.readFileSync(manifestPath).toString()) as any[];
+    let manifest = YAML.load(FS.readFileSync(manifestPath).toString()) as any[];
     manifest.push(result);
-    FS.writeFileSync(manifestPath, YAML.safeDump(manifest));
+    FS.writeFileSync(manifestPath, YAML.dump(manifest));
     ws.reload();
     return result;
 }

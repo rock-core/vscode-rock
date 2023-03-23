@@ -29,7 +29,7 @@ export class VSCode {
         return vscode.window.activeTextEditor;
     }
 
-    public get workspaceFolders(): vscode.WorkspaceFolder[]
+    public get workspaceFolders(): readonly vscode.WorkspaceFolder[]
     {
         let folders = vscode.workspace.workspaceFolders;
         if (folders)
