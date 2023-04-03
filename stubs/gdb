@@ -4,6 +4,10 @@ newparams=()
 for param; do
     if [[ "$param" == -* ]]; then
         newparams+=("$param")
+    elif test "$param" = "$0"; then
+	continue
+    elif test "$param" = "$autoproj_path"; then
+	continue
     elif test -z "$autoproj_path"; then
         autoproj_path=$param
     elif test -z "$debugger"; then
