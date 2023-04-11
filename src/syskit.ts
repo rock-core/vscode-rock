@@ -131,7 +131,7 @@ export class Connection
                 clearTimeout(pollId);
             }
         }
-        let p = new Promise((resolve, reject) => {
+        let p = new Promise<void>((resolve, reject) => {
             (function poll() {
                 if (!attempting) {
                     attempt().then((success) => {

@@ -258,10 +258,8 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
     private setupTask(ws: autoproj.Workspace, name: string,
         start?: boolean, confDir?: string): Promise<void>
     {
-        let options: child_process.SpawnOptions = { env: {} };
+        let options: child_process.SpawnOptions = { env: { ...process.env, AUTOPROJ_CURRENT_ROOT: ws.root} };
         let stubScript = joinpath(__dirname, '..', '..', 'stubs', "setup_task.rb");
-        Object.assign(options.env, process.env);
-        Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: ws.root });
 
         let args: string[] = ['exec', 'ruby', stubScript];
         if (start) args.push("--start");
@@ -271,10 +269,10 @@ export class OrogenConfigurationProvider extends CXXConfigurationProvider
         }
         args.push(name);
         let subprocess = child_process.spawn(ws.autoprojExePath(), args, options);
-        subprocess.stdout.on('data', (buffer) => {
+        subprocess.stdout!.on('data', (buffer) => {
             this._context.outputChannel.append(buffer.toString());
         });
-        subprocess.stderr.on('data', (buffer) => {
+        subprocess.stderr!.on('data', (buffer) => {
             this._context.outputChannel.append(buffer.toString());
         });
         return new Promise<void>((resolve, reject) => {

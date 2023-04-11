@@ -12,11 +12,12 @@ import * as debug from './debug';
 import * as config from './config';
 import * as snippets from './snippets';
 import * as watcher from './watcher';
-import * as linter from './linter';
 import { Manager as VSCodeWorkspaceManager } from './vscode_workspace_manager';
 
-function applyConfiguration(configManager : config.ConfigManager,
+function applyConfiguration(
+    configManager : config.ConfigManager,
     workspaces : autoproj.Workspaces) : void {
+
     workspaces.devFolder = configManager.getDevFolder();
     configManager.autoApplySettings();
 }
@@ -42,8 +43,6 @@ export function activate(extensionContext: vscode.ExtensionContext) {
         rockContext, workspaces, autoprojWorkspaceTaskProvider,
         autoprojPackageTaskProvider, configManager, fileWatcher);
     let rockCommands = new commands.Commands(rockContext, vscodeWrapper, configManager);
-    let rockLint = new linter.Linter(rockContext, vscodeWrapper,
-        vscode.languages.createDiagnosticCollection('lint'));
 
     applyConfiguration(configManager, workspaces);
     extensionContext.subscriptions.push(
@@ -89,11 +88,6 @@ export function activate(extensionContext: vscode.ExtensionContext) {
     }];
     extensionContext.subscriptions.push(vscode.languages.registerCompletionItemProvider(
         launchJsonDocumentSelector, new snippets.LaunchSnippetProvider(rockContext, vscodeWrapper)));
-
-    rockLint.start();
-    extensionContext.subscriptions.push(rockLint);
-    extensionContext.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((() => rockLint.start())));
-    extensionContext.subscriptions.push(vscode.workspace.onDidSaveTextDocument((() => rockLint.start())));
 }
 
 // this method is called when your extension is deactivated

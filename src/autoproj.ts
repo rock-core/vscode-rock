@@ -1,5 +1,6 @@
 'use strict';
 
+import * as stream from 'stream';
 import * as child_process from 'child_process';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
@@ -94,8 +95,8 @@ export class WorkspaceInfo
 
 export interface Process extends EventEmitter
 {
-    stdout: EventEmitter;
-    stderr: EventEmitter;
+    stdout: EventEmitter | null;
+    stderr: EventEmitter | null;
     kill: (string) => void;
 }
 
@@ -199,7 +200,7 @@ export class Workspace
         this._subscriptions.forEach((s) => s.dispose())
     }
 
-    syncRemote(name: string) : url.Url | undefined {
+    syncRemote(name: string) : url.URL | undefined {
         let autoprojConfig = this.config();
         let syncConfig = autoprojConfig['sync'];
         if (!syncConfig)
@@ -213,9 +214,9 @@ export class Workspace
 
     config() : object {
         let data = fs.readFileSync(configFilePath(this.root)).toString();
-        let config = yaml.safeLoad(data.toString());
+        let config = yaml.load(data.toString());
         if (config)
-            return config;
+            return config as object;
         else return {};
     }
 
@@ -257,15 +258,15 @@ export class Workspace
 
     which(cmd: string)
     {
-        let options: child_process.SpawnOptions = { env: {} };
-        Object.assign(options.env, process.env);
-        Object.assign(options.env, { AUTOPROJ_CURRENT_ROOT: this.root });
+        let options: child_process.SpawnOptions = { env: { ...process.env, AUTOPROJ_CURRENT_ROOT: this.root } };
         let subprocess = child_process.spawn(this.autoprojExePath(), ['which', cmd], options);
         let path = '';
         this.redirectProcessToChannel(`autoproj which ${cmd}`, `which ${cmd}`, subprocess);
-        subprocess.stdout.on('data', (buffer) => {
-            path = path.concat(buffer.toString());
-        })
+        if (subprocess.stdout) {
+            subprocess.stdout.on('data', (buffer) => {
+                path = path.concat(buffer.toString());
+            })
+        }
 
         return new Promise<string>((resolve, reject) => {
             subprocess.on('exit', (code, signal) => {
@@ -392,13 +393,13 @@ export class Workspace
     private redirectProcessToChannel(name, shortname, subprocess : Process)
     {
         this._outputChannel.appendLine(`${shortname}: starting ${name}`)
-        subprocess.stderr.on('data', (buffer) => {
+        subprocess.stderr!.on('data', (buffer) => {
             let lines = buffer.toString().split("\n");
             lines.forEach((l) => {
                 this._outputChannel.appendLine(`${shortname}: ${l}`)
             })
         })
-        subprocess.stdout.on('data', (buffer) => {
+        subprocess.stdout!.on('data', (buffer) => {
             let lines = buffer.toString().split("\n");
             lines.forEach((l) => {
                 this._outputChannel.appendLine(`${shortname}: ${l}`)
@@ -507,7 +508,7 @@ export function loadWorkspaceInfo(workspacePath: string): Promise<WorkspaceInfo>
         })
     }).then((data) =>
     {
-        let manifest = yaml.safeLoad(data.toString()) as any[];
+        let manifest = yaml.load(data.toString()) as any[];
         if (manifest === undefined) {
             manifest = [];
         }
